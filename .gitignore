@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+*.egg-info/
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Data files
+*.csv
+*.pkl
+*.pt
+*.pth
+*.h5
+*.npy
+*.npz
+
+# Archive files
+*.zip
+*.tar
+*.gz
+
+# Logs
+*.log
+logs/
+
+# Results
+results/
+outputs/
+
+# Jupyter checkpoints
+.ipynb_checkpoints
+
+# Specific project files
+16.zip
