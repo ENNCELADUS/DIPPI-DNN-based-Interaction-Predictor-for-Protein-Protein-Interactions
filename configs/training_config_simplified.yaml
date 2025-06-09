@@ -1,0 +1,33 @@
+# Training Configuration for Simplified Protein Classifier
+# This file demonstrates how to configure training parameters for DIPPI models
+
+# Model Configuration
+model: "simplified"
+input_dim: 960          # Protein embedding dimension
+hidden_dim: 256         # Hidden layer size
+dropout: 0.3            # Dropout rate for regularization
+
+# Training Parameters
+epochs: 20              # Maximum number of training epochs
+batch_size: 32          # Batch size for training
+learning_rate: 0.005    # Initial learning rate
+weight_decay: 0.01      # Weight decay for regularization
+
+# Learning Rate Scheduler
+scheduler_type: "onecycle"  # Options: onecycle, cosine, plateau
+early_stopping_patience: 5  # Early stopping patience
+
+# Training Optimization
+gradient_clip_norm: 1.0     # Gradient clipping norm (null to disable)
+log_every_n_steps: 50       # Logging frequency
+
+# Data Loading
+num_workers: 2              # Number of data loader workers
+
+# Output Configuration
+experiment_name: "simplified_baseline"
+checkpoint_dir: "models/checkpoints"
+log_dir: "logs"
+
+# Device Configuration (optional)
+# device: "cuda"  # Uncomment to force specific device 

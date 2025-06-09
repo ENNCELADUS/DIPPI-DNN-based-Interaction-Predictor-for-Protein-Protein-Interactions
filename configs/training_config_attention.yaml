@@ -1,0 +1,34 @@
+# Training Configuration for Attention Protein Classifier
+# This file demonstrates how to configure training parameters for the attention-based model
+
+# Model Configuration
+model: "attention"
+input_dim: 960          # Protein embedding dimension
+hidden_dim: 256         # Hidden layer size
+num_heads: 8            # Number of attention heads
+dropout: 0.3            # Dropout rate for regularization
+
+# Training Parameters
+epochs: 30              # Maximum number of training epochs (more for complex model)
+batch_size: 16          # Smaller batch size for attention model
+learning_rate: 0.003    # Slightly lower learning rate
+weight_decay: 0.01      # Weight decay for regularization
+
+# Learning Rate Scheduler
+scheduler_type: "cosine"    # Cosine annealing often works well with attention
+early_stopping_patience: 7  # More patience for complex model
+
+# Training Optimization
+gradient_clip_norm: 0.5     # Lower gradient clipping for attention
+log_every_n_steps: 25       # More frequent logging
+
+# Data Loading
+num_workers: 2              # Number of data loader workers
+
+# Output Configuration
+experiment_name: "attention_model"
+checkpoint_dir: "models/checkpoints"
+log_dir: "logs"
+
+# Device Configuration (optional)
+# device: "cuda"  # Attention models benefit from GPU acceleration 
