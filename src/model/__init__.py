@@ -20,15 +20,11 @@ from .registry import (
 # TODO:Import all model files to ensure registration
 # This triggers the @register_model decorators
 from . import v1
-from . import v2
+# NOTE: v2.py doesn't exist, skipping for now
 
 # Backward compatibility - you can still import specific models if needed
 from .v1 import SimplifiedProteinClassifier
-from .v2 import (
-    AttentionProteinClassifier,
-    MultiHeadAttentionProteinClassifier,
-    CrossAttentionProteinClassifier
-)
+# NOTE: v2 models not available, skipping for now
 
 # Export the main interfaces
 __all__ = [
@@ -40,7 +36,4 @@ __all__ = [
     'register_model',
     # Individual model classes for backward compatibility
     'SimplifiedProteinClassifier',
-    'AttentionProteinClassifier', 
-    'MultiHeadAttentionProteinClassifier',
-    'CrossAttentionProteinClassifier'
 ] 

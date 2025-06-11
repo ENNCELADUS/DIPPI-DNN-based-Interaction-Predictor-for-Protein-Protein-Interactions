@@ -12,96 +12,118 @@ import math
 from typing import Optional, Tuple
 
 # ============================================================================
-# COPIED FROM v2.py - TransformerMAE class
+# LEAN V2 ENCODER - Only the parts we actually use
 # ============================================================================
 
-class TransformerMAE(nn.Module):
-    """Masked Autoencoder with Transformer - copied from v2.py"""
+class V2Encoder(nn.Module):
+    """Lean version of v2 MAE encoder containing only the components we actually use"""
     def __init__(self,
                  input_dim=960,
                  embed_dim=512,
-                 mask_ratio=0.5,
                  num_layers=4,
                  nhead=16,
                  ff_dim=2048,
                  max_len=1502):
         super().__init__()
-        self.mask_ratio = mask_ratio
-        self.max_len = max_len
-
-        # ---- embed & mask token & pos embed ----
-        self.embed = nn.Linear(input_dim, embed_dim)  # (B,L,960)-->(B, L, 512)
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, embed_dim))  # (1,1,512)
+        
+        # Only the components we actually use
+        self.embed = nn.Linear(input_dim, embed_dim)  # (B,L,960) → (B,L,512)
         self.pos_embed = nn.Parameter(torch.randn(1, max_len, embed_dim))  # (1,1502,512)
-
-        # ---- Transformer encoder ----
+        
+        # Transformer encoder
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=embed_dim,
             nhead=nhead,
             dim_feedforward=ff_dim,
             batch_first=True)
         self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+    
+    def forward(self, x, lengths):
+        """
+        Forward pass without masking or reconstruction
+        
+        Args:
+            x: (B, L, 960) - protein embeddings
+            lengths: (B,) - sequence lengths
+            
+        Returns:
+            encoder_output: (B, L, 512) - encoded representations
+        """
+        B, L, _ = x.shape
+        device = x.device
+        
+        # Embed and add positional encoding
+        x_emb = self.embed(x) + self.pos_embed[:, :L]  # (B, L, 512)
+        
+        # Create padding mask
+        pad_mask = torch.arange(L, device=device).expand(B, L) >= lengths.unsqueeze(1)
+        
+        # Pass through transformer encoder
+        encoder_output = self.encoder(x_emb, src_key_padding_mask=pad_mask)  # (B, L, 512)
+        
+        return encoder_output
 
-        # ---- decoder head (MLP) ----
+# ============================================================================
+# COMPATIBILITY LAYER - For loading pretrained v2 MAE weights
+# ============================================================================
+
+class TransformerMAE(nn.Module):
+    """
+    Minimal compatibility wrapper for loading pretrained v2 MAE weights.
+    Contains only what's needed for weight loading, then we extract the useful parts.
+    """
+    def __init__(self,
+                 input_dim=960,
+                 embed_dim=512,
+                 mask_ratio=0.5,  # Ignored - kept for compatibility
+                 num_layers=4,
+                 nhead=16,
+                 ff_dim=2048,
+                 max_len=1502):
+        super().__init__()
+        
+        # Core components (what we actually use)
+        self.embed = nn.Linear(input_dim, embed_dim)
+        self.pos_embed = nn.Parameter(torch.randn(1, max_len, embed_dim))
+        
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=embed_dim,
+            nhead=nhead,
+            dim_feedforward=ff_dim,
+            batch_first=True)
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+        
+        # Unused components (kept only for weight loading compatibility)
+        self.mask_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.decoder = nn.Sequential(
             nn.Linear(embed_dim, ff_dim),
             nn.GELU(),
             nn.Linear(ff_dim, input_dim)
         )
-
-        # ---- compression head: (embed_dim -> input_dim) ----
         self.compress_head = nn.Linear(embed_dim, input_dim)
-
-    def forward(self, x: torch.Tensor, lengths: torch.Tensor):
-        """
-        x: Tensor (B, L, 960)
-        lengths: Tensor (B,)  # 每个样本的有效长度（非 padding 部分）
-        return:
-          - recon: Tensor (B, L, 960)   # 重建整个序列
-          - compressed: Tensor (B, 960) # 池化后的压缩向量
-          - mask_bool: Tensor (B, L)    # True 表示该位置被掩码
-        """
-        device = x.device
-        B, L, _ = x.shape
-
-        # 1) 依据 lengths 构造 padding mask（True 表示该位置为 padding）
-        arange = torch.arange(L, device=device).unsqueeze(0).expand(B, L)  # (B, L)
-        mask_pad = arange >= lengths.unsqueeze(1)                          # (B, L)
-
-        # 2) 计算每个样本需要掩码的数量（非 padding 区域的 mask_ratio）
-        len_per_sample = lengths
-        num_mask_per_sample = (len_per_sample.float() * self.mask_ratio).long()  # (B,)
-
-        # 3) 为所有样本生成随机噪声，并屏蔽 padding 为 +inf，排序后取前 num_mask_i
-        noise = torch.rand(B, L, device=device)
-        noise = noise.masked_fill(mask_pad, float("inf"))  # padding 位置永远不会被选中
-        sorted_indices = torch.argsort(noise, dim=1)        # (B, L)
-
-        # 4) 生成 boolean 掩码矩阵 mask_bool
-        mask_bool = torch.zeros(B, L, dtype=torch.bool, device=device)  # False = 不 mask
-        for i in range(B):
-            k = num_mask_per_sample[i].item()
-            mask_bool[i, sorted_indices[i, :k]] = True
-
-        # 5) 替换成 mask_token
-        x_emb = self.embed(x)  # (B, L, E)
-        x_emb = x_emb.masked_scatter(mask_bool.unsqueeze(-1), 
-                                   self.mask_token.expand(B, L, -1)[mask_bool.unsqueeze(-1).expand(-1, -1, x_emb.size(-1))])
-
-        # 6) 位置编码 & Transformer 编码器
-        x_emb = x_emb + self.pos_embed[:, :L]
-        enc_out = self.encoder(x_emb, src_key_padding_mask=mask_pad)
-
-        # 7) 解码器重建
-        recon = self.decoder(enc_out)  # (B, L, 960)
-
-        # 8) 生成压缩向量
-        compressed = self.compress_head(enc_out.mean(dim=1))  # (B, 960)
-
-        return recon, compressed, mask_bool
+        
+        # Note: We never call forward() on this class - it's just for weight loading
+    
+    def extract_encoder(self) -> V2Encoder:
+        """Extract only the encoder components we need"""
+        encoder = V2Encoder(
+            input_dim=960,
+            embed_dim=512,
+            num_layers=4,
+            nhead=16,
+            ff_dim=2048,
+            max_len=1502
+        )
+        
+        # Copy only the useful weights
+        encoder.embed.load_state_dict(self.embed.state_dict())
+        encoder.pos_embed.data = self.pos_embed.data.clone()
+        encoder.encoder.load_state_dict(self.encoder.state_dict())
+        
+        return encoder
 
 # ============================================================================
-# COPIED FROM v5.py - InteractionCrossAttention and InteractionMLPHead
+# InteractionCrossAttention and InteractionMLPHead
 # ============================================================================
 
 class InteractionCrossAttention(nn.Module):
@@ -135,15 +157,35 @@ class InteractionCrossAttention(nn.Module):
     def _init_weights(self):
         nn.init.trunc_normal_(self.cls_int, std=0.02)
     
-    def forward(self, tok_a, tok_b):
+    def forward(self, tok_a, tok_b, lengths_a=None, lengths_b=None):
         """
         tok_a: (B, La, 512) - encoded tokens from protein A (v2 MAE output)
         tok_b: (B, Lb, 512) - encoded tokens from protein B (v2 MAE output)
+        lengths_a: (B,) - actual lengths of protein A sequences (optional)
+        lengths_b: (B,) - actual lengths of protein B sequences (optional)
         Returns: (B, 512) - interaction vector
         """
         B = tok_a.shape[0]
+        La, Lb = tok_a.shape[1], tok_b.shape[1]
+        device = tok_a.device
         
-        # Concatenate protein tokens directly (v2 MAE has no CLS tokens)
+        # Pad sequences to equal length within the batch for efficient attention
+        max_len_a = La
+        max_len_b = Lb
+        
+        # If sequences are already different lengths, pad the shorter ones
+        if La != Lb:
+            max_len = max(La, Lb)
+            if La < max_len:
+                pad_a = torch.zeros(B, max_len - La, self.d_model, device=device, dtype=tok_a.dtype)
+                tok_a = torch.cat([tok_a, pad_a], dim=1)
+                max_len_a = max_len
+            if Lb < max_len:
+                pad_b = torch.zeros(B, max_len - Lb, self.d_model, device=device, dtype=tok_b.dtype)
+                tok_b = torch.cat([tok_b, pad_b], dim=1)
+                max_len_b = max_len
+        
+        # Concatenate protein tokens
         protein_tokens = torch.cat([tok_a, tok_b], dim=1)  # (B, La+Lb, 512)
         
         # Add learnable CLS_int token
@@ -152,10 +194,25 @@ class InteractionCrossAttention(nn.Module):
         # Combine: [CLS_int] + [protein_A_tokens] + [protein_B_tokens]
         combined = torch.cat([cls_int, protein_tokens], dim=1)  # (B, La+Lb+1, 512)
         
-        # Pass through cross-attention layers
-        # (optional) you can pass a key_padding_mask here if you padded to equal length
+        # Create key_padding_mask if lengths are provided
+        key_padding_mask = None
+        if lengths_a is not None and lengths_b is not None:
+            # Create mask for protein A: True = padding (should be ignored)
+            mask_a = torch.arange(max_len_a, device=device).expand(B, max_len_a) >= lengths_a.unsqueeze(1)
+            
+            # Create mask for protein B: True = padding (should be ignored)  
+            mask_b = torch.arange(max_len_b, device=device).expand(B, max_len_b) >= lengths_b.unsqueeze(1)
+            
+            # Concatenate masks for protein tokens
+            protein_mask = torch.cat([mask_a, mask_b], dim=1)  # (B, La+Lb)
+            
+            # Add False for CLS token (CLS should never be masked)
+            cls_mask = torch.zeros(B, 1, dtype=torch.bool, device=device)  # (B, 1)
+            key_padding_mask = torch.cat([cls_mask, protein_mask], dim=1)  # (B, La+Lb+1)
+        
+        # Pass through cross-attention layers with padding mask
         for layer in self.cross_attn_layers:
-            combined = layer(combined)
+            combined = layer(combined, src_key_padding_mask=key_padding_mask)
         
         # Extract and normalize the CLS_int token
         interaction_vector = self.norm(combined[:, 0])  # (B, 512)
@@ -202,71 +259,55 @@ class InteractionMLPHead(nn.Module):
 
 class FrozenV2Encoder(nn.Module):
     """
-    Wraps the pretrained v2 MAE *without* any dimension or length adaptation.
-    Returns encoder tokens of shape (B, L, 512).
+    Loads pretrained v2 MAE and extracts only the encoder components we need.
+    Much more memory efficient than loading the full MAE.
     """
     def __init__(self, ckpt_path: str):
         super().__init__()
-        self.core = TransformerMAE(
+        
+        # Step 1: Load full MAE temporarily for weight extraction
+        temp_mae = TransformerMAE(
             input_dim=960, 
             embed_dim=512, 
-            mask_ratio=0.0,  # No masking during inference
+            mask_ratio=0.0,  # Ignored
             num_layers=4, 
             nhead=16, 
             ff_dim=2048, 
             max_len=1502
         )
         
-        # Load pretrained weights
-        self.load_pretrained_weights(ckpt_path)
+        # Step 2: Load pretrained weights into temporary MAE
+        checkpoint = torch.load(ckpt_path, map_location='cpu', weights_only=False)
+        if 'model_state_dict' in checkpoint:
+            state_dict = checkpoint['model_state_dict']
+        else:
+            state_dict = checkpoint
+        temp_mae.load_state_dict(state_dict, strict=False)
         
-        # Freeze all parameters
-        self.core.eval()
-        for param in self.core.parameters():
+        # Step 3: Extract only the lean encoder (discards decoder, compress_head, mask_token)
+        self.encoder = temp_mae.extract_encoder()
+        
+        # Step 4: Freeze and cleanup
+        self.encoder.eval()
+        for param in self.encoder.parameters():
             param.requires_grad = False
-            
-        print(f"✅ Loaded and froze pretrained v2 MAE from {ckpt_path}")
-    
-    def load_pretrained_weights(self, checkpoint_path: str):
-        """Load pretrained v2 MAE weights"""
-        try:
-            checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
-            if 'model_state_dict' in checkpoint:
-                state_dict = checkpoint['model_state_dict']
-            else:
-                state_dict = checkpoint
-            
-            self.core.load_state_dict(state_dict, strict=False)
-            
-        except Exception as e:
-            print(f"❌ Error loading v2 MAE weights: {e}")
-            raise e
+        del temp_mae  # Free memory from unused components
+        
+        print(f"✅ Loaded lean v2 encoder from {ckpt_path} (decoder/compress_head discarded)")
 
     @torch.no_grad()
     def forward(self, x, lengths):
         """
-        Forward pass using pretrained v2 MAE encoder only
+        Forward pass using lean v2 encoder
         
         Args:
             x: (B, L, 960) - protein embeddings
             lengths: (B,) - sequence lengths
             
         Returns:
-            encoder_output: (B, L, 512) - v2 MAE encoder output
+            encoder_output: (B, L, 512) - v2 encoder output
         """
-        B, L, _ = x.shape
-        device = x.device
-        
-        # Embed and add positional encoding
-        pos_added = self.core.embed(x) + self.core.pos_embed[:, :L]  # (B, L, 512)
-        
-        # Create padding mask
-        pad_mask = torch.arange(L, device=device).expand(B, L) >= lengths.unsqueeze(1)
-        
-        # Pass through transformer encoder
-        encoder_output = self.core.encoder(pos_added, src_key_padding_mask=pad_mask)  # (B, L, 512)
-        
-        return encoder_output
+        return self.encoder(x, lengths)
 
 class PPIClassifier_NoAdapter(nn.Module):
     """PPI Classifier using pretrained v2 MAE without adapter (direct 512-dim connection)"""
@@ -302,8 +343,8 @@ class PPIClassifier_NoAdapter(nn.Module):
         tok_a = self.encoder(emb_a, lengths_a)  # (B, La, 512)
         tok_b = self.encoder(emb_b, lengths_b)  # (B, Lb, 512)
         
-        # Cross-attention for interaction
-        z_int = self.cross_attn(tok_a, tok_b)  # (B, 512)
+        # Cross-attention for interaction with padding mask
+        z_int = self.cross_attn(tok_a, tok_b, lengths_a, lengths_b)  # (B, 512)
         
         # Final classification
         logits = self.mlp_head(z_int)  # (B, 1)
@@ -315,7 +356,7 @@ class PPIClassifier_NoAdapter(nn.Module):
         with torch.no_grad():
             tok_a = self.encoder(emb_a, lengths_a)
             tok_b = self.encoder(emb_b, lengths_b)
-            z_int = self.cross_attn(tok_a, tok_b)
+            z_int = self.cross_attn(tok_a, tok_b, lengths_a, lengths_b)
         return z_int
 
 def create_ppi_classifier_no_adapter(v2_mae_path: str) -> PPIClassifier_NoAdapter:

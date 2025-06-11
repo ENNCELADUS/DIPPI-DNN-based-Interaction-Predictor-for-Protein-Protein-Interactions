@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
 """
-Standalone Training script for V5.2 PPI Classifier
-Uses pretrained v2 MAE with v5 downstream components
+Standalone Training script for No-Adapter PPI Classifier
+Uses pretrained v2 MAE directly without adapter layer
 """
+
+import sys
+import os
+# Add project root to Python path to fix imports
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import pandas as pd
-import os
 import json
 from datetime import datetime
 from tqdm import tqdm
@@ -39,13 +45,13 @@ torch.jit.set_fusion_strategy([('STATIC', 2), ('DYNAMIC', 2)])
 print("✅ Performance optimizations applied")
 
 from torch.utils.data import DataLoader, Dataset
-from torch.cuda.amp import autocast, GradScaler  # ⚡ Mixed precision training
+from torch.amp import autocast, GradScaler  # ⚡ Mixed precision training
 from sklearn.metrics import (accuracy_score, precision_score, recall_score, 
                            f1_score, roc_auc_score, average_precision_score, 
                            roc_curve, precision_recall_curve)
 
-# Import the standalone v5.2 model
-from src.model.v2_MAE_based import PPIClassifierV52, create_ppi_classifier_v52, count_parameters
+# Import the standalone no-adapter model
+from src.model.v2_MAE_based import PPIClassifier_NoAdapter, create_ppi_classifier_no_adapter, count_parameters
 
 # Import utilities
 from src.utils import load_data_v2, ProteinPairDatasetV2, collate_fn_v52
@@ -75,7 +81,7 @@ def train_epoch(model, train_loader, optimizer, criterion, device, scheduler=Non
             
             # Mixed precision forward pass
             if scaler is not None:
-                with autocast():
+                with autocast('cuda'):
                     logits = model(emb_a, emb_b, lengths_a, lengths_b)
                     loss = criterion(logits, interactions)
             else:
@@ -237,7 +243,7 @@ def train_model(config):
     print(f"Using device: {device}")
     
     use_amp = config.get('use_mixed_precision', True) and device.type == 'cuda'
-    scaler = GradScaler() if use_amp else None
+    scaler = GradScaler('cuda') if use_amp else None
     
     if device.type == 'cuda':
         print(f"CUDA device name: {torch.cuda.get_device_name()}")
@@ -285,8 +291,8 @@ def train_model(config):
     )
     
     # Create model
-    print(f"\n🔧 Creating V5.2 model...")
-    model = create_ppi_classifier_v52(config['v2_mae_path'])
+    print(f"\n🔧 Creating No-Adapter model...")
+    model = create_ppi_classifier_no_adapter(config['v2_mae_path'])
     model = model.to(device)
     
     # Count parameters
@@ -399,7 +405,7 @@ def main():
     # Configuration
     config = {
         # Model path
-        'v2_mae_path': 'model/mae_best_20250528-174157.pth',  # TODO: ⚠️ UPDATE THIS PATH
+        'v2_mae_path': 'models/mae_best_20250528-174157.pth',  # TODO: ⚠️ UPDATE THIS PATH
         
         # Training hyperparameters
         'num_epochs': 50,

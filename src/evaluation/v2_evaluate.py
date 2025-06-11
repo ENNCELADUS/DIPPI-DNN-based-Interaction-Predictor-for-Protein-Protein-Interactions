@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
 """
-Standalone Evaluation script for v5.2 PPI Classifier
-Evaluates a trained v5.2 checkpoint on test1 and test2 datasets
+Standalone Evaluation script for No-Adapter PPI Classifier
+Evaluates a trained no-adapter checkpoint on test1 and test2 datasets
 """
+
+# Add project root to Python path to fix imports
+import sys
+import os
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 import torch
 import torch.nn as nn
 import numpy as np
 import pandas as pd
-import os
-import sys
 import json
 from datetime import datetime
 from tqdm import tqdm
@@ -22,8 +27,8 @@ from sklearn.metrics import (accuracy_score, precision_score, recall_score,
                            f1_score, roc_auc_score, average_precision_score, 
                            roc_curve, precision_recall_curve)
 
-# Import the standalone v5.2 model
-from src.model.v2_MAE_based import PPIClassifierV52, create_ppi_classifier_v52, count_parameters
+# Import the standalone no-adapter model
+from src.model.v2_MAE_based import PPIClassifier_NoAdapter, create_ppi_classifier_no_adapter, count_parameters
 
 # Import utilities
 from src.utils import load_data_v2, ProteinPairDatasetV2, collate_fn_v52
@@ -174,25 +179,25 @@ def plot_evaluation_results(test_results, save_path):
     plt.close()
     print(f"📊 Saved evaluation plots: {save_path}")
 
-def evaluate_v52_model(checkpoint_path, v2_mae_path, batch_size=8, log_dir=None):
+def evaluate_no_adapter_model(checkpoint_path, v2_mae_path, batch_size=8, log_dir=None):
     """
-    Main evaluation function for v5.2 models
+    Main evaluation function for no-adapter models
     
     Args:
-        checkpoint_path: Path to the v5.2 checkpoint file to evaluate
+        checkpoint_path: Path to the no-adapter checkpoint file to evaluate
         v2_mae_path: Path to the v2 MAE checkpoint (needed for model creation)
         batch_size: Batch size for evaluation
         log_dir: Directory to save evaluation results
     """
-    print("🧬 V5.2 PPI CLASSIFIER EVALUATION")
+    print("🧬 NO-ADAPTER PPI CLASSIFIER EVALUATION")
     print("=" * 50)
-    print(f"V5.2 Checkpoint: {checkpoint_path}")
+    print(f"No-Adapter Checkpoint: {checkpoint_path}")
     print(f"V2 MAE Path: {v2_mae_path}")
     print(f"Batch size: {batch_size}")
     
     # Verify checkpoint exists
     if not os.path.exists(checkpoint_path):
-        raise FileNotFoundError(f"V5.2 checkpoint not found: {checkpoint_path}")
+        raise FileNotFoundError(f"No-Adapter checkpoint not found: {checkpoint_path}")
     
     if not os.path.exists(v2_mae_path):
         raise FileNotFoundError(f"V2 MAE checkpoint not found: {v2_mae_path}")
@@ -236,8 +241,8 @@ def evaluate_v52_model(checkpoint_path, v2_mae_path, batch_size=8, log_dir=None)
     test2_loader = DataLoader(test2_dataset, **dataloader_kwargs)
     
     # Create model
-    print(f"\n🔧 Creating v5.2 model...")
-    model = create_ppi_classifier_v52(v2_mae_path)
+    print(f"\n🔧 Creating no-adapter model...")
+    model = create_ppi_classifier_no_adapter(v2_mae_path)
     model = model.to(device)
     
     # Count parameters
@@ -324,7 +329,7 @@ def main():
         print(f"Using v2 MAE path from command line: {v2_mae_path}")
     
     # Run evaluation
-    results = evaluate_v52_model(
+    results = evaluate_no_adapter_model(
         checkpoint_path=checkpoint_path,
         v2_mae_path=v2_mae_path,
         batch_size=8

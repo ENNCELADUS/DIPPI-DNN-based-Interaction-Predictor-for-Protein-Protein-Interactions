@@ -80,7 +80,7 @@ def load_data():
 
 
 def load_data_v2():
-    """Load data for v2 scripts from full_dataset directory structure"""
+    """Load data for v2 scripts from splits directory structure"""
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(script_dir)
     
@@ -89,8 +89,8 @@ def load_data_v2():
     
     print("Loading data...")
     
-    # Look for data in the full_dataset directory
-    data_dir = os.path.join(project_root, 'data', 'full_dataset')
+    # Look for data in the splits directory
+    data_dir = os.path.join(project_root, 'data', 'splits')
     print(f"Looking for data in: {data_dir}")
     
     # Check if files exist
