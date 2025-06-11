@@ -409,13 +409,13 @@ def main():
         
         # Training hyperparameters
         'num_epochs': 50,
-        'batch_size': 16,
+        'batch_size': 32,  # Increased for Tesla M40 24GB VRAM
         'learning_rate': 5e-5,
         'weight_decay': 1e-4,
         'patience': 10,
         
         # Data loading
-        'num_workers': 4,
+        'num_workers': 6,  # Optimized for Tesla M40 with 12 CPU cores allocated
         
         # Scheduler
         'scheduler_T0': 10,
