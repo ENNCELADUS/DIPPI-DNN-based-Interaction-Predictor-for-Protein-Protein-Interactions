@@ -1,0 +1,585 @@
+=== SETTING RTX 2080 Ti OPTIMIZATIONS ===
+RTX 2080 Ti optimizations applied ✅
+
+=== RTX 2080 Ti GPU DIAGNOSTICS ===
+Unable to determine the device handle for GPU0000:03:00.0: Unknown Error
+
+=== CUDA VISIBLE DEVICES ===
+CUDA_VISIBLE_DEVICES: 0,1,2,3
+
+=== PYTORCH GPU CHECK ===
+CUDA available: True
+CUDA version: 12.4
+GPU count: 3
+GPU 0: NVIDIA GeForce RTX 2080 Ti
+  - Total memory: 10.7 GB
+  - Memory test: OK
+GPU 1: NVIDIA GeForce RTX 2080 Ti
+  - Total memory: 10.7 GB
+  - Memory test: OK
+GPU 2: NVIDIA GeForce RTX 2080 Ti
+  - Total memory: 10.7 GB
+  - Memory test: OK
+
+Performance Settings:
+OMP_NUM_THREADS: 16
+cuDNN enabled: True
+cuDNN benchmark: False
+RTX 2080 Ti setup ready! 🚀
+
+=== STARTING SIMPLE CONCAT TRAINING ON RTX 2080 Ti ===
+🚀 Applying PyTorch Performance Optimizations...
+✅ Performance optimizations applied
+📋 Training Configuration:
+  v2_mae_path: models/mae_best_20250528-174157.pth
+  num_epochs: 50
+  batch_size: 256
+  learning_rate: 0.0001
+  weight_decay: 0.0001
+  patience: 15
+  num_workers: 0
+  scheduler_T0: 10
+  scheduler_T_mult: 2
+  scheduler_eta_min: 1e-06
+  use_mixed_precision: True
+  multi_gpu: True
+  sync_batchnorm: False
+🧬 SIMPLE CONCATENATION PPI CLASSIFIER TRAINING
+============================================================
+Using device: cuda
+CUDA device count: 3
+GPU 0: NVIDIA GeForce RTX 2080 Ti
+GPU 1: NVIDIA GeForce RTX 2080 Ti
+GPU 2: NVIDIA GeForce RTX 2080 Ti
+Mixed precision: Enabled
+Save directory: models/simple_concat_training_20250612_010523
+
+📊 Loading data...
+Script directory: /public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src
+Project root: /public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions
+Loading data...
+Looking for data in: /public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/data/splits
+✅ Found: train_data.pkl
+✅ Found: validation_data.pkl
+✅ Found: test1_data.pkl
+✅ Found: test2_data.pkl
+✅ Found: embeddings_standardized.pkl
+Loading protein embeddings...
+Loaded 12026 protein embeddings
+
+Examining training data structure:
+DataFrame columns: ['uniprotID_A', 'uniprotID_B', 'isInteraction', 'trainTest', 'sequence_A', 'sequence_B']
+First row sample: {'uniprotID_A': 'O43759', 'uniprotID_B': 'P59991', 'isInteraction': 0, 'trainTest': 'train', 'sequence_A': 'MEGGAYGAGKAGGAFDPYTLVRQPHTILRVVSWLFSIVVFGSIVNEGYLNSASEGEEFCIYNRNPNACSYGVAVGVLAFLTCLLYLALDVYFPQISSVKDRKKAVLSDIGVSAFWAFLWFVGFCYLANQWQVSKPKDNPLNEGTDAARAAIAFSFFSIFTWAGQAVLAFQRYQIGADSALFSQDYMDPSQDSSMPYAPYVEPTGPDPAGMGGTYQQPANTFDTEPQGYQSQGY', 'sequence_B': 'MCHTSCSSGCQPACCAPSPCQPACCVPSSCQASCCVPVGCQSSVCVPVSFKPAVCLPVSCQSSVCVPMSFKSAVCVPVSCQSSVCVPVSCRPIVCAAPSCQSSLCVPVSCRPVVYAAPSCQSSGCCQPSCTSVLCRPISYSISSCC'}
+Protein ID: Q00994, Embedding shape: (113, 960)
+Protein ID: Q8TC90, Embedding shape: (408, 960)
+Protein ID: Q9UJY1, Embedding shape: (198, 960)
+Protein ID: Q9Y6Q6, Embedding shape: (618, 960)
+Protein ID: A4QMS7, Embedding shape: (149, 960)
+Dataset: 85329 valid pairs out of 85329 total pairs
+Dataset: 21333 valid pairs out of 21333 total pairs
+Training samples: 85329
+Validation samples: 21333
+
+🔧 Creating Simple Concatenation model...
+✅ Loaded v2 encoder + compression head from models/mae_best_20250528-174157.pth
+🔧 Simple Concatenation Architecture:
+  - Encoder: Pretrained v2 MAE with compression (frozen, 960-dim)
+  - Concatenation: protein_a + protein_b -> (1920-dim)
+  - MLP head: Trainable classifier (1920-dim -> 1)
+🚀 Attempting to use 3 RTX 2080 Ti GPUs for training!
+✅ Simple Concat model wrapped with DataParallel for multi-GPU training
+sist_gpu57:3476:3476 [0] NCCL INFO cudaDriverVersion 12040
+sist_gpu57:3476:3476 [0] NCCL INFO NCCL_SOCKET_IFNAME set by environment to ^lo,docker0
+sist_gpu57:3476:3476 [0] NCCL INFO Bootstrap : Using eno1:10.10.10.115<0>
+sist_gpu57:3476:3476 [0] NCCL INFO NET/Plugin: No plugin found (libnccl-net.so)
+sist_gpu57:3476:3476 [0] NCCL INFO NET/Plugin: Plugin load returned 2 : libnccl-net.so: cannot open shared object file: No such file or directory : when loading libnccl-net.so
+sist_gpu57:3476:3476 [0] NCCL INFO NET/Plugin: Using internal network plugin.
+NCCL version 2.21.5+cuda12.4
+sist_gpu57:3476:14859 [0] NCCL INFO NCCL_IB_DISABLE set by environment to 1.
+sist_gpu57:3476:14859 [0] NCCL INFO NCCL_SOCKET_IFNAME set by environment to ^lo,docker0
+sist_gpu57:3476:14859 [0] NCCL INFO NET/Socket : Using [0]eno1:10.10.10.115<0> [1]ib0:12.12.12.115<0>
+sist_gpu57:3476:14859 [0] NCCL INFO Using non-device net plugin version 0
+sist_gpu57:3476:14859 [0] NCCL INFO Using network Socket
+sist_gpu57:3476:14860 [1] NCCL INFO Using non-device net plugin version 0
+sist_gpu57:3476:14860 [1] NCCL INFO Using network Socket
+
+sist_gpu57:3476:14859 [0] misc/nvmlwrap.cc:127 NCCL WARN nvmlDeviceGetHandleByIndex(1) failed: Unknown Error
+sist_gpu57:3476:14859 [0] NCCL INFO misc/nvmlwrap.cc:185 -> 2
+sist_gpu57:3476:14859 [0] NCCL INFO init.cc:338 -> 2
+sist_gpu57:3476:14859 [0] NCCL INFO init.cc:1533 -> 2
+sist_gpu57:3476:14860 [1] NCCL INFO misc/nvmlwrap.cc:185 -> 2
+sist_gpu57:3476:14860 [1] NCCL INFO init.cc:338 -> 2
+sist_gpu57:3476:14860 [1] NCCL INFO init.cc:1533 -> 2
+sist_gpu57:3476:14859 [0] NCCL INFO group.cc:64 -> 2 [Async thread]
+sist_gpu57:3476:14860 [1] NCCL INFO group.cc:64 -> 2 [Async thread]
+sist_gpu57:3476:3476 [0] NCCL INFO group.cc:418 -> 2
+sist_gpu57:3476:3476 [0] NCCL INFO group.cc:95 -> 2
+sist_gpu57:3476:3476 [0] NCCL INFO init.cc:1892 -> 2
+⚠️ Multi-GPU setup failed: NCCL Error 2: unhandled system error (run with NCCL_DEBUG=INFO for details)
+🔄 Falling back to single GPU...
+Adjusted batch size to: 64
+🔄 Recreating data loaders with adjusted batch size...
+Total parameters: 15,413,697
+Trainable parameters: 1,050,625
+Frozen parameters: 14,363,072
+Trainable ratio: 6.8%
+
+🚀 Starting training for 50 epochs...
+Early stopping patience: 15 epochs
+
+============================================================
+EPOCH 1/50
+============================================================
+
+TRAIN - Loss: 0.6899, Acc: 0.5449, AUC: 0.5652, AUPRC: 0.5610
+VAL   - Loss: 0.6525, Acc: 0.6034, AUC: 0.6609, AUPRC: 0.6556
+LR: 9.94e-05
+🎉 New best validation AUC: 0.6609
+
+============================================================
+EPOCH 2/50
+============================================================
+
+TRAIN - Loss: 0.6446, Acc: 0.6147, AUC: 0.6665, AUPRC: 0.6542
+VAL   - Loss: 0.6264, Acc: 0.6336, AUC: 0.6969, AUPRC: 0.6856
+LR: 9.95e-05
+🎉 New best validation AUC: 0.6969
+
+============================================================
+EPOCH 3/50
+============================================================
+
+TRAIN - Loss: 0.6306, Acc: 0.6313, AUC: 0.6895, AUPRC: 0.6737
+VAL   - Loss: 0.6137, Acc: 0.6519, AUC: 0.7149, AUPRC: 0.7029
+LR: 4.01e-05
+🎉 New best validation AUC: 0.7149
+
+============================================================
+EPOCH 4/50
+============================================================
+
+TRAIN - Loss: 0.6139, Acc: 0.6505, AUC: 0.7147, AUPRC: 0.7010
+VAL   - Loss: 0.6147, Acc: 0.6514, AUC: 0.7133, AUPRC: 0.7022
+LR: 9.95e-05
+⏰ Patience: 1/15
+
+============================================================
+EPOCH 5/50
+============================================================
+
+TRAIN - Loss: 0.6154, Acc: 0.6506, AUC: 0.7132, AUPRC: 0.6979
+VAL   - Loss: 0.6100, Acc: 0.6512, AUC: 0.7172, AUPRC: 0.7058
+LR: 7.90e-05
+🎉 New best validation AUC: 0.7172
+
+============================================================
+EPOCH 6/50
+============================================================
+
+TRAIN - Loss: 0.6025, Acc: 0.6627, AUC: 0.7302, AUPRC: 0.7142
+VAL   - Loss: 0.6027, Acc: 0.6583, AUC: 0.7282, AUPRC: 0.7184
+LR: 4.04e-05
+🎉 New best validation AUC: 0.7282
+
+============================================================
+EPOCH 7/50
+============================================================
+
+TRAIN - Loss: 0.5913, Acc: 0.6754, AUC: 0.7445, AUPRC: 0.7297
+VAL   - Loss: 0.5955, Acc: 0.6669, AUC: 0.7375, AUPRC: 0.7260
+LR: 8.23e-06
+🎉 New best validation AUC: 0.7375
+
+============================================================
+EPOCH 8/50
+============================================================
+
+TRAIN - Loss: 0.5868, Acc: 0.6793, AUC: 0.7502, AUPRC: 0.7350
+VAL   - Loss: 0.6018, Acc: 0.6588, AUC: 0.7288, AUPRC: 0.7178
+LR: 9.95e-05
+⏰ Patience: 1/15
+
+============================================================
+EPOCH 9/50
+============================================================
+
+TRAIN - Loss: 0.5963, Acc: 0.6690, AUC: 0.7380, AUPRC: 0.7228
+VAL   - Loss: 0.6030, Acc: 0.6599, AUC: 0.7283, AUPRC: 0.7151
+LR: 9.28e-05
+⏰ Patience: 2/15
+
+============================================================
+EPOCH 10/50
+============================================================
+
+TRAIN - Loss: 0.5887, Acc: 0.6780, AUC: 0.7477, AUPRC: 0.7317
+VAL   - Loss: 0.5929, Acc: 0.6706, AUC: 0.7417, AUPRC: 0.7295
+LR: 7.91e-05
+🎉 New best validation AUC: 0.7417
+
+============================================================
+EPOCH 11/50
+============================================================
+
+TRAIN - Loss: 0.5801, Acc: 0.6851, AUC: 0.7571, AUPRC: 0.7429
+VAL   - Loss: 0.5911, Acc: 0.6739, AUC: 0.7446, AUPRC: 0.7326
+LR: 6.07e-05
+🎉 New best validation AUC: 0.7446
+
+============================================================
+EPOCH 12/50
+============================================================
+
+TRAIN - Loss: 0.5707, Acc: 0.6933, AUC: 0.7676, AUPRC: 0.7521
+VAL   - Loss: 0.5896, Acc: 0.6752, AUC: 0.7477, AUPRC: 0.7347
+LR: 4.06e-05
+🎉 New best validation AUC: 0.7477
+
+============================================================
+EPOCH 13/50
+============================================================
+
+TRAIN - Loss: 0.5634, Acc: 0.6988, AUC: 0.7754, AUPRC: 0.7614
+VAL   - Loss: 0.5857, Acc: 0.6787, AUC: 0.7512, AUPRC: 0.7390
+LR: 2.21e-05
+🎉 New best validation AUC: 0.7512
+
+============================================================
+EPOCH 14/50
+============================================================
+
+TRAIN - Loss: 0.5558, Acc: 0.7065, AUC: 0.7832, AUPRC: 0.7703
+VAL   - Loss: 0.5862, Acc: 0.6769, AUC: 0.7523, AUPRC: 0.7401
+LR: 8.31e-06
+🎉 New best validation AUC: 0.7523
+
+============================================================
+EPOCH 15/50
+============================================================
+
+TRAIN - Loss: 0.5514, Acc: 0.7087, AUC: 0.7872, AUPRC: 0.7749
+VAL   - Loss: 0.5864, Acc: 0.6783, AUC: 0.7525, AUPRC: 0.7401
+LR: 1.49e-06
+🎉 New best validation AUC: 0.7525
+
+============================================================
+EPOCH 16/50
+============================================================
+
+TRAIN - Loss: 0.5635, Acc: 0.6996, AUC: 0.7753, AUPRC: 0.7611
+VAL   - Loss: 0.5947, Acc: 0.6716, AUC: 0.7460, AUPRC: 0.7333
+LR: 9.96e-05
+⏰ Patience: 1/15
+
+============================================================
+EPOCH 17/50
+============================================================
+
+TRAIN - Loss: 0.5704, Acc: 0.6931, AUC: 0.7677, AUPRC: 0.7520
+VAL   - Loss: 0.5883, Acc: 0.6767, AUC: 0.7491, AUPRC: 0.7367
+LR: 9.72e-05
+⏰ Patience: 2/15
+
+============================================================
+EPOCH 18/50
+============================================================
+
+TRAIN - Loss: 0.5659, Acc: 0.6980, AUC: 0.7727, AUPRC: 0.7576
+VAL   - Loss: 0.5926, Acc: 0.6732, AUC: 0.7451, AUPRC: 0.7327
+LR: 9.29e-05
+⏰ Patience: 3/15
+
+============================================================
+EPOCH 19/50
+============================================================
+
+TRAIN - Loss: 0.5611, Acc: 0.7025, AUC: 0.7772, AUPRC: 0.7622
+VAL   - Loss: 0.5840, Acc: 0.6788, AUC: 0.7532, AUPRC: 0.7398
+LR: 8.68e-05
+🎉 New best validation AUC: 0.7532
+
+============================================================
+EPOCH 20/50
+============================================================
+
+TRAIN - Loss: 0.5557, Acc: 0.7062, AUC: 0.7831, AUPRC: 0.7683
+VAL   - Loss: 0.5824, Acc: 0.6813, AUC: 0.7553, AUPRC: 0.7416
+LR: 7.92e-05
+🎉 New best validation AUC: 0.7553
+
+============================================================
+EPOCH 21/50
+============================================================
+
+TRAIN - Loss: 0.5481, Acc: 0.7123, AUC: 0.7903, AUPRC: 0.7760
+VAL   - Loss: 0.5814, Acc: 0.6819, AUC: 0.7560, AUPRC: 0.7411
+LR: 7.04e-05
+🎉 New best validation AUC: 0.7560
+
+============================================================
+EPOCH 22/50
+============================================================
+
+TRAIN - Loss: 0.5428, Acc: 0.7164, AUC: 0.7957, AUPRC: 0.7814
+VAL   - Loss: 0.5828, Acc: 0.6833, AUC: 0.7579, AUPRC: 0.7433
+LR: 6.08e-05
+🎉 New best validation AUC: 0.7579
+
+============================================================
+EPOCH 23/50
+============================================================
+
+TRAIN - Loss: 0.5369, Acc: 0.7233, AUC: 0.8015, AUPRC: 0.7875
+VAL   - Loss: 0.5813, Acc: 0.6856, AUC: 0.7605, AUPRC: 0.7477
+LR: 5.07e-05
+🎉 New best validation AUC: 0.7605
+
+============================================================
+EPOCH 24/50
+============================================================
+
+TRAIN - Loss: 0.5291, Acc: 0.7276, AUC: 0.8077, AUPRC: 0.7945
+VAL   - Loss: 0.5828, Acc: 0.6872, AUC: 0.7592, AUPRC: 0.7446
+LR: 4.06e-05
+⏰ Patience: 1/15
+
+============================================================
+EPOCH 25/50
+============================================================
+
+TRAIN - Loss: 0.5243, Acc: 0.7326, AUC: 0.8122, AUPRC: 0.7987
+VAL   - Loss: 0.5824, Acc: 0.6887, AUC: 0.7624, AUPRC: 0.7483
+LR: 3.10e-05
+🎉 New best validation AUC: 0.7624
+
+============================================================
+EPOCH 26/50
+============================================================
+
+TRAIN - Loss: 0.5210, Acc: 0.7344, AUC: 0.8149, AUPRC: 0.8020
+VAL   - Loss: 0.5835, Acc: 0.6863, AUC: 0.7619, AUPRC: 0.7486
+LR: 2.22e-05
+⏰ Patience: 1/15
+
+============================================================
+EPOCH 27/50
+============================================================
+
+TRAIN - Loss: 0.5152, Acc: 0.7393, AUC: 0.8202, AUPRC: 0.8077
+VAL   - Loss: 0.5831, Acc: 0.6879, AUC: 0.7628, AUPRC: 0.7485
+LR: 1.45e-05
+🎉 New best validation AUC: 0.7628
+
+============================================================
+EPOCH 28/50
+============================================================
+
+TRAIN - Loss: 0.5125, Acc: 0.7408, AUC: 0.8225, AUPRC: 0.8110
+VAL   - Loss: 0.5820, Acc: 0.6880, AUC: 0.7637, AUPRC: 0.7492
+LR: 8.35e-06
+🎉 New best validation AUC: 0.7637
+
+============================================================
+EPOCH 29/50
+============================================================
+
+TRAIN - Loss: 0.5089, Acc: 0.7430, AUC: 0.8253, AUPRC: 0.8136
+VAL   - Loss: 0.5832, Acc: 0.6883, AUC: 0.7640, AUPRC: 0.7498
+LR: 3.96e-06
+🎉 New best validation AUC: 0.7640
+
+============================================================
+EPOCH 30/50
+============================================================
+
+TRAIN - Loss: 0.5069, Acc: 0.7445, AUC: 0.8267, AUPRC: 0.8153
+VAL   - Loss: 0.5840, Acc: 0.6876, AUC: 0.7640, AUPRC: 0.7499
+LR: 1.50e-06
+🎉 New best validation AUC: 0.7640
+
+============================================================
+EPOCH 31/50
+============================================================
+
+TRAIN - Loss: 0.5120, Acc: 0.7414, AUC: 0.8230, AUPRC: 0.8109
+VAL   - Loss: 0.5826, Acc: 0.6848, AUC: 0.7580, AUPRC: 0.7418
+LR: 1.00e-04
+⏰ Patience: 1/15
+
+============================================================
+EPOCH 32/50
+============================================================
+
+TRAIN - Loss: 0.5353, Acc: 0.7231, AUC: 0.8023, AUPRC: 0.7888
+VAL   - Loss: 0.5812, Acc: 0.6834, AUC: 0.7573, AUPRC: 0.7425
+LR: 9.96e-05
+⏰ Patience: 2/15
+
+============================================================
+EPOCH 33/50
+============================================================
+
+TRAIN - Loss: 0.5336, Acc: 0.7247, AUC: 0.8041, AUPRC: 0.7909
+VAL   - Loss: 0.5871, Acc: 0.6827, AUC: 0.7555, AUPRC: 0.7414
+LR: 9.86e-05
+⏰ Patience: 3/15
+
+============================================================
+EPOCH 34/50
+============================================================
+
+TRAIN - Loss: 0.5296, Acc: 0.7268, AUC: 0.8070, AUPRC: 0.7938
+VAL   - Loss: 0.5909, Acc: 0.6822, AUC: 0.7566, AUPRC: 0.7421
+LR: 9.72e-05
+⏰ Patience: 4/15
+
+============================================================
+EPOCH 35/50
+============================================================
+
+TRAIN - Loss: 0.5263, Acc: 0.7283, AUC: 0.8100, AUPRC: 0.7980
+VAL   - Loss: 0.5785, Acc: 0.6841, AUC: 0.7599, AUPRC: 0.7450
+LR: 9.53e-05
+⏰ Patience: 5/15
+
+============================================================
+EPOCH 36/50
+============================================================
+
+TRAIN - Loss: 0.5228, Acc: 0.7309, AUC: 0.8129, AUPRC: 0.8000
+VAL   - Loss: 0.5882, Acc: 0.6860, AUC: 0.7599, AUPRC: 0.7465
+LR: 9.29e-05
+⏰ Patience: 6/15
+
+============================================================
+EPOCH 37/50
+============================================================
+
+TRAIN - Loss: 0.5189, Acc: 0.7351, AUC: 0.8163, AUPRC: 0.8043
+VAL   - Loss: 0.5852, Acc: 0.6858, AUC: 0.7607, AUPRC: 0.7475
+LR: 9.01e-05
+⏰ Patience: 7/15
+
+============================================================
+EPOCH 38/50
+============================================================
+
+TRAIN - Loss: 0.5139, Acc: 0.7396, AUC: 0.8208, AUPRC: 0.8088
+VAL   - Loss: 0.5834, Acc: 0.6821, AUC: 0.7586, AUPRC: 0.7461
+LR: 8.68e-05
+⏰ Patience: 8/15
+
+============================================================
+EPOCH 39/50
+============================================================
+
+TRAIN - Loss: 0.5089, Acc: 0.7438, AUC: 0.8251, AUPRC: 0.8129
+VAL   - Loss: 0.5912, Acc: 0.6854, AUC: 0.7590, AUPRC: 0.7446
+LR: 8.32e-05
+⏰ Patience: 9/15
+
+============================================================
+EPOCH 40/50
+============================================================
+
+TRAIN - Loss: 0.5056, Acc: 0.7444, AUC: 0.8275, AUPRC: 0.8154
+VAL   - Loss: 0.5900, Acc: 0.6851, AUC: 0.7591, AUPRC: 0.7440
+LR: 7.92e-05
+⏰ Patience: 10/15
+
+============================================================
+EPOCH 41/50
+============================================================
+
+TRAIN - Loss: 0.5005, Acc: 0.7477, AUC: 0.8314, AUPRC: 0.8203
+VAL   - Loss: 0.5842, Acc: 0.6873, AUC: 0.7611, AUPRC: 0.7469
+LR: 7.50e-05
+⏰ Patience: 11/15
+
+============================================================
+EPOCH 42/50
+============================================================
+
+TRAIN - Loss: 0.4960, Acc: 0.7511, AUC: 0.8349, AUPRC: 0.8246
+VAL   - Loss: 0.5895, Acc: 0.6864, AUC: 0.7619, AUPRC: 0.7481
+LR: 7.04e-05
+⏰ Patience: 12/15
+
+============================================================
+EPOCH 43/50
+============================================================
+
+TRAIN - Loss: 0.4932, Acc: 0.7536, AUC: 0.8373, AUPRC: 0.8266
+VAL   - Loss: 0.5859, Acc: 0.6879, AUC: 0.7634, AUPRC: 0.7494
+LR: 6.57e-05
+⏰ Patience: 13/15
+
+============================================================
+EPOCH 44/50
+============================================================
+
+TRAIN - Loss: 0.4885, Acc: 0.7566, AUC: 0.8408, AUPRC: 0.8305
+VAL   - Loss: 0.5947, Acc: 0.6883, AUC: 0.7636, AUPRC: 0.7492
+LR: 6.08e-05
+⏰ Patience: 14/15
+
+============================================================
+EPOCH 45/50
+============================================================
+
+TRAIN - Loss: 0.4843, Acc: 0.7597, AUC: 0.8441, AUPRC: 0.8342
+VAL   - Loss: 0.5906, Acc: 0.6889, AUC: 0.7641, AUPRC: 0.7496
+LR: 5.58e-05
+🎉 New best validation AUC: 0.7641
+
+============================================================
+EPOCH 46/50
+============================================================
+
+TRAIN - Loss: 0.4782, Acc: 0.7646, AUC: 0.8486, AUPRC: 0.8393
+VAL   - Loss: 0.5953, Acc: 0.6898, AUC: 0.7632, AUPRC: 0.7476
+LR: 5.08e-05
+⏰ Patience: 1/15
+
+============================================================
+EPOCH 47/50
+============================================================
+
+TRAIN - Loss: 0.4758, Acc: 0.7668, AUC: 0.8503, AUPRC: 0.8417
+VAL   - Loss: 0.5984, Acc: 0.6881, AUC: 0.7641, AUPRC: 0.7506
+LR: 4.57e-05
+🎉 New best validation AUC: 0.7641
+
+============================================================
+EPOCH 48/50
+============================================================
+
+TRAIN - Loss: 0.4713, Acc: 0.7706, AUC: 0.8537, AUPRC: 0.8444
+VAL   - Loss: 0.5969, Acc: 0.6905, AUC: 0.7662, AUPRC: 0.7520
+LR: 4.07e-05
+🎉 New best validation AUC: 0.7662
+
+============================================================
+EPOCH 49/50
+============================================================
+
+TRAIN - Loss: 0.4674, Acc: 0.7725, AUC: 0.8563, AUPRC: 0.8467
+VAL   - Loss: 0.5975, Acc: 0.6898, AUC: 0.7660, AUPRC: 0.7510
+LR: 3.58e-05
+⏰ Patience: 1/15
+
+============================================================
+EPOCH 50/50
+============================================================
+
+TRAIN - Loss: 0.4639, Acc: 0.7736, AUC: 0.8587, AUPRC: 0.8504
+VAL   - Loss: 0.6021, Acc: 0.6910, AUC: 0.7654, AUPRC: 0.7503
+LR: 3.10e-05
+⏰ Patience: 2/15
+
+✅ Training completed!
+Best validation AUC: 0.7662
+Results saved to: models/simple_concat_training_20250612_010523
+
+🎉 Training completed successfully!
+Results saved to: models/simple_concat_training_20250612_010523

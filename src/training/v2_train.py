@@ -217,9 +217,12 @@ def validate_epoch(model, val_loader, criterion, device):
 def save_checkpoint(model, optimizer, scheduler, epoch, train_metrics, val_metrics, 
                    config, save_path, is_best=False):
     """Save model checkpoint"""
+    # Handle DataParallel models
+    model_state_dict = model.module.state_dict() if hasattr(model, 'module') else model.state_dict()
+    
     checkpoint = {
         'epoch': epoch,
-        'model_state_dict': model.state_dict(),
+        'model_state_dict': model_state_dict,
         'optimizer_state_dict': optimizer.state_dict(),
         'scheduler_state_dict': scheduler.state_dict() if scheduler else None,
         'train_metrics': train_metrics,
@@ -246,7 +249,9 @@ def train_model(config):
     scaler = GradScaler('cuda') if use_amp else None
     
     if device.type == 'cuda':
-        print(f"CUDA device name: {torch.cuda.get_device_name()}")
+        print(f"CUDA device count: {torch.cuda.device_count()}")
+        for i in range(torch.cuda.device_count()):
+            print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
         print(f"Mixed precision: {'Enabled' if use_amp else 'Disabled'}")
         torch.cuda.empty_cache()
     
@@ -294,6 +299,54 @@ def train_model(config):
     print(f"\n🔧 Creating No-Adapter model...")
     model = create_ppi_classifier_no_adapter(config['v2_mae_path'])
     model = model.to(device)
+    
+    # Multi-GPU setup with error handling
+    if torch.cuda.device_count() > 1 and config.get('multi_gpu', True):
+        try:
+            print(f"🚀 Attempting to use {torch.cuda.device_count()} RTX 2080 Ti GPUs for training!")
+            model = nn.DataParallel(model)
+            print(f"✅ V2 Cross-attention model wrapped with DataParallel for multi-GPU training")
+            
+            # Test multi-GPU communication with a small tensor
+            test_input = torch.randn(2, 100, 960).to(device)
+            test_lengths = torch.tensor([100, 100]).to(device)
+            with torch.no_grad():
+                _ = model(test_input, test_input, test_lengths, test_lengths)
+            print("✅ Multi-GPU communication test successful!")
+            del test_input, test_lengths
+            torch.cuda.empty_cache()
+            
+        except Exception as e:
+            print(f"⚠️ Multi-GPU setup failed: {e}")
+            print("🔄 Falling back to single GPU...")
+            if hasattr(model, 'module'):
+                model = model.module  # Unwrap DataParallel
+            config['batch_size'] = config['batch_size'] // 4  # Reduce batch size for single GPU
+            print(f"Adjusted batch size to: {config['batch_size']}")
+            
+            # Recreate data loaders with adjusted batch size
+            print("🔄 Recreating data loaders with adjusted batch size...")
+            train_loader = DataLoader(
+                train_dataset,
+                batch_size=config['batch_size'],
+                shuffle=True,
+                collate_fn=collate_fn_v52,
+                num_workers=config.get('num_workers', 4),
+                pin_memory=device.type == 'cuda',
+                persistent_workers=config.get('num_workers', 4) > 0
+            )
+            
+            val_loader = DataLoader(
+                val_dataset,
+                batch_size=config['batch_size'],
+                shuffle=False,
+                collate_fn=collate_fn_v52,
+                num_workers=config.get('num_workers', 4),
+                pin_memory=device.type == 'cuda',
+                persistent_workers=config.get('num_workers', 4) > 0
+            )
+    else:
+        print(f"Using single GPU: {torch.cuda.get_device_name(0)}")
     
     # Count parameters
     total_params, trainable_params = count_parameters(model)
@@ -409,13 +462,13 @@ def main():
         
         # Training hyperparameters
         'num_epochs': 50,
-        'batch_size': 32,  # Increased for Tesla M40 24GB VRAM
+        'batch_size': 64,  # 4x RTX 2080 Ti (44GB total VRAM) - 16 per GPU
         'learning_rate': 5e-5,
         'weight_decay': 1e-4,
         'patience': 10,
         
         # Data loading
-        'num_workers': 6,  # Optimized for Tesla M40 with 12 CPU cores allocated
+        'num_workers': 0,  # Set to 0 to avoid memory allocation issues
         
         # Scheduler
         'scheduler_T0': 10,
@@ -424,6 +477,10 @@ def main():
         
         # Mixed precision
         'use_mixed_precision': True,
+        
+        # Multi-GPU settings
+        'multi_gpu': True,  # Enabled for 4x RTX 2080 Ti setup
+        'sync_batchnorm': False,  # Not needed for single GPU
     }
     
     # Verify v2 MAE path exists
