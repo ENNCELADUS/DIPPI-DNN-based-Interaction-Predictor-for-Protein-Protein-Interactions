@@ -14,7 +14,10 @@
 
 ## 2. Environment & Tools
 
-- **Environment**: Conda is required. Use `conda activate esm`.
+- **Environment**: Conda is required.
+  ```bash
+  conda activate esm
+  ```
 - **Language**: Python 3.10+
 - **Core Stack**: PyTorch, Pandas, NumPy, Ruff (lint/format), Pytest.
 
