@@ -1,0 +1,19 @@
+---
+description: Environment guards and safety checks (manual invoke when needed).
+---
+
+## Purpose
+Prevent misconfigured runs; surface environment and config issues early.
+
+## Applies When
+- Manual/Agent-requestable before running training/eval jobs.
+
+## Do
+- Confirm `conda activate esm` and Python 3.10+ interpreter.
+- Validate GPUs/CPUs visibility; print device summary.
+- Dry-run config parsing; print final resolved hyperparams.
+- Seed everything and log seed values.
+
+## Commands / Checklist
+- `source ~/miniconda3/etc/profile.d/conda.sh && conda activate esm`
+- `python -c "import torch; print(torch.cuda.device_count())"`

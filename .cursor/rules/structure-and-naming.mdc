@@ -1,0 +1,26 @@
+---
+description: Project structure & naming conventions.
+globs:
+  - "src/**/*"
+  - "configs/*.yaml"
+---
+
+## Purpose
+Keep the codebase predictable with clear module layout and consistent naming.
+
+## Applies When
+- Files matched by globs above under `src/` and `configs/`.
+
+## Project Structure
+- Models: `src/model/v{X}.py` (factory functions per version)
+- Training: `src/training/train_v{X}.py` (base trainer class + concrete trainers)
+- Evaluation: `src/evaluation/evaluate_v{X}_model.py`
+- Utilities: `src/utils.py`
+- Configs: `configs/*.yaml`
+
+## Naming
+- Modules/files: snake_case; Classes: PascalCase; Functions/vars: snake_case; Constants: UPPER_SNAKE.
+- Use `v{X}` consistently across code, configs, and checkpoints.
+
+## Imports
+- Use absolute imports from project root; avoid relative dot-chains.

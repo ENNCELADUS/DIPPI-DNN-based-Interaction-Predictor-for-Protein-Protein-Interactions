@@ -1,0 +1,68 @@
+# ML Models Config (Random Forest / XGBoost)
+
+run_config:
+  mode: "train_eval"  # train_eval | eval_only
+  seed: 42
+  run_id: null  # Auto-timestamp if null
+
+data_config:
+  # Embeddings file
+  embeddings_path: "data/embedding/complete_TMP_embeddings_combined.npz.pt"
+  
+  # Dataset splits (TMP protein no-leakage)
+  train_csv: "data/TMP_protein/processed/pair-no-leakage-clean/split/finetune_train.csv"
+  val_csv: "data/TMP_protein/processed/pair-no-leakage-clean/split/finetune_val.csv"
+  test_csv: "data/TMP_protein/processed/pair-no-leakage/test_balanced.csv"
+  
+  # Feature extraction
+  pooling: "mean"  # mean | cls
+  embedding_dim: 1536  # ESM-3 embedding dimension
+  
+  # Balance train/val by undersampling negatives to 1:1 ratio
+  balance: true
+
+model_config:
+  # Model selector: "random_forest" or "xgboost"
+  model: "random_forest"
+  
+  # Random Forest parameters
+  random_forest:
+    n_estimators: 300
+    max_depth: 12
+    min_samples_split: 10
+    min_samples_leaf: 5
+    max_features: "sqrt"
+    class_weight: "balanced"
+    n_jobs: -1
+    verbose: 1
+  
+  # XGBoost parameters
+  xgboost:
+    n_estimators: 300
+    max_depth: 8
+    learning_rate: 0.1
+    subsample: 0.8
+    colsample_bytree: 0.8
+    min_child_weight: 1
+    gamma: 0.0
+    reg_alpha: 0.0
+    reg_lambda: 1.0
+    scale_pos_weight: null  # Set automatically based on class imbalance if null
+    n_jobs: -1
+    verbosity: 1
+    # Early stopping (optional)
+    early_stopping_rounds: 10
+
+evaluate:
+  metrics:
+    - auroc
+    - auprc
+    - accuracy
+    - precision
+    - recall
+    - sensitivity
+    - specificity
+    - f1
+    - mcc
+  threshold: 0.5  # Decision threshold for binary classification
+

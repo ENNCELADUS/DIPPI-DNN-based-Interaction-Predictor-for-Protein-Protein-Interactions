@@ -1,0 +1,23 @@
+---
+description: High-level description of the DIPPI ML/DL project so the agent keeps context.
+globs:
+  - "docs/**/*.md"
+  - "README.md"
+---
+
+## Purpose
+Anchor agents with succinct project context and goals.
+
+## Applies When
+- Reading project docs or top-level overview files.
+
+## Project Description
+- DIPPI: A research-grade ML/DL pipeline for reproducible training and evaluation.
+- Deliverables: clean `src/` package, YAML-driven experiments, tracked checkpoints, rigorous evaluation.
+
+## Goals
+- Reproducibility, observability, and maintainable code.
+- Consistent outputs for training/eval; deterministic seeds; portable configs.
+
+## Non-Goals
+- Unnecessary complexity; avoid novel/undocumented stacks unless justified.

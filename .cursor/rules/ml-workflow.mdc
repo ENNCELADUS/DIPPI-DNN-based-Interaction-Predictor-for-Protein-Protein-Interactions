@@ -1,0 +1,35 @@
+---
+description: ML/DL workflow rules (experiments, logging, checkpoints).
+globs:
+  - "src/train/**/*.py"
+  - "src/finetune/**/*.py"
+  - "src/evaluate/**/*.py"
+  - "configs/**/*.yaml"
+---
+
+## Purpose
+Run experiments reproducibly with clear configs, logging, and versioned artifacts.
+
+## Applies When
+- Files matched by the training/finetune/evaluate/config globs above.
+
+## Do
+- Define experiments in YAML: datasets, transforms, hyperparams, schedules, seeds.
+- Keep configs immutable at runtime; log any overrides in run metadata.
+- Set global seeds; log library versions and environment (CUDA/CPU/RAM).
+- Save model, metrics, and exact config per run.
+- Track large files with git-lfs or artifact storage.
+- Store checkpoints in a versioned hierarchy:
+  - `models/v{X}_pipeline/`
+  - `models/v{X}_pipeline/v{X}_finetune/`
+  - `models/v{X}_pipeline/v{X}_pretrain/`
+- Separate train/val/test; report primary metrics and thresholds where relevant.
+- Log confusion matrix and PR/ROC when applicable.
+
+## Don’t
+- Don’t mutate configs silently during runs.
+- Don’t overwrite checkpoints without versioning.
+
+## Commands / Checklist
+- Log seeds, env, and resolved config at startup.
+- Save `config.yaml`, `metrics.json/csv`, and checkpoints in the run folder.

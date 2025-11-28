@@ -1,0 +1,155 @@
+# V4 Config (BiPool cross-attention)
+
+run_config:
+  mode: "full_pipeline"
+  seed: 42
+  pretrain_run_id: null
+  finetune_run_id: null
+  eval_run_id: null
+  load_checkpoint_path: null
+  save_best_only: true
+
+top_level_config:
+  device: "cuda"
+  ddp:
+    enabled: true
+    backend: "nccl"
+    init_method: "env://"
+    find_unused_parameters: false # Enable only if model branches leave parameters unused.
+
+data_config:
+  embeddings_path: "data/embedding/complete_TMP_embeddings_combined.npz"
+  embedding_dtype: "bf16"
+  max_sequence_length: 1024
+
+  pretrain:
+    train_csv: "data/TMP_protein/processed/pair-no-leakage/split/pretrain_train.csv"
+    valid_csv: "data/TMP_protein/processed/pair-no-leakage/split/pretrain_val.csv"
+    sampling:
+      strategy: "imbalanced"
+      pos_neg_ratio: 3.0
+  finetune:
+    train_csv: "data/TMP_protein/processed/pair-no-leakage/split/finetune_train.csv"
+    valid_csv: "data/TMP_protein/processed/pair-no-leakage/split/finetune_val.csv"
+    sampling:
+      strategy: "imbalanced"
+      pos_neg_ratio: 3.0
+    distribution_alignment:
+      target_prior: 0.5
+      threshold_search_metric: "f1"
+      search_steps: 100
+  evaluate:
+    test_balanced: "data/TMP_protein/processed/pair-no-leakage/test_balanced.csv"
+    test_realistic: "data/TMP_protein/processed/pair-no-leakage/val_balanced.csv"
+
+model_config:
+  model: "v4"
+  input_dim: 1536
+  d_model: 384
+  encoder_layers: 2
+  cross_attn_layers: 2
+  n_heads: 8
+
+  mlp_head:
+    hidden_dims: [256, 128]
+    dropout: 0.20
+    activation: "gelu"
+    norm: "layernorm"
+
+  regularization:
+    dropout: 0.10
+    token_dropout: 0.10
+    cross_attention_dropout: 0.05
+    stochastic_depth: 0.08
+
+pretrain_config:
+  epochs: 30
+  batch_size: 32
+  log_every_n_batches: 50
+  logging_metrics:
+    primary: auroc
+    secondary: recall
+  use_mixed_precision: true
+  early_stopping_patience: 5
+  monitor_metric: "val_loss"
+  scheduler:
+    type: "onecycle"
+    max_lr: 0.00006
+    pct_start: 0.20
+    div_factor: 25
+    final_div_factor: 10000
+    anneal_strategy: "cos"
+  optimizer:
+    type: "adamw"
+    lr: 0.00006
+    beta1: 0.9
+    beta2: 0.999
+    eps: 1.0e-8
+    weight_decay: 0.015
+  loss:
+    type: "bce_with_logits"
+    pos_weight: 3.0
+    label_smoothing: 0.03
+    use_class_weights: true
+    l1_lambda: 2.0e-6
+
+finetune_config:
+  strategy:
+    type: "staged_unfreeze"
+    schedule:
+      - at_epoch: 0
+        freeze: ["encoder."]
+      - at_epoch: 3
+        unfreeze: ["encoder."]
+  epochs: 15
+  batch_size: 32
+  log_every_n_batches: 50
+  logging_metrics:
+    primary: auroc
+    secondary: recall
+  use_mixed_precision: true
+  early_stopping_patience: 5
+  monitor_metric: "auprc"
+  scheduler:
+    type: "warmup_cosine"
+    warmup_epochs: 3
+    num_cycles: 0.5
+  optimizer:
+    type: "adamw"
+    lr: 0.00001
+    beta1: 0.9
+    beta2: 0.999
+    eps: 1.0e-8
+    weight_decay: 0.01
+    param_groups:
+      - name: "head"
+        pattern: "output_head."
+        lr: 0.000035
+        weight_decay: 0.0
+      - name: "cross_attention"
+        pattern: "cross_attention."
+        lr: 0.000025
+        weight_decay: 0.01
+      - name: "encoder"
+        pattern: "encoder."
+        lr: 0.000015
+        weight_decay: 0.015
+  loss:
+    type: "bce_with_logits"
+    pos_weight: 2.0
+    label_smoothing: 0.01
+    use_class_weights: true
+    l1_lambda: 1.0e-6
+
+evaluate:
+  metrics: [
+    "auroc",
+    "auprc",
+    "accuracy",
+    "sensitivity",
+    "specificity",
+    "precision",
+    "recall",
+    "f1",
+    "mcc",
+  ]

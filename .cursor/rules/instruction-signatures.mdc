@@ -1,0 +1,19 @@
+---
+description: Keep `instruction.md` as a compact shared vocabulary of signatures + implementation specs.
+globs:
+  - "instruction.md"
+---
+
+## Purpose
+Keep `instruction.md` focused on concise signatures and specs.
+
+## Applies When
+- Editing or reading `instruction.md`.
+
+## Do
+- Store only function/class/pattern signatures + short implementation specs (purpose, I/O, side-effects).
+- Keep each entry: 1 signature line + ≤3 bullets.
+- Update whenever canonical APIs change.
+
+## Don’t
+- Don’t include full implementations, long examples, or background prose.

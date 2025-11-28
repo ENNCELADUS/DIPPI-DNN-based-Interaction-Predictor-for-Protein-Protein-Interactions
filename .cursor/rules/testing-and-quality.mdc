@@ -1,0 +1,28 @@
+---
+description: Testing strategy & quality gates.
+globs:
+  - "tests/**/*.py"
+  - "src/**/*.py"
+---
+
+## Purpose
+Ensure correctness, prevent regressions, and keep fast feedback via unit and integration tests.
+
+## Applies When
+- Files matched by globs above under `tests/` and `src/`.
+
+## Do
+- Write `pytest` tests that cover success, edge cases, and failure paths; mock external I/O.
+- Maintain high coverage on core logic (aim ≥90% on touched modules).
+- Fix implementation when tests surface warnings; don’t ignore warnings.
+- Keep unit tests fast; mark slow/heavy integration tests and run in nightly CI.
+- Add a minimal reproducer test for each bug fix.
+
+## Don’t
+- Don’t merge with failing tests or lint.
+- Don’t add brittle sleeps/timeouts; prefer deterministic checks.
+
+## Commands / Checklist
+- Run tests: `python -m pytest -q`
+- Lint first: `ruff check --fix .` then `ruff format .`
+- Expect 0 errors; if failures, fix tests and implementation together.

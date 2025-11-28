@@ -1,0 +1,28 @@
+---
+description: Data loading & preprocessing guardrails (cluster-friendly).
+globs:
+  - "src/train/**/*.py"
+  - "src/finetune/**/*.py"
+  - "src/**/data*/**/*.py"
+  - "data/**/*"
+---
+
+## Purpose
+Robust, reproducible data loading and preprocessing, friendly to clusters.
+
+## Applies When
+- Training/finetune modules and data modules/files match the globs above.
+
+## Do
+- Use efficient loaders; default `num_workers=0` unless explicitly overridden by config.
+- Stream/iterate large datasets; avoid full in-memory loads.
+- Centralize transforms; log filtering/normalization steps.
+- Validate input schema and dtypes; fail fast with actionable messages.
+- Persist split indices; ensure reproducible splits across runs.
+
+## Don’t
+- Don’t mutate datasets in-place without logging.
+- Don’t rely on implicit randomness; seed all split/generator ops.
+
+## Commands / Checklist
+- Emit dataset size, split counts, and sample schema at startup.

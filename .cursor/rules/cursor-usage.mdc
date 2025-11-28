@@ -1,0 +1,20 @@
+---
+description: Cursor-specific best practices to keep AI on track.
+globs:
+  - "**/*"
+---
+
+## Purpose
+Use Cursor effectively and keep sessions focused.
+
+## Applies When
+- Project-wide Cursor usage guidance.
+
+## In-Editor Rules
+- Plan → Confirm → Code small, testable chunks; specify file(s) to edit.
+- Use @Files/@Folders to include exact context when needed.
+- Checkpoints: save often; revert if the agent drifts.
+- Start fresh chats for new features to avoid context dilution.
+
+## Rule Types & Precedence
+- Prefer focused, composable rules; keep short; use globs to auto-attach relevant files.
