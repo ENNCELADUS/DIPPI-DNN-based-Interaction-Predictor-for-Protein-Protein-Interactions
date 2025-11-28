@@ -219,6 +219,7 @@ def _load_embeddings(embeddings_path: str) -> Dict[str, Any]:
 
     suffix = embeddings_path_obj.suffix.lower()
     if suffix == ".npz":
+<<<<<<< HEAD
         # First, check the format without memory mapping
         npz_probe = np.load(embeddings_path, allow_pickle=True)
         has_structured_format = (
@@ -234,6 +235,29 @@ def _load_embeddings(embeddings_path: str) -> Dict[str, Any]:
             embeddings_mmap = npz_data["embeddings"]  # Large, keep memory-mapped
 
             embeddings_dict = MemmapEmbeddingStore(ids_array, embeddings_mmap)
+=======
+        # NumPy compressed archive format
+        npz_data = np.load(embeddings_path, allow_pickle=True)
+
+        # Check if this is a structured format with 'ids' and 'embeddings' arrays
+        if "ids" in npz_data.files and "embeddings" in npz_data.files:
+            # Structured format: ids array + embeddings array (indexed by position)
+            ids_array = npz_data["ids"]
+            embeddings_array = npz_data["embeddings"]
+
+            # Convert to dict mapping protein_id -> {"embeddings": array}
+            embeddings_dict = {}
+            for idx, protein_id in enumerate(ids_array):
+                # Handle both string and bytes IDs
+                if isinstance(protein_id, bytes):
+                    protein_id = protein_id.decode("utf-8")
+                elif isinstance(protein_id, np.str_):
+                    protein_id = str(protein_id)
+
+                # Get corresponding embedding
+                emb = embeddings_array[idx]
+                embeddings_dict[protein_id] = {"embeddings": emb}
+>>>>>>> b05d426 (Replaced the `src/embed` module with a single lightweight script `src/embed.py`. Updated the shell script.)
 
             if is_main_process():
                 logging.info(
@@ -537,6 +561,7 @@ class ProteinPairDataset(Dataset):
 
         protein_data = self.embeddings_dict[protein_id]
 
+<<<<<<< HEAD
         # Fast path: fixed-length preprocessed embeddings with stored lengths.
         if isinstance(protein_data, dict) and protein_data.get("_fixed_len"):
             embedding = protein_data["embeddings"]
@@ -552,6 +577,8 @@ class ProteinPairDataset(Dataset):
                 actual_length = self.max_len
             return embedding, actual_length
 
+=======
+>>>>>>> b05d426 (Replaced the `src/embed` module with a single lightweight script `src/embed.py`. Updated the shell script.)
         # Handle both nested dict format {"embeddings": ...} and direct array format
         if isinstance(protein_data, dict) and "embeddings" in protein_data:
             embedding = protein_data["embeddings"]  # Shape: (1, L, D) or (L, D)
@@ -855,6 +882,7 @@ def _load_ml_embeddings(embeddings_path: str) -> Dict[str, np.ndarray]:
 
     # Load based on file extension
     if suffix == ".pkl":
+        import pickle
         with open(embeddings_path, "rb") as f:
             raw_dict = pickle.load(f)
         # Handle nested dict format: {protein_id: {'embeddings': ndarray, ...}}
