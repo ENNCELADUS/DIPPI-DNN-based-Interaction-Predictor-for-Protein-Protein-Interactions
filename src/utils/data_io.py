@@ -70,13 +70,13 @@ def _load_embeddings(embeddings_path: str) -> Dict[str, Any]:
     if suffix == ".npz":
         # NumPy compressed archive format
         npz_data = np.load(embeddings_path, allow_pickle=True)
-        
+
         # Check if this is a structured format with 'ids' and 'embeddings' arrays
         if "ids" in npz_data.files and "embeddings" in npz_data.files:
             # Structured format: ids array + embeddings array (indexed by position)
             ids_array = npz_data["ids"]
             embeddings_array = npz_data["embeddings"]
-            
+
             # Convert to dict mapping protein_id -> {"embeddings": array}
             embeddings_dict = {}
             for idx, protein_id in enumerate(ids_array):
@@ -85,11 +85,11 @@ def _load_embeddings(embeddings_path: str) -> Dict[str, Any]:
                     protein_id = protein_id.decode("utf-8")
                 elif isinstance(protein_id, np.str_):
                     protein_id = str(protein_id)
-                
+
                 # Get corresponding embedding
                 emb = embeddings_array[idx]
                 embeddings_dict[protein_id] = {"embeddings": emb}
-            
+
             if is_main_process():
                 logging.info(
                     f"Converted structured .npz format: {len(embeddings_dict)} proteins "
@@ -317,9 +317,9 @@ class ProteinPairDataset(Dataset):
                 f"Sample keys: {available_keys}. "
                 f"Check that your CSV protein IDs match the embedding keys."
             )
-        
+
         protein_data = self.embeddings_dict[protein_id]
-        
+
         # Handle both nested dict format {"embeddings": ...} and direct array format
         if isinstance(protein_data, dict) and "embeddings" in protein_data:
             embedding = protein_data["embeddings"]  # Shape: (1, L, D) or (L, D)
@@ -529,6 +529,7 @@ def _load_ml_embeddings(embeddings_path: str) -> Dict[str, np.ndarray]:
     # Load based on file extension
     if embeddings_path.endswith(".pkl"):
         import pickle
+
         with open(embeddings_path, "rb") as f:
             raw_dict = pickle.load(f)
         # Handle nested dict format: {protein_id: {'embeddings': ndarray, ...}}
@@ -540,7 +541,9 @@ def _load_ml_embeddings(embeddings_path: str) -> Dict[str, np.ndarray]:
                 embeddings_dict[protein_id] = val
     else:
         # Load from PyTorch .pt file
-        embeddings_dict = torch.load(embeddings_path, map_location="cpu", weights_only=False)
+        embeddings_dict = torch.load(
+            embeddings_path, map_location="cpu", weights_only=False
+        )
 
     # Convert tensors to numpy if needed
     processed: Dict[str, np.ndarray] = {}
