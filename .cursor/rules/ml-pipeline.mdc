@@ -1,0 +1,28 @@
+---
+description: Data loading, training, evaluation, checkpoints, and runtime safety.
+globs:
+  - "src/train/**/*.py"
+  - "src/finetune/**/*.py"
+  - "src/evaluate/**/*.py"
+  - "configs/**/*.yaml"
+---
+
+## Experimentation
+- **Config**: YAML-driven. Store exact config per run.
+- **Seeds**: Global seed for reproducibility.
+- **Logging**: Log env, version, and metrics to `logs/{model}/{stage}/{run_id}/`.
+
+## Data Pipeline
+- **Loaders**: Efficient, streaming where possible. `num_workers=0` (default).
+- **Transforms**: Centralized, validatable.
+- **Splits**: Persist split indices/seeds. No implicit randomness.
+
+## Workflow & Checkpoints
+- **Stages**: Pretrain → Finetune → Evaluate.
+- **Storage**: `models/{model}/{stage}/{run_id}/`.
+- **Versioning**: Use `v{X}` consistently.
+- **Metrics**: Track primary metrics, confusion matrices, and PR/ROC curves.
+
+## Runtime Guards
+- **Checks**: Validate GPU visibility, Conda env (`esm`), and config completeness before heavy lifting.
+- **Commands**: `python -c "import torch; print(torch.cuda.device_count())"`.

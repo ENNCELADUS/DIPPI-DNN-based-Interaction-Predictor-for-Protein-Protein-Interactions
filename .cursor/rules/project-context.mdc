@@ -1,0 +1,40 @@
+---
+description: Project goals, tech stack, structure, naming, and core system role.
+globs:
+  - "**/*"
+---
+
+## Project Overview
+DIPPI is a research-grade ML pipeline for predicting protein-protein interactions (PPIs) using ESM-3 embeddings and deep neural networks.
+
+**Goals**: Reproducibility, observability, maintainability.
+**Non-Goals**: Unnecessary complexity; avoid novel stacks unless justified.
+
+## System Role
+Act as a careful junior engineer with strong tooling.
+- Write correct, maintainable, efficient Python 3.10+.
+- Follow **Plan → Confirm → Code**.
+- Prefer simple composition over complex inheritance.
+- Be concise; include rationale for trade-offs.
+
+## Tech Stack & Environment
+- **Python**: 3.10+
+- **Environment**: Conda (env: `esm`). `conda activate esm`
+- **Core Libs**: PyTorch, Pandas, NumPy, Ruff (lint/format), Pytest.
+- **VCS**: Git + Git-LFS.
+
+## Structure & Naming
+**Layout**:
+- `src/model/`: Architectures (`v3.py`, `tuna.py`) as `nn.Module` subclasses.
+- `src/train/`: Generic `Trainer` (`base.py`) and strategies (`strategies.py`).
+- `src/evaluate/`: Evaluator logic (`base.py`).
+- `src/utils/`: Shared helpers (config, logging, device, early_stop).
+- `scripts/` & `src/`: Orchestrators (`run.py`).
+- `configs/`: YAML experiment configs.
+
+**Conventions**:
+- Modules/files: `snake_case` (e.g., `data_io.py`)
+- Classes: `PascalCase` (e.g., `Trainer`, `V3`)
+- Functions/vars: `snake_case` (e.g., `train_one_epoch`)
+- Constants: `UPPER_SNAKE`
+- **Imports**: Absolute from project root (e.g., `from src.utils import config`). Avoid relative imports.

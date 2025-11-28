@@ -12,7 +12,7 @@ Recommended to use **Conda** for environment management:
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/<your-org>/DIPPI.git
+git clone https://github.com/ENNCELADUS/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions.git
 cd DIPPI
 
 # 2. Create environment
