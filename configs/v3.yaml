@@ -2,7 +2,7 @@
 
 run_config:
   mode: "full_pipeline"  # full_pipeline | finetune_from_pretrain | eval_only
-  seed: 42
+  seed: 47
   pretrain_run_id: null   # Auto-timestamp if null
   finetune_run_id: null   # Auto-timestamp if null
   eval_run_id: null       # Auto-timestamp if null
@@ -47,14 +47,14 @@ data_config:
 model_config:
   model: "v3"
   input_dim: 1536
-  d_model: 256
+  d_model: 384
   encoder_layers: 2
   cross_attn_layers: 2
-  n_heads: 8
+  n_heads: 12
 
   # MLP head configuration
   mlp_head:
-    hidden_dims: [256, 64]
+    hidden_dims: [384, 192, 64]
     dropout: 0.20
     activation: "gelu"
     norm: "layernorm"
@@ -67,8 +67,8 @@ model_config:
     stochastic_depth: 0.05          # Max drop-path rate across encoder depth (linear schedule)
 
 pretrain_config:
-  epochs: 30
-  batch_size: 32
+  epochs: 40
+  batch_size: 64
 
   # Logging configuration
   log_every_n_batches: 50
@@ -86,7 +86,7 @@ pretrain_config:
   # Scheduler settings.
   scheduler:
     type: "onecycle"
-    max_lr: 0.00006
+    max_lr: 0.00005
     pct_start: 0.20
     div_factor: 25
     final_div_factor: 10000
@@ -95,7 +95,7 @@ pretrain_config:
   # Optimizer
   optimizer:
     type: "adamw"
-    lr: 0.00006
+    lr: 0.00005
     beta1: 0.9
     beta2: 0.999
     eps: 1.0e-8
@@ -120,7 +120,7 @@ finetune_config:
         unfreeze: ["encoder."]
         # Optional: could specify new optimizer_cfg/scheduler_cfg here for different LRs
 
-  epochs: 15
+  epochs: 30
   batch_size: 32
 
   # Logging configuration
