@@ -17,7 +17,7 @@ def _build_padding_mask(lengths: torch.Tensor, max_len: int) -> Optional[torch.T
 
 
 class SiameseEncoder(nn.Module):
-    """Ablation encoder: only linear projection + dropout + norm (no transformer layers)."""
+    """Ablation encoder: linear projection + norm + activation (no transformer layers)."""
 
     def __init__(
         self,
@@ -32,6 +32,7 @@ class SiameseEncoder(nn.Module):
             nn.Dropout(token_dropout) if token_dropout > 0.0 else nn.Identity()
         )
         self.output_norm = nn.LayerNorm(d_model)
+        self.activation = nn.GELU()
 
     def forward(self, embeddings: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
         if embeddings.dim() != 3:
@@ -40,7 +41,8 @@ class SiameseEncoder(nn.Module):
             )
         projected = self.input_projection(embeddings)
         projected = self.token_dropout(projected)
-        return self.output_norm(projected)
+        projected = self.output_norm(projected)
+        return self.activation(projected)
 
 
 class CrossAttentionLayer(nn.Module):
@@ -237,7 +239,6 @@ class V2(nn.Module):
             raise ValueError(f"Missing required model configuration fields: {missing}")
 
         self.input_dim: int = int(model_config["input_dim"])
-        self.d_model: int = int(model_config["d_model"])
         # encoder_layers is optional and ignored in V2 (kept for config compatibility)
         self.encoder_layers: int = int(model_config.get("encoder_layers", 0))
         self.cross_attn_layers: int = int(model_config["cross_attn_layers"])

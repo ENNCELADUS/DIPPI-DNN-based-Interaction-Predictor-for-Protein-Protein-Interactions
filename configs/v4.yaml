@@ -1,146 +1,177 @@
-# V4 Config (BiPool cross-attention)
+# V4 Config
 
 run_config:
-  mode: "full_pipeline"
-  seed: 42
-  pretrain_run_id: null
-  finetune_run_id: null
-  eval_run_id: null
-  load_checkpoint_path: null
-  save_best_only: true
+  mode: "full_pipeline"  # full_pipeline | finetune_from_pretrain | eval_only
+  seed: 47
+  pretrain_run_id: null   # Auto-timestamp if null
+  finetune_run_id: null   # Auto-timestamp if null
+  eval_run_id: null       # Auto-timestamp if null
+  load_checkpoint_path: null             # If mode = full_pipeline, then NULL checkpoint.
+                                        # If mode = finetune_from_pretrain, then the checkpoint of the pretrain run.
+                                        # If mode = eval_only, then the checkpoint of the finetune run.
+  save_best_only: true     # If true, only save the best checkpoint. If not, save checkpoint at every epoch end, while also keeps a best model checkpoint.
 
 top_level_config:
   device: "cuda"
   ddp:
-    enabled: true
-    backend: "nccl"
+    enabled: true         # Enable DistributedDataParallel by default
+    backend: "nccl"       # nccl | gloo (cpu)
     init_method: "env://"
-    find_unused_parameters: false # Enable only if model branches leave parameters unused.
+    find_unused_parameters: true  # Staged unfreeze toggles gradients dynamically; keep reducer safe.
 
 data_config:
-  embeddings_path: "data/embedding/complete_TMP_embeddings_combined.npz"
+  embeddings_path: "data/TMP/processed/TMP_embeddings.npz"
   embedding_dtype: "bf16"
   max_sequence_length: 1024
 
   pretrain:
-    train_csv: "data/TMP_protein/processed/pair-no-leakage/split/pretrain_train.csv"
-    valid_csv: "data/TMP_protein/processed/pair-no-leakage/split/pretrain_val.csv"
+    train_csv: "data/TMP_protein/processed/protein-no-leakage/split/pretrain_train.csv"
+    valid_csv: "data/TMP_protein/processed/protein-no-leakage/split/pretrain_val.csv"
     sampling:
       strategy: "imbalanced"
-      pos_neg_ratio: 3.0
+      pos_neg_ratio: 8.0
   finetune:
-    train_csv: "data/TMP_protein/processed/pair-no-leakage/split/finetune_train.csv"
-    valid_csv: "data/TMP_protein/processed/pair-no-leakage/split/finetune_val.csv"
+    train_csv: "data/TMP_protein/processed/protein-no-leakage/split/finetune_train.csv"
+    valid_csv: "data/TMP_protein/processed/protein-no-leakage/split/finetune_val.csv"
     sampling:
       strategy: "imbalanced"
-      pos_neg_ratio: 3.0
+      pos_neg_ratio: 10.0
     distribution_alignment:
-      target_prior: 0.5
-      threshold_search_metric: "f1"
-      search_steps: 100
+      target_prior: 0.10
+      threshold_search_metric: "auprc"
+      search_steps: 200
   evaluate:
-    test_balanced: "data/TMP_protein/processed/pair-no-leakage/test_balanced.csv"
-    test_realistic: "data/TMP_protein/processed/pair-no-leakage/val_balanced.csv"
+    test_balanced: "data/TMP_protein/processed/protein-no-leakage/test_balanced.csv"
+    test_realistic: "data/TMP_protein/processed/protein-no-leakage/val_balanced.csv"
 
 model_config:
   model: "v4"
   input_dim: 1536
   d_model: 384
-  encoder_layers: 2
+  # No transformer layers in the encoder
   cross_attn_layers: 2
-  n_heads: 8
+  n_heads: 12
 
+  # MLP head configuration (input_dim = 2*d_model = 768 after product|diff)
   mlp_head:
-    hidden_dims: [256, 128]
+    hidden_dims: [512, 256, 64]
     dropout: 0.20
     activation: "gelu"
     norm: "layernorm"
 
+  # Architecture related regularization (MVP)
   regularization:
-    dropout: 0.10
-    token_dropout: 0.10
-    cross_attention_dropout: 0.05
-    stochastic_depth: 0.08
+    dropout: 0.10                   # Required: transformer block dropout
+    token_dropout: 0.10             # Optional: dropout on embeddings before encoder (0.0 = disabled)
+    cross_attention_dropout: 0.05   # Optional: dropout for cross-attention
+    stochastic_depth: 0.05          # Max drop-path rate across encoder depth (linear schedule)
 
 pretrain_config:
-  epochs: 30
-  batch_size: 32
+  epochs: 40
+  batch_size: 64
+
+  # Logging configuration
   log_every_n_batches: 50
-  logging_metrics:
-    primary: auroc
-    secondary: recall
+  logging_metrics:               # Two metrics to log to the training_step.csv file
+    primary: auprc
+    secondary: auroc
+  
+  # Mixed precision (AMP) - CUDA only
   use_mixed_precision: true
+  
+  # Early stopping
   early_stopping_patience: 5
-  monitor_metric: "val_loss"
+  monitor_metric: "auprc"     # Which metric to use for early stopping (lower is better)
+  
+  # Scheduler settings.
   scheduler:
     type: "onecycle"
-    max_lr: 0.00006
+    max_lr: 0.00005
     pct_start: 0.20
     div_factor: 25
     final_div_factor: 10000
     anneal_strategy: "cos"
+  
+  # Optimizer
   optimizer:
     type: "adamw"
-    lr: 0.00006
+    lr: 0.00005
     beta1: 0.9
     beta2: 0.999
     eps: 1.0e-8
     weight_decay: 0.015
+  # Loss
   loss:
     type: "bce_with_logits"
-    pos_weight: 3.0
-    label_smoothing: 0.03
+    pos_weight: 1.0
+    label_smoothing: 0.02
     use_class_weights: true
-    l1_lambda: 2.0e-6
+    l1_lambda: 2.0e-6         # Small L1 penalty on weights (tunes sparsity; keep small)
 
 finetune_config:
   strategy:
-    type: "staged_unfreeze"
+    type: "staged_unfreeze"  # head_only | full | staged_unfreeze
     schedule:
+      # Initial freeze: start finetune with encoder frozen (head-only training)
       - at_epoch: 0
         freeze: ["encoder."]
+      # Staged unfreeze: unfreeze encoder after 3 epochs
       - at_epoch: 3
         unfreeze: ["encoder."]
-  epochs: 15
+        # Optional: could specify new optimizer_cfg/scheduler_cfg here for different LRs
+
+  epochs: 30
   batch_size: 32
+
+  # Logging configuration
   log_every_n_batches: 50
-  logging_metrics:
-    primary: auroc
-    secondary: recall
+  logging_metrics:               # Two metrics to log to the training_step.csv file
+    primary: auprc
+    secondary: auroc
+  
+  # Mixed precision (AMP) - CUDA only
   use_mixed_precision: true
+  
+  # Early stopping
   early_stopping_patience: 5
-  monitor_metric: "auprc"
+  monitor_metric: "auprc"     # Which metric to use for early stopping (lower is better)
+  
   scheduler:
     type: "warmup_cosine"
     warmup_epochs: 3
     num_cycles: 0.5
+  
+  # Optimizer with LLRD (Layer-wise Learning Rate Decay)
+  # Note: Schedulers (e.g., warmup_cosine) apply to all param_groups uniformly
   optimizer:
     type: "adamw"
-    lr: 0.00001
+    lr: 0.00001                # Base LR for unmatched parameters
     beta1: 0.9
     beta2: 0.999
     eps: 1.0e-8
-    weight_decay: 0.01
+    weight_decay: 0.01         # Base weight_decay for unmatched parameters
+    # LLRD: Different learning rates for different model components
     param_groups:
       - name: "head"
         pattern: "output_head."
         lr: 0.000035
-        weight_decay: 0.0
+        weight_decay: 0.0      # No weight decay on task head
       - name: "cross_attention"
         pattern: "cross_attention."
         lr: 0.000025
         weight_decay: 0.01
       - name: "encoder"
         pattern: "encoder."
-        lr: 0.000015
+        lr: 0.000015           # Lower LR for pretrained encoder (LLRD)
         weight_decay: 0.015
+  # Loss
   loss:
     type: "bce_with_logits"
-    pos_weight: 2.0
+    pos_weight: 1.5
     label_smoothing: 0.01
     use_class_weights: true
-    l1_lambda: 1.0e-6
-
+    l1_lambda: 1.0e-6         # Small L1 penalty on weights during finetune
+  
 evaluate:
   metrics: [
     "auroc",

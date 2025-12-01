@@ -5,11 +5,55 @@ from typing import Any, Dict, Optional
 import torch
 import torch.nn as nn
 
-from .v3 import MLPHead, SiameseEncoder, _build_padding_mask
+from .v2 import SiameseEncoder
+from .v3 import MLPHead, _build_padding_mask
 
 
-class CrossAttentionLayerNoCLS(nn.Module):
-    """Bidirectional cross-attention block without CLS pooling."""
+class AttentionPooling(nn.Module):
+    """
+    Pool a sequence to a single vector via a learned query.
+
+    A learnable query vector attends to all positions in the input sequence
+    using multi-head attention, producing a fixed-size representation.
+    """
+
+    def __init__(self, d_model: int, n_heads: int, dropout: float) -> None:
+        super().__init__()
+        self.query = nn.Parameter(torch.zeros(1, 1, d_model))
+        nn.init.normal_(self.query, mean=0.0, std=0.02)
+        self.norm = nn.LayerNorm(d_model)
+        self.attn = nn.MultiheadAttention(
+            embed_dim=d_model,
+            num_heads=n_heads,
+            dropout=dropout,
+            batch_first=True,
+        )
+
+    def forward(
+        self, x: torch.Tensor, mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """
+        Args:
+            x: Input tensor of shape (batch, seq_len, d_model)
+            mask: Optional padding mask of shape (batch, seq_len), True = masked
+
+        Returns:
+            Pooled tensor of shape (batch, d_model)
+        """
+        batch_size = x.size(0)
+        query = self.query.expand(batch_size, -1, -1)
+        x_norm = self.norm(x)
+        out, _ = self.attn(query, x_norm, x_norm, key_padding_mask=mask)
+        return out.squeeze(1)
+
+
+class CrossAttentionLayer(nn.Module):
+    """
+    Bidirectional cross-attention layer without CLS token.
+
+    Performs A→B and B→A cross-attention to exchange information
+    between two protein sequences.
+    """
 
     def __init__(self, d_model: int, n_heads: int, dropout: float) -> None:
         super().__init__()
@@ -37,10 +81,22 @@ class CrossAttentionLayerNoCLS(nn.Module):
         mask_a: Optional[torch.Tensor],
         mask_b: Optional[torch.Tensor],
     ) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Args:
+            h_a: Protein A representations (batch, seq_a, d_model)
+            h_b: Protein B representations (batch, seq_b, d_model)
+            mask_a: Padding mask for A (batch, seq_a), True = masked
+            mask_b: Padding mask for B (batch, seq_b), True = masked
+
+        Returns:
+            Updated (h_a, h_b) after cross-attention
+        """
+        # A attends to B
         a_norm = self.norm_a(h_a)
         attn_a, _ = self.attn_a_to_b(a_norm, h_b, h_b, key_padding_mask=mask_b)
         h_a = h_a + self.drop_a(attn_a)
 
+        # B attends to A
         b_norm = self.norm_b(h_b)
         attn_b, _ = self.attn_b_to_a(b_norm, h_a, h_a, key_padding_mask=mask_a)
         h_b = h_b + self.drop_b(attn_b)
@@ -48,31 +104,20 @@ class CrossAttentionLayerNoCLS(nn.Module):
         return h_a, h_b
 
 
-def _masked_mean_pool(
-    x: torch.Tensor, padding_mask: Optional[torch.Tensor]
-) -> torch.Tensor:
-    if padding_mask is None:
-        return x.mean(dim=1)
-    valid_mask = (~padding_mask).unsqueeze(-1)
-    valid_mask = valid_mask.type_as(x)
-    summed = (x * valid_mask).sum(dim=1)
-    counts = valid_mask.sum(dim=1).clamp(min=1e-6)
-    return summed / counts
+class InteractionCrossAttention(nn.Module):
+    """
+    Stacked bidirectional cross-attention without CLS token.
 
-
-class InteractionCrossAttentionBiPool(nn.Module):
-    """Cross-attention stack that returns pooled pair features instead of CLS."""
+    Exchanges information between two protein sequences through
+    multiple layers of bidirectional cross-attention.
+    """
 
     def __init__(
-        self,
-        d_model: int,
-        n_heads: int,
-        n_layers: int,
-        dropout: float,
+        self, d_model: int, n_heads: int, n_layers: int, dropout: float
     ) -> None:
         super().__init__()
         self.layers = nn.ModuleList(
-            CrossAttentionLayerNoCLS(d_model=d_model, n_heads=n_heads, dropout=dropout)
+            CrossAttentionLayer(d_model=d_model, n_heads=n_heads, dropout=dropout)
             for _ in range(n_layers)
         )
 
@@ -82,13 +127,23 @@ class InteractionCrossAttentionBiPool(nn.Module):
         h_b: torch.Tensor,
         lengths_a: torch.Tensor,
         lengths_b: torch.Tensor,
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Args:
+            h_a: Protein A representations (batch, seq_a, d_model)
+            h_b: Protein B representations (batch, seq_b, d_model)
+            lengths_a: Actual lengths for A (batch,)
+            lengths_b: Actual lengths for B (batch,)
+
+        Returns:
+            (h_a', h_b') after cross-attention layers
+        """
         if h_a.dim() != 3 or h_b.dim() != 3:
             raise ValueError(
                 "Cross-attention inputs must have shape (batch_size, seq_len, d_model)"
             )
         if h_a.size(0) != h_b.size(0):
-            raise ValueError("Protein pair batches must share batch dimension")
+            raise ValueError("Protein pair batches must have matching batch dimension")
 
         max_len_a = h_a.size(1)
         max_len_b = h_b.size(1)
@@ -98,21 +153,21 @@ class InteractionCrossAttentionBiPool(nn.Module):
         for layer in self.layers:
             h_a, h_b = layer(h_a, h_b, mask_a, mask_b)
 
-        rep_a_mean = _masked_mean_pool(h_a, mask_a)
-        rep_b_mean = _masked_mean_pool(h_b, mask_b)
-        interaction_repr = torch.cat(
-            [
-                rep_a_mean,
-                rep_b_mean,
-                torch.abs(rep_a_mean - rep_b_mean),
-                rep_a_mean * rep_b_mean,
-            ],
-            dim=-1,
-        )
-        return interaction_repr
+        return h_a, h_b, mask_a, mask_b
 
 
 class V4(nn.Module):
+    """
+    V4 PPI Classifier - Ablation model for V3.
+
+    Architecture:
+    1. SiameseEncoder (V2-style): Linear projection + dropout + norm (no self-attention)
+    2. Bidirectional cross-attention (A→B, B→A) WITHOUT CLS token
+    3. Attention pooling with learned query to get v_a, v_b
+    4. Combine: product = v_a * v_b, diff = |v_a - v_b|, concat → [batch, 2*d_model]
+    5. MLP classification head
+    """
+
     name: str = "v4"
 
     def __init__(self, **model_config: Any) -> None:
@@ -120,7 +175,6 @@ class V4(nn.Module):
         required_fields = [
             "input_dim",
             "d_model",
-            "encoder_layers",
             "cross_attn_layers",
             "n_heads",
         ]
@@ -128,16 +182,19 @@ class V4(nn.Module):
         if missing:
             raise ValueError(f"Missing required model configuration fields: {missing}")
 
-        self.input_dim = int(model_config["input_dim"])
-        self.d_model = int(model_config["d_model"])
-        self.encoder_layers = int(model_config["encoder_layers"])
-        self.cross_attn_layers = int(model_config["cross_attn_layers"])
-        self.n_heads = int(model_config["n_heads"])
+        self.input_dim: int = int(model_config["input_dim"])
+        self.d_model: int = int(model_config["d_model"])
+        # encoder_layers is optional and ignored in V4 (kept for config compatibility)
+        self.encoder_layers: int = int(model_config.get("encoder_layers", 0))
+        self.cross_attn_layers: int = int(model_config["cross_attn_layers"])
+        self.n_heads: int = int(model_config["n_heads"])
 
         mlp_cfg: Dict[str, Any] = model_config.get("mlp_head", {})
-        if not mlp_cfg or "hidden_dims" not in mlp_cfg or "dropout" not in mlp_cfg:
+        if not mlp_cfg:
+            raise ValueError("mlp_head configuration is required for V4")
+        if "hidden_dims" not in mlp_cfg or "dropout" not in mlp_cfg:
             raise ValueError(
-                "mlp_head configuration with hidden_dims and dropout is required for V4"
+                "mlp_head.hidden_dims and mlp_head.dropout must be provided"
             )
         self.mlp_hidden_dims = list(mlp_cfg["hidden_dims"])
         self.mlp_dropout = float(mlp_cfg["dropout"])
@@ -152,25 +209,38 @@ class V4(nn.Module):
             reg_cfg.get("cross_attention_dropout", self.encoder_dropout)
         )
         self.token_dropout = float(reg_cfg.get("token_dropout", 0.0))
-        self.stochastic_depth = float(reg_cfg.get("stochastic_depth", 0.0))
 
+        # V4 ablation: encoder has no transformer layers (V2-style)
         self.encoder = SiameseEncoder(
             input_dim=self.input_dim,
             d_model=self.d_model,
-            n_layers=self.encoder_layers,
-            n_heads=self.n_heads,
             dropout=self.encoder_dropout,
             token_dropout=self.token_dropout,
-            stochastic_depth=self.stochastic_depth,
         )
-        self.cross_attention = InteractionCrossAttentionBiPool(
+
+        # Cross-attention (bidirectional, no CLS token)
+        self.cross_attention = InteractionCrossAttention(
             d_model=self.d_model,
             n_heads=self.n_heads,
             n_layers=self.cross_attn_layers,
             dropout=self.cross_attention_dropout,
         )
+
+        # Attention pooling for each protein
+        self.pool_a = AttentionPooling(
+            d_model=self.d_model,
+            n_heads=self.n_heads,
+            dropout=self.cross_attention_dropout,
+        )
+        self.pool_b = AttentionPooling(
+            d_model=self.d_model,
+            n_heads=self.n_heads,
+            dropout=self.cross_attention_dropout,
+        )
+
+        # MLP head takes 2*d_model input (product + diff concatenation)
         self.output_head = MLPHead(
-            input_dim=4 * self.d_model,
+            input_dim=2 * self.d_model,
             hidden_dims=self.mlp_hidden_dims,
             output_dim=1,
             dropout=self.mlp_dropout,
@@ -209,16 +279,32 @@ class V4(nn.Module):
         else:
             lengths_b = lengths_b.to(device=device, dtype=torch.long)
 
+        # Encode (no self-attention, just projection)
         encoded_a = self.encoder(emb_a, lengths_a)
         encoded_b = self.encoder(emb_b, lengths_b)
-        interaction_repr = self.cross_attention(
+
+        # Cross-attention (bidirectional, no CLS)
+        h_a, h_b, mask_a, mask_b = self.cross_attention(
             encoded_a, encoded_b, lengths_a, lengths_b
         )
-        logits = self.output_head(interaction_repr)
 
+        # Attention pooling
+        v_a = self.pool_a(h_a, mask_a)  # [batch, d_model]
+        v_b = self.pool_b(h_b, mask_b)  # [batch, d_model]
+
+        # Combine with product and absolute difference
+        product = v_a * v_b
+        diff = torch.abs(v_a - v_b)
+        combined = torch.cat([product, diff], dim=-1)  # [batch, 2*d_model]
+
+        # Classification
+        logits = self.output_head(combined)
+
+        # Compute loss if labels are provided (training mode)
         output = {"logits": logits}
         if "label" in batch:
             labels = batch["label"].float()
+            # Normalize logits shape: (N, 1) → (N,) and (N, 1) labels → (N,)
             logits_for_loss = (
                 logits.squeeze(-1)
                 if logits.dim() > 1 and logits.size(-1) == 1
@@ -229,6 +315,7 @@ class V4(nn.Module):
                 if labels.dim() > 1 and labels.size(-1) == 1
                 else labels
             )
+            # Compute BCE loss with logits
             loss = nn.functional.binary_cross_entropy_with_logits(
                 logits_for_loss, labels_for_loss
             )
