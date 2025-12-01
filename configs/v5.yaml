@@ -1,0 +1,196 @@
+# V5 Config - Ablation with contact map modeling
+
+run_config:
+  mode: "full_pipeline"  # full_pipeline | finetune_from_pretrain | eval_only
+  seed: 42
+  pretrain_run_id: null   # Auto-timestamp if null
+  finetune_run_id: null   # Auto-timestamp if null
+  eval_run_id: null       # Auto-timestamp if null
+  load_checkpoint_path: null  # If mode = full_pipeline, then NULL checkpoint.
+                              # If mode = finetune_from_pretrain, then the checkpoint of the pretrain run.
+                              # If mode = eval_only, then the checkpoint of the finetune run.
+  save_best_only: true     # If true, only save the best checkpoint. If not, save checkpoint at every epoch end, while also keeps a best model checkpoint.
+
+top_level_config:
+  device: "cuda"
+  ddp:
+    enabled: true         # Enable DistributedDataParallel by default
+    backend: "nccl"       # nccl | gloo (cpu)
+    init_method: "env://"
+    find_unused_parameters: true  # Staged unfreeze toggles gradients dynamically; keep reducer safe.
+
+data_config:
+  embeddings_path: "data/TMP/processed/TMP_embeddings.npz"
+  embedding_dtype: "bf16"
+  max_sequence_length: 1024
+
+  pretrain:
+    train_csv: "data/TMP/processed/pretrain_train.csv"
+    valid_csv: "data/TMP/processed/pretrain_val.csv"
+    sampling:
+      strategy: "imbalanced"
+      pos_neg_ratio: 8.0
+  finetune:
+    train_csv: "data/TMP/processed/finetune_train.csv"
+    valid_csv: "data/TMP/processed/finetune_val.csv"
+    sampling:
+      strategy: "imbalanced"
+      pos_neg_ratio: 10.0
+    distribution_alignment:
+      target_prior: 0.10
+      threshold_search_metric: "auprc"
+      search_steps: 200
+  evaluate:
+    test_balanced: "data/TMP/processed/test.csv"
+
+model_config:
+  model: "v5"
+  input_dim: 1536
+  d_model: 384
+  # No encoder transformer layers
+  cross_attn_layers: 2
+  n_heads: 12
+
+  # Contact map modeling parameters
+  pair_dim: 128              # D_p: projection dim for interaction map (D_h/3)
+  cnn_dim: 64                # D_c: CNN channel dimension
+
+  # MLP head configuration (input is cnn_dim after global max pool)
+  mlp_head:
+    hidden_dims: [32]        # Smaller head since input is only D_c=64
+    dropout: 0.20
+    activation: "gelu"
+    norm: "layernorm"
+
+  # Architecture related regularization (MVP)
+  regularization:
+    dropout: 0.10                   # Required: transformer block dropout
+    token_dropout: 0.10             # Optional: dropout on embeddings before encoder (0.0 = disabled)
+    cross_attention_dropout: 0.05   # Optional: dropout for cross-attention
+
+pretrain_config:
+  epochs: 40
+  batch_size: 64
+
+  # Logging configuration
+  log_every_n_batches: 50
+  logging_metrics:               # Two metrics to log to the training_step.csv file
+    primary: auprc
+    secondary: auroc
+  
+  # Mixed precision (AMP) - CUDA only
+  use_mixed_precision: true
+  
+  # Early stopping
+  early_stopping_patience: 5
+  monitor_metric: "auprc"     # Which metric to use for early stopping (lower is better)
+  
+  # Scheduler settings.
+  scheduler:
+    type: "onecycle"
+    max_lr: 0.00005
+    pct_start: 0.20
+    div_factor: 25
+    final_div_factor: 10000
+    anneal_strategy: "cos"
+  
+  # Optimizer
+  optimizer:
+    type: "adamw"
+    lr: 0.00005
+    beta1: 0.9
+    beta2: 0.999
+    eps: 1.0e-8
+    weight_decay: 0.015
+  # Loss
+  loss:
+    type: "bce_with_logits"
+    pos_weight: 1.0
+    label_smoothing: 0.02
+    use_class_weights: true
+    l1_lambda: 2.0e-6         # Small L1 penalty on weights (tunes sparsity; keep small)
+
+finetune_config:
+  strategy:
+    type: "staged_unfreeze"  # head_only | full | staged_unfreeze
+    schedule:
+      # Initial freeze: start finetune with encoder frozen (head-only training)
+      - at_epoch: 0
+        freeze: ["encoder."]
+      # Staged unfreeze: unfreeze encoder after 3 epochs
+      - at_epoch: 3
+        unfreeze: ["encoder."]
+        # Optional: could specify new optimizer_cfg/scheduler_cfg here for different LRs
+
+  epochs: 30
+  batch_size: 32
+
+  # Logging configuration
+  log_every_n_batches: 50
+  logging_metrics:               # Two metrics to log to the training_step.csv file
+    primary: auprc
+    secondary: auroc
+  
+  # Mixed precision (AMP) - CUDA only
+  use_mixed_precision: true
+  
+  # Early stopping
+  early_stopping_patience: 5
+  monitor_metric: "auprc"     # Which metric to use for early stopping (lower is better)
+  
+  scheduler:
+    type: "warmup_cosine"
+    warmup_epochs: 3
+    num_cycles: 0.5
+  
+  # Optimizer with LLRD (Layer-wise Learning Rate Decay)
+  # Note: Schedulers (e.g., warmup_cosine) apply to all param_groups uniformly
+  optimizer:
+    type: "adamw"
+    lr: 0.00001                # Base LR for unmatched parameters
+    beta1: 0.9
+    beta2: 0.999
+    eps: 1.0e-8
+    weight_decay: 0.01         # Base weight_decay for unmatched parameters
+    # LLRD: Different learning rates for different model components
+    param_groups:
+      - name: "head"
+        pattern: "output_head."
+        lr: 0.000035
+        weight_decay: 0.0      # No weight decay on task head
+      - name: "contact_cnn"
+        pattern: "contact_cnn."
+        lr: 0.000030
+        weight_decay: 0.01
+      - name: "map_builder"
+        pattern: "map_builder."
+        lr: 0.000025
+        weight_decay: 0.01
+      - name: "cross_attention"
+        pattern: "cross_attention."
+        lr: 0.000020
+        weight_decay: 0.01
+      - name: "encoder"
+        pattern: "encoder."
+        lr: 0.000015           # Lower LR for pretrained encoder (LLRD)
+        weight_decay: 0.015
+  # Loss
+  loss:
+    type: "bce_with_logits"
+    pos_weight: 1.5
+    label_smoothing: 0.01
+    use_class_weights: true
+    l1_lambda: 1.0e-6         # Small L1 penalty on weights during finetune
+  
+evaluate:
+  metrics: [
+    "auroc",
+    "auprc",
+    "accuracy",
+    "sensitivity",
+    "specificity",
+    "precision",
+    "recall",
+    "f1",
+    "mcc",
+  ]
