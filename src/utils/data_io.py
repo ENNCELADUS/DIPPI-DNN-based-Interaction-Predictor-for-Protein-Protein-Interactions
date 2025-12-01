@@ -36,6 +36,52 @@ _EMBEDDINGS_CACHE: Optional[Dict[str, Any]] = None
 _EMBEDDINGS_PATH_CACHE: Optional[str] = None
 
 
+class MemmapEmbeddingStore:
+    """
+    Memory-mapped embedding store for large npz files.
+
+    Uses numpy memory-mapping to access embeddings on-demand without
+    loading the entire file into RAM. This is critical for DDP training
+    where each process would otherwise load the full embeddings file.
+    """
+
+    def __init__(self, ids_array: np.ndarray, embeddings_mmap: np.ndarray):
+        """
+        Initialize memory-mapped embedding store.
+
+        Args:
+            ids_array: Array of protein IDs (loaded into memory, small)
+            embeddings_mmap: Memory-mapped embeddings array (stays on disk)
+        """
+        # Build ID -> index mapping (small memory footprint)
+        self._id_to_idx: Dict[str, int] = {}
+        for idx, protein_id in enumerate(ids_array):
+            if isinstance(protein_id, bytes):
+                protein_id = protein_id.decode("utf-8")
+            elif isinstance(protein_id, np.str_):
+                protein_id = str(protein_id)
+            self._id_to_idx[protein_id] = idx
+
+        # Keep reference to memory-mapped array (does NOT load into RAM)
+        self._embeddings = embeddings_mmap
+
+    def __contains__(self, protein_id: str) -> bool:
+        return protein_id in self._id_to_idx
+
+    def __getitem__(self, protein_id: str) -> Dict[str, np.ndarray]:
+        if protein_id not in self._id_to_idx:
+            raise KeyError(f"Protein ID '{protein_id}' not found in embeddings")
+        idx = self._id_to_idx[protein_id]
+        # Access embedding on-demand from memory-mapped array
+        return {"embeddings": self._embeddings[idx]}
+
+    def __len__(self) -> int:
+        return len(self._id_to_idx)
+
+    def keys(self):
+        return self._id_to_idx.keys()
+
+
 def _load_embeddings(embeddings_path: str) -> Dict[str, Any]:
     """
     Load embeddings from pickle or npz file with module-level caching.
@@ -44,11 +90,12 @@ def _load_embeddings(embeddings_path: str) -> Dict[str, Any]:
         embeddings_path: Path to embeddings file (.pkl, .pickle, or .npz)
 
     Returns:
-        Dictionary mapping protein IDs to embedding data
+        Dictionary-like object mapping protein IDs to embedding data
 
     Note:
         Uses module-level cache to avoid reloading the same file.
-        The embeddings file is large (40GB+), so we load it once.
+        For large .npz files with structured format (ids + embeddings arrays),
+        uses memory-mapping to avoid loading the entire file into RAM.
     """
     global _EMBEDDINGS_CACHE, _EMBEDDINGS_PATH_CACHE
 
@@ -68,44 +115,42 @@ def _load_embeddings(embeddings_path: str) -> Dict[str, Any]:
 
     suffix = embeddings_path_obj.suffix.lower()
     if suffix == ".npz":
-        # NumPy compressed archive format
-        npz_data = np.load(embeddings_path, allow_pickle=True)
+        # First, check the format without memory mapping
+        npz_probe = np.load(embeddings_path, allow_pickle=True)
+        has_structured_format = (
+            "ids" in npz_probe.files and "embeddings" in npz_probe.files
+        )
+        npz_probe.close()
 
-        # Check if this is a structured format with 'ids' and 'embeddings' arrays
-        if "ids" in npz_data.files and "embeddings" in npz_data.files:
-            # Structured format: ids array + embeddings array (indexed by position)
-            ids_array = npz_data["ids"]
-            embeddings_array = npz_data["embeddings"]
+        if has_structured_format:
+            # Use memory-mapped loading for large structured npz files
+            # This keeps the embeddings on disk and loads on-demand
+            npz_data = np.load(embeddings_path, allow_pickle=True, mmap_mode="r")
+            ids_array = np.array(npz_data["ids"])  # Small, load into memory
+            embeddings_mmap = npz_data["embeddings"]  # Large, keep memory-mapped
 
-            # Convert to dict mapping protein_id -> {"embeddings": array}
-            embeddings_dict = {}
-            for idx, protein_id in enumerate(ids_array):
-                # Handle both string and bytes IDs
-                if isinstance(protein_id, bytes):
-                    protein_id = protein_id.decode("utf-8")
-                elif isinstance(protein_id, np.str_):
-                    protein_id = str(protein_id)
-
-                # Get corresponding embedding
-                emb = embeddings_array[idx]
-                embeddings_dict[protein_id] = {"embeddings": emb}
+            embeddings_dict = MemmapEmbeddingStore(ids_array, embeddings_mmap)
 
             if is_main_process():
                 logging.info(
-                    f"Converted structured .npz format: {len(embeddings_dict)} proteins "
-                    f"from ids/embeddings arrays"
+                    f"Memory-mapped structured .npz format: {len(embeddings_dict)} proteins "
+                    f"(embeddings stay on disk, loaded on-demand)"
                 )
         else:
-            # Legacy format: each key is a protein ID or needs conversion
+            # Legacy format: load into memory (typically smaller files)
+            npz_data = np.load(embeddings_path, allow_pickle=True)
             embeddings_dict = {}
             for key in npz_data.files:
                 val = npz_data[key]
-                # If value is a dict (from allow_pickle=True), use it directly
                 if isinstance(val, dict):
                     embeddings_dict[key] = val
                 else:
-                    # If value is an array, wrap it in the expected structure
                     embeddings_dict[key] = {"embeddings": val}
+
+            if is_main_process():
+                logging.info(
+                    f"Loaded legacy .npz format: {len(embeddings_dict)} proteins into memory"
+                )
     elif suffix in (".pkl", ".pickle"):
         with open(embeddings_path, "rb") as f:
             embeddings_dict = pickle.load(f)
