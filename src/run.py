@@ -46,6 +46,7 @@ from src.model.v1 import V1
 from src.model.v2 import V2
 from src.model.v3 import V3
 from src.model.v4 import V4
+from src.model.v5 import V5
 from src.model.tuna import TUnA
 from src.stages import run_pretrain, run_finetune, run_evaluation
 
@@ -124,7 +125,12 @@ def create_run_directories(
     return log_dir, checkpoint_dir
 
 
-def build_model(cfg) -> nn.Module:
+def count_trainable_parameters(model: nn.Module) -> int:
+    """Return the number of parameters with requires_grad=True."""
+    return sum(param.numel() for param in model.parameters() if param.requires_grad)
+
+
+def build_model(cfg) -> Tuple[nn.Module, int]:
     """
     Instantiate model based on config.model_config.model.
 
@@ -132,7 +138,7 @@ def build_model(cfg) -> nn.Module:
         cfg: TrackedConfig from load_config()
 
     Returns:
-        Initialized model (nn.Module)
+        (model, trainable_parameter_count)
 
     Raises:
         ValueError: If model name is unknown
@@ -156,14 +162,16 @@ def build_model(cfg) -> nn.Module:
         model = V3(**model_cfg)
     elif model_name == "v4":
         model = V4(**model_cfg)
+    elif model_name == "v5":
+        model = V5(**model_cfg)
     elif model_name == "tuna":
         model = TUnA(**model_cfg)
     else:
         raise ValueError(
-            f"Unknown model: '{model_name}'. Supported models: 'v1', 'v2', 'v3', 'v4', 'tuna'"
+            f"Unknown model: '{model_name}'. Supported models: 'v1', 'v2', 'v3', 'v4', 'v5', 'tuna'"
         )
 
-    return model
+    return model, count_trainable_parameters(model)
 
 
 def build_loaders(
@@ -275,7 +283,7 @@ def main(config_path: str) -> None:
     # ============================================================
     # 4. Build model
     # ============================================================
-    model = build_model(cfg)
+    model, trainable_parameter_count = build_model(cfg)
     model.to(device)
     logging.info(f"Model moved to device: {device}")
 
@@ -322,6 +330,7 @@ def main(config_path: str) -> None:
             model_name, "pretrain", pretrain_run_id
         )
         setup_logging(pretrain_run_id, "pretrain", model_name, log_dir)
+        logging.info("Trainable parameters: %s", f"{trainable_parameter_count:,}")
 
         # Build dataloaders
         train_loader, val_loader = build_loaders(cfg, "pretrain", device)
@@ -351,6 +360,7 @@ def main(config_path: str) -> None:
             model_name, "finetune", finetune_run_id
         )
         setup_logging(finetune_run_id, "finetune", model_name, log_dir)
+        logging.info("Trainable parameters: %s", f"{trainable_parameter_count:,}")
 
         # Build dataloaders
         train_loader, val_loader = build_loaders(cfg, "finetune", device)
@@ -374,6 +384,7 @@ def main(config_path: str) -> None:
             model_name, "pretrain", pretrain_run_id
         )
         setup_logging(pretrain_run_id, "pretrain", model_name, log_dir_pretrain)
+        logging.info("Trainable parameters: %s", f"{trainable_parameter_count:,}")
 
         train_loader_pretrain, val_loader_pretrain = build_loaders(
             cfg, "pretrain", device
@@ -448,6 +459,7 @@ def main(config_path: str) -> None:
         # Create directories for eval
         log_dir, _ = create_run_directories(model_name, "evaluate", eval_run_id)
         setup_logging(eval_run_id, "evaluate", model_name, log_dir)
+        logging.info("Trainable parameters: %s", f"{trainable_parameter_count:,}")
 
         # Run evaluation
         run_evaluation(
