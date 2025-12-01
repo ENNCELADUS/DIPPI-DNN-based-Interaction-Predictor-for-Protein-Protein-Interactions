@@ -20,7 +20,7 @@ top_level_config:
     find_unused_parameters: true  # Staged unfreeze toggles gradients dynamically; keep reducer safe.
 
 data_config:
-  embeddings_path: "data/embedding/complete_TMP_embeddings_combined.npz"
+  embeddings_path: "data/TMP/processed/TMP_embeddings.npz"
   embedding_dtype: "bf16"
   max_sequence_length: 1024
 
@@ -29,17 +29,17 @@ data_config:
     valid_csv: "data/TMP_protein/processed/protein-no-leakage/split/pretrain_val.csv"
     sampling:
       strategy: "imbalanced"
-      pos_neg_ratio: 3.0
+      pos_neg_ratio: 8.0
   finetune:
     train_csv: "data/TMP_protein/processed/protein-no-leakage/split/finetune_train.csv"
     valid_csv: "data/TMP_protein/processed/protein-no-leakage/split/finetune_val.csv"
     sampling:
       strategy: "imbalanced"
-      pos_neg_ratio: 3.0
+      pos_neg_ratio: 10.0
     distribution_alignment:
-      target_prior: 0.5
-      threshold_search_metric: "f1"
-      search_steps: 100
+      target_prior: 0.10
+      threshold_search_metric: "auprc"
+      search_steps: 200
   evaluate:
     test_balanced: "data/TMP_protein/processed/protein-no-leakage/test_balanced.csv"
     test_realistic: "data/TMP_protein/processed/protein-no-leakage/val_balanced.csv"
@@ -73,15 +73,15 @@ pretrain_config:
   # Logging configuration
   log_every_n_batches: 50
   logging_metrics:               # Two metrics to log to the training_step.csv file
-    primary: auroc
-    secondary: recall
+    primary: auprc
+    secondary: auroc
   
   # Mixed precision (AMP) - CUDA only
   use_mixed_precision: true
   
   # Early stopping
   early_stopping_patience: 5
-  monitor_metric: "loss"     # Which metric to use for early stopping (lower is better)
+  monitor_metric: "auprc"     # Which metric to use for early stopping (lower is better)
   
   # Scheduler settings.
   scheduler:
@@ -103,8 +103,8 @@ pretrain_config:
   # Loss
   loss:
     type: "bce_with_logits"
-    pos_weight: 3.0
-    label_smoothing: 0.03
+    pos_weight: 1.0
+    label_smoothing: 0.02
     use_class_weights: true
     l1_lambda: 2.0e-6         # Small L1 penalty on weights (tunes sparsity; keep small)
 
@@ -126,15 +126,15 @@ finetune_config:
   # Logging configuration
   log_every_n_batches: 50
   logging_metrics:               # Two metrics to log to the training_step.csv file
-    primary: auroc
-    secondary: recall
+    primary: auprc
+    secondary: auroc
   
   # Mixed precision (AMP) - CUDA only
   use_mixed_precision: true
   
   # Early stopping
   early_stopping_patience: 5
-  monitor_metric: "loss"     # Which metric to use for early stopping (lower is better)
+  monitor_metric: "auprc"     # Which metric to use for early stopping (lower is better)
   
   scheduler:
     type: "warmup_cosine"
@@ -167,7 +167,7 @@ finetune_config:
   # Loss
   loss:
     type: "bce_with_logits"
-    pos_weight: 2.0
+    pos_weight: 1.5
     label_smoothing: 0.01
     use_class_weights: true
     l1_lambda: 1.0e-6         # Small L1 penalty on weights during finetune
