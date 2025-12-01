@@ -2,28 +2,28 @@
 
 run_config:
   mode: "train_eval"  # train_eval | eval_only
-  seed: 42
+  seed: 47
   run_id: null  # Auto-timestamp if null
 
 data_config:
   # Embeddings file
-  embeddings_path: "data/embedding/complete_TMP_embeddings_combined.npz.pt"
+  embeddings_path: "data/TMP/processed/TMP_embeddings.npz"
   
   # Dataset splits (TMP protein no-leakage)
-  train_csv: "data/TMP_protein/processed/pair-no-leakage-clean/split/finetune_train.csv"
-  val_csv: "data/TMP_protein/processed/pair-no-leakage-clean/split/finetune_val.csv"
-  test_csv: "data/TMP_protein/processed/pair-no-leakage/test_balanced.csv"
+  train_csv: "data/TMP/processed/finetune_train.csv"
+  val_csv: "data/TMP/processed/finetune_val.csv"
+  test_csv: "data/TMP/processed/test.csv"
   
   # Feature extraction
   pooling: "mean"  # mean | cls
   embedding_dim: 1536  # ESM-3 embedding dimension
   
   # Balance train/val by undersampling negatives to 1:1 ratio
-  balance: true
+  balance: false
 
 model_config:
   # Model selector: "random_forest" or "xgboost"
-  model: "random_forest"
+  model: "xgboost"
   
   # Random Forest parameters
   random_forest:

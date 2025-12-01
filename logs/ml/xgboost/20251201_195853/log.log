@@ -1,0 +1,59 @@
+2025-12-01 19:58:53,771 | INFO | ================================================================================
+2025-12-01 19:58:53,772 | INFO | Starting ML training for model 'xgboost' with run_id '20251201_195853'
+2025-12-01 19:58:53,772 | INFO | Logs will be written to: logs/ml/xgboost/20251201_195853/log.log
+2025-12-01 19:58:53,772 | INFO | ================================================================================
+2025-12-01 19:58:53,772 | INFO | Loading training data...
+2025-12-01 19:58:53,773 | INFO | Loading ML embeddings from data/TMP/processed/TMP_embeddings.npz...
+2025-12-01 20:01:06,610 | INFO | Loaded 21391 protein embeddings
+2025-12-01 20:01:07,215 | INFO | Loading ML features: 2535439 pairs, feature_dim=3072
+2025-12-01 20:03:48,421 | INFO | Class distribution: 58989 positive, 2476450 negative
+2025-12-01 20:03:48,449 | INFO | Loading validation data...
+2025-12-01 20:03:48,525 | INFO | Loading ML features: 281717 pairs, feature_dim=3072
+2025-12-01 20:04:04,740 | INFO | Class distribution: 6555 positive, 275162 negative
+2025-12-01 20:04:04,744 | INFO | Loading test data...
+2025-12-01 20:04:04,789 | INFO | Loading ML features: 188697 pairs, feature_dim=3072
+2025-12-01 20:04:16,390 | INFO | Class distribution: 4788 positive, 183909 negative
+2025-12-01 20:04:16,392 | INFO | Data loaded: train=2535439, val=281717, test=188697
+2025-12-01 20:04:16,400 | INFO | Auto-set scale_pos_weight: 41.98
+2025-12-01 20:04:16,400 | INFO | Building model: xgboost
+2025-12-01 20:04:16,401 | INFO | Model params: {'n_estimators': 300, 'max_depth': 8, 'learning_rate': 0.1, 'subsample': 0.8, 'colsample_bytree': 0.8, 'min_child_weight': 1, 'gamma': 0.0, 'reg_alpha': 0.0, 'reg_lambda': 1.0, 'scale_pos_weight': 41.981555883300274, 'n_jobs': -1, 'verbosity': 1, 'early_stopping_rounds': 10, 'random_state': 47}
+2025-12-01 20:04:16,406 | INFO | Starting training...
+2025-12-01 20:04:16,406 | INFO | Training XGBoost on 2535439 samples, 3072 features
+2025-12-01 20:37:36,741 | INFO | XGBoost training complete
+2025-12-01 20:37:36,817 | INFO | Model saved to: models/ml/xgboost/20251201_195853/xgboost_model.joblib
+2025-12-01 20:37:36,817 | INFO | Evaluating on validation: 281717 samples
+2025-12-01 20:37:38,611 | INFO | validation results:
+2025-12-01 20:37:38,611 | INFO |   auroc: 0.9921
+2025-12-01 20:37:38,611 | INFO |   auprc: 0.8507
+2025-12-01 20:37:38,611 | INFO |   accuracy: 0.9598
+2025-12-01 20:37:38,611 | INFO |   precision: 0.3605
+2025-12-01 20:37:38,611 | INFO |   recall: 0.9405
+2025-12-01 20:37:38,612 | INFO |   sensitivity: 0.9405
+2025-12-01 20:37:38,612 | INFO |   specificity: 0.9603
+2025-12-01 20:37:38,612 | INFO |   f1: 0.5212
+2025-12-01 20:37:38,612 | INFO |   mcc: 0.5687
+2025-12-01 20:37:38,612 | INFO | Evaluating on test: 188697 samples
+2025-12-01 20:37:39,706 | INFO | test results:
+2025-12-01 20:37:39,706 | INFO |   auroc: 0.7571
+2025-12-01 20:37:39,706 | INFO |   auprc: 0.1289
+2025-12-01 20:37:39,706 | INFO |   accuracy: 0.5775
+2025-12-01 20:37:39,706 | INFO |   precision: 0.0458
+2025-12-01 20:37:39,706 | INFO |   recall: 0.7895
+2025-12-01 20:37:39,706 | INFO |   sensitivity: 0.7895
+2025-12-01 20:37:39,706 | INFO |   specificity: 0.5720
+2025-12-01 20:37:39,706 | INFO |   f1: 0.0866
+2025-12-01 20:37:39,706 | INFO |   mcc: 0.1146
+2025-12-01 20:37:39,707 | INFO | Evaluating on train: 2535439 samples
+2025-12-01 20:38:00,800 | INFO | train results:
+2025-12-01 20:38:00,801 | INFO |   auroc: 0.9982
+2025-12-01 20:38:00,801 | INFO |   auprc: 0.9364
+2025-12-01 20:38:00,801 | INFO |   accuracy: 0.9645
+2025-12-01 20:38:00,801 | INFO |   precision: 0.3954
+2025-12-01 20:38:00,801 | INFO |   recall: 0.9979
+2025-12-01 20:38:00,801 | INFO |   sensitivity: 0.9979
+2025-12-01 20:38:00,801 | INFO |   specificity: 0.9637
+2025-12-01 20:38:00,801 | INFO |   f1: 0.5664
+2025-12-01 20:38:00,801 | INFO |   mcc: 0.6166
+2025-12-01 20:38:00,816 | INFO | Results saved to: logs/ml/xgboost/20251201_195853/evaluation_results.csv
+2025-12-01 20:38:00,828 | INFO | Full results saved to: logs/ml/xgboost/20251201_195853/results.json
+2025-12-01 20:38:00,828 | INFO | ML pipeline completed successfully

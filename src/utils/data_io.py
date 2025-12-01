@@ -379,7 +379,10 @@ class ProteinPairDataset(Dataset):
 
         # Convert to torch and ensure 3D: (1, L, D)
         if isinstance(embedding, np.ndarray):
-            embedding = torch.from_numpy(embedding)
+            # Handle object dtype arrays (from variable-length npz storage)
+            if embedding.dtype == object:
+                embedding = np.array(embedding, dtype=np.float32)
+            embedding = torch.from_numpy(embedding.astype(np.float32))
 
         if embedding.dim() == 2:
             embedding = embedding.unsqueeze(0)  # (L, D) -> (1, L, D)
@@ -571,10 +574,10 @@ def _load_ml_embeddings(embeddings_path: str) -> Dict[str, np.ndarray]:
     if is_main_process():
         logging.info(f"Loading ML embeddings from {embeddings_path}...")
 
-    # Load based on file extension
-    if embeddings_path.endswith(".pkl"):
-        import pickle
+    suffix = embeddings_path_obj.suffix.lower()
 
+    # Load based on file extension
+    if suffix == ".pkl":
         with open(embeddings_path, "rb") as f:
             raw_dict = pickle.load(f)
         # Handle nested dict format: {protein_id: {'embeddings': ndarray, ...}}
@@ -584,13 +587,43 @@ def _load_ml_embeddings(embeddings_path: str) -> Dict[str, np.ndarray]:
                 embeddings_dict[protein_id] = val["embeddings"]
             else:
                 embeddings_dict[protein_id] = val
-    else:
-        # Load from PyTorch .pt file
+    elif suffix == ".npz":
+        # NumPy compressed archive format
+        npz_data = np.load(embeddings_path, allow_pickle=True)
+
+        if "ids" in npz_data.files and "embeddings" in npz_data.files:
+            # Structured format: ids array + embeddings array
+            ids_array = npz_data["ids"]
+            embeddings_array = npz_data["embeddings"]
+
+            embeddings_dict = {}
+            for idx, protein_id in enumerate(ids_array):
+                if isinstance(protein_id, bytes):
+                    protein_id = protein_id.decode("utf-8")
+                elif isinstance(protein_id, np.str_):
+                    protein_id = str(protein_id)
+                embeddings_dict[protein_id] = embeddings_array[idx]
+        else:
+            # Legacy format: each key is a protein ID
+            embeddings_dict = {}
+            for key in npz_data.files:
+                val = npz_data[key]
+                if isinstance(val, dict) and "embeddings" in val:
+                    embeddings_dict[key] = val["embeddings"]
+                else:
+                    embeddings_dict[key] = val
+    elif suffix == ".pt":
+        # PyTorch .pt file
         embeddings_dict = torch.load(
             embeddings_path, map_location="cpu", weights_only=False
         )
+    else:
+        raise ValueError(
+            f"Unsupported embeddings format: '{suffix}'. "
+            "Supported formats: .npz, .pkl, .pt"
+        )
 
-    # Convert tensors to numpy if needed
+    # Convert tensors to numpy and mean-pool if needed
     processed: Dict[str, np.ndarray] = {}
     for protein_id, emb in embeddings_dict.items():
         if isinstance(emb, torch.Tensor):

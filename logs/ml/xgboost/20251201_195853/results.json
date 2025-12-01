@@ -1,0 +1,61 @@
+{
+  "run_id": "20251201_195853",
+  "model": "xgboost",
+  "seed": 47,
+  "data": {
+    "train_samples": 2535439,
+    "val_samples": 281717,
+    "test_samples": 188697,
+    "train_positive_ratio": 0.023265793418812283,
+    "feature_dim": 3072
+  },
+  "model_params": {
+    "n_estimators": 300,
+    "max_depth": 8,
+    "learning_rate": 0.1,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "min_child_weight": 1,
+    "gamma": 0.0,
+    "reg_alpha": 0.0,
+    "reg_lambda": 1.0,
+    "scale_pos_weight": 41.981555883300274,
+    "n_jobs": -1,
+    "verbosity": 1,
+    "early_stopping_rounds": 10,
+    "random_state": 47
+  },
+  "train_metrics": {
+    "auroc": 0.9981564106176715,
+    "auprc": 0.9364308555634385,
+    "accuracy": 0.9644558595178192,
+    "precision": 0.39543882040775197,
+    "recall": 0.9979318177965384,
+    "sensitivity": 0.9979318177965384,
+    "specificity": 0.9636584627188112,
+    "f1": 0.5664264339392073,
+    "mcc": 0.6166043872836222
+  },
+  "validation_metrics": {
+    "auroc": 0.992113642106545,
+    "auprc": 0.8507191268182401,
+    "accuracy": 0.9597929837390005,
+    "precision": 0.36048415390012867,
+    "recall": 0.9405034324942791,
+    "sensitivity": 0.9405034324942791,
+    "specificity": 0.9602525057965853,
+    "f1": 0.5211987995096589,
+    "mcc": 0.5686656950593545
+  },
+  "test_metrics": {
+    "auroc": 0.7571410312516398,
+    "auprc": 0.1289124170837433,
+    "accuracy": 0.57752905451597,
+    "precision": 0.045823180710622975,
+    "recall": 0.7894736842105263,
+    "sensitivity": 0.7894736842105263,
+    "specificity": 0.5720111576921195,
+    "f1": 0.08661877427559894,
+    "mcc": 0.11460164266146522
+  }
+}
