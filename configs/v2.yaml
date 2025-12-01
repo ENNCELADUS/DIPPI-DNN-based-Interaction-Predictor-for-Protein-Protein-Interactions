@@ -44,7 +44,7 @@ data_config:
     test_balanced: "data/TMP/processed/test.csv"
 
 model_config:
-  model: "v3"
+  model: "v2"
   input_dim: 1536
   d_model: 384
   # No encoder transformer layers
