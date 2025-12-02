@@ -22,6 +22,12 @@ data_config:
   embeddings_path: "data/embedding/complete_soluble_proteins_embeddings.pkl"
   embedding_dtype: "bf16"
   max_sequence_length: 1024
+  dataloader:
+    num_workers: 8
+    prefetch_factor: 4
+    persistent_workers: true
+    pin_memory: true
+    drop_last: false
   
   pretrain:
     train_csv: "data/membrane_protein/splits/pretrain_train.csv"

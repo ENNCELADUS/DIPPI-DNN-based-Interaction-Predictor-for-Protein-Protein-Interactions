@@ -79,6 +79,7 @@ def run_evaluation(
     # Build test loaders
     data_cfg = cfg["data_config"]
     eval_data_cfg = data_cfg["evaluate"]
+    dataloader_cfg = data_cfg.get("dataloader", {})
 
     test_balanced_loader = build_loader(
         csv_path=eval_data_cfg["test_balanced"],
@@ -88,6 +89,7 @@ def run_evaluation(
         dtype=data_cfg["embedding_dtype"],
         ddp=False,  # No DDP for eval
         shuffle=False,
+        dataloader_cfg=dataloader_cfg,
     )
 
     test_realistic_loader = build_loader(
@@ -98,6 +100,7 @@ def run_evaluation(
         dtype=data_cfg["embedding_dtype"],
         ddp=False,
         shuffle=False,
+        dataloader_cfg=dataloader_cfg,
     )
 
     # Instantiate Evaluator

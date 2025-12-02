@@ -23,6 +23,12 @@ data_config:
   embeddings_path: "data/TMP/processed/TMP_embeddings.npz"
   embedding_dtype: "bf16"
   max_sequence_length: 1024
+  dataloader:
+    num_workers: 8
+    prefetch_factor: 4
+    persistent_workers: true
+    pin_memory: true
+    drop_last: false
 
   pretrain:
     train_csv: "data/TMP/processed/pretrain_train.csv"

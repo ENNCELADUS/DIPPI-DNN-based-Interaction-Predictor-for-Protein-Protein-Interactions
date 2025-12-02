@@ -194,6 +194,8 @@ def build_loaders(
 
     data_cfg = cfg["data_config"]
     stage_cfg = cfg[f"{stage}_config"]
+    dataloader_cfg = data_cfg.get("dataloader", {})
+    sampling_cfg = data_cfg.get(stage, {}).get("sampling", {})
 
     train_loader = build_loader(
         csv_path=data_cfg[stage]["train_csv"],
@@ -203,6 +205,8 @@ def build_loaders(
         dtype=data_cfg["embedding_dtype"],
         ddp=cfg["top_level_config"]["ddp"]["enabled"],
         shuffle=True,
+        sampling_cfg=sampling_cfg,
+        dataloader_cfg=dataloader_cfg,
     )
 
     val_loader = build_loader(
@@ -213,6 +217,7 @@ def build_loaders(
         dtype=data_cfg["embedding_dtype"],
         ddp=cfg["top_level_config"]["ddp"]["enabled"],
         shuffle=False,  # No shuffle for validation
+        dataloader_cfg=dataloader_cfg,
     )
 
     return train_loader, val_loader

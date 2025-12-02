@@ -23,6 +23,12 @@ data_config:
   embeddings_path: "data/test_e2e/embedding/test_embeddings.pkl"
   embedding_dtype: "fp32"
   max_sequence_length: 256
+  dataloader:
+    num_workers: 4
+    prefetch_factor: 2
+    persistent_workers: true
+    pin_memory: true
+    drop_last: false
 
   # Dataset splits
   pretrain:

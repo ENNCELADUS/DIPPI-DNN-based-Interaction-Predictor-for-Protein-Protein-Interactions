@@ -20,6 +20,7 @@ Does NOT:
 """
 
 import logging
+import math
 import pickle
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -28,7 +29,8 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader, DistributedSampler
-from src.utils.distributed import is_main_process
+from src.utils.samplers import ImbalancedBatchSampler
+from src.utils.distributed import get_rank, get_world_size, is_main_process
 
 
 # Module-level cache to avoid reloading large embeddings file
@@ -242,6 +244,55 @@ def _collate_protein_pairs(batch: List[Dict[str, Any]]) -> Dict[str, torch.Tenso
         "len_b": len_b,
         "label": labels,
     }
+
+
+class DistributedBatchSampler:
+    """
+    Evenly shard a batch sampler across DDP ranks while keeping step counts aligned.
+
+    Each process receives approximately ceil(len(batch_sampler) / world_size) batches.
+    When batches are not divisible, the final batch is duplicated to pad so all ranks
+    perform the same number of steps (avoids DDP hang on uneven steps).
+    """
+
+    def __init__(
+        self,
+        batch_sampler: Any,
+        num_replicas: Optional[int] = None,
+        rank: Optional[int] = None,
+        pad: bool = True,
+    ) -> None:
+        self.batch_sampler = batch_sampler
+        self.num_replicas = int(num_replicas if num_replicas is not None else get_world_size())
+        self.rank = int(rank if rank is not None else get_rank())
+        self.pad = pad
+
+        if self.num_replicas <= 0:
+            raise ValueError("num_replicas must be positive for DistributedBatchSampler")
+        if self.rank < 0 or self.rank >= self.num_replicas:
+            raise ValueError("rank must be in the range [0, num_replicas)")
+
+        self._total_batches = len(self.batch_sampler)
+        self._max_per_rank = math.ceil(self._total_batches / self.num_replicas) if self.num_replicas > 0 else 0
+
+    def __iter__(self):
+        local_batches: list[list[int]] = []
+        last_batch: Optional[List[int]] = None
+
+        for idx, batch in enumerate(self.batch_sampler):
+            last_batch = batch
+            if idx % self.num_replicas == self.rank:
+                local_batches.append(batch)
+
+        if self.pad and self._total_batches > 0 and len(local_batches) < self._max_per_rank:
+            filler = local_batches[-1] if local_batches else last_batch
+            while len(local_batches) < self._max_per_rank and filler is not None:
+                local_batches.append(filler)
+
+        return iter(local_batches)
+
+    def __len__(self) -> int:
+        return self._max_per_rank
 
 
 class ProteinPairDataset(Dataset):
@@ -468,9 +519,11 @@ def build_loader(
     dtype: str,
     ddp: bool = False,
     shuffle: bool = True,
-    num_workers: int = 0,
-    pin_memory: bool = True,
+    num_workers: Optional[int] = None,
+    pin_memory: Optional[bool] = None,
     strip_cls_eos: bool = True,
+    sampling_cfg: Optional[Dict[str, Any]] = None,
+    dataloader_cfg: Optional[Dict[str, Any]] = None,
 ) -> DataLoader:
     """
     Build a DataLoader for protein pair data.
@@ -485,9 +538,18 @@ def build_loader(
         dtype: Embedding dtype string ("bf16", "fp32", "fp16")
         ddp: Whether DDP is enabled (will use DistributedSampler)
         shuffle: Whether to shuffle data (ignored if ddp=True; sampler handles it)
-        num_workers: Number of data loading workers (0 for MVP)
-        pin_memory: Whether to pin memory for faster GPU transfer
+        num_workers: Optional override for dataloader workers (backward compat)
+        pin_memory: Optional override for pin_memory (backward compat)
         strip_cls_eos: Whether to remove CLS/EOS tokens from embeddings
+        sampling_cfg: Optional sampling configuration (e.g., {"strategy": "imbalanced", "pos_neg_ratio": 8})
+        dataloader_cfg: Optional dataloader configuration dict:
+            {
+                "num_workers": int,
+                "pin_memory": bool,
+                "prefetch_factor": int,
+                "persistent_workers": bool,
+                "drop_last": bool,
+            }
 
     Returns:
         DataLoader instance
@@ -515,23 +577,94 @@ def build_loader(
         strip_cls_eos=strip_cls_eos,
     )
 
-    # Configure sampler for DDP
+    # Dataloader settings (defaults keep backward compatibility)
+    dl_cfg = dataloader_cfg.copy() if dataloader_cfg else {}
+    if num_workers is not None:
+        dl_cfg["num_workers"] = num_workers
+    if pin_memory is not None:
+        dl_cfg["pin_memory"] = pin_memory
+
+    num_workers = int(dl_cfg.get("num_workers", 0))
+    pin_memory = bool(dl_cfg.get("pin_memory", torch.cuda.is_available()))
+    drop_last = bool(dl_cfg.get("drop_last", False))
+
+    prefetch_factor = dl_cfg.get("prefetch_factor")
+    persistent_workers = dl_cfg.get("persistent_workers")
+
+    # Prefetch/persistent only valid when workers > 0
+    if num_workers <= 0:
+        prefetch_factor = None
+        persistent_workers = False
+    else:
+        if prefetch_factor is None:
+            prefetch_factor = 2  # PyTorch default
+        if persistent_workers is None:
+            persistent_workers = True
+
+    # Configure sampler / batch_sampler
+    batch_sampler = None
     sampler = None
-    if ddp:
+    sampling_cfg = sampling_cfg or {}
+    sampling_strategy = sampling_cfg.get("strategy")
+
+    if sampling_strategy == "imbalanced":
+        ratio = float(sampling_cfg.get("pos_neg_ratio", 3.0))
+        base_sampler = ImbalancedBatchSampler(
+            labels=list(dataset.df["isInteraction"].astype(int)),
+            batch_size=batch_size,
+            pos_neg_ratio=ratio,
+            shuffle=shuffle,
+            drop_last=drop_last,
+            seed=None,
+        )
+        if ddp and get_world_size() > 1:
+            batch_sampler = DistributedBatchSampler(base_sampler, pad=True)
+        else:
+            batch_sampler = base_sampler
+        shuffle = False  # Batch sampler controls ordering
+    elif ddp:
         sampler = DistributedSampler(dataset, shuffle=shuffle)
-        shuffle = False  # Sampler handles shuffling
+        shuffle = False  # Sampler controls ordering
 
     # Create DataLoader
+    loader_kwargs = {
+        "num_workers": num_workers,
+        "collate_fn": _collate_protein_pairs,
+        "pin_memory": pin_memory and torch.cuda.is_available(),
+    }
+    if prefetch_factor is not None and num_workers > 0:
+        loader_kwargs["prefetch_factor"] = int(prefetch_factor)
+    if persistent_workers:
+        loader_kwargs["persistent_workers"] = True
+
     loader = DataLoader(
         dataset,
-        batch_size=batch_size,
-        shuffle=shuffle,
-        sampler=sampler,
-        num_workers=num_workers,
-        collate_fn=_collate_protein_pairs,
-        pin_memory=pin_memory and torch.cuda.is_available(),
-        drop_last=False,  # Keep all samples for validation/test
+        batch_size=None if batch_sampler is not None else batch_size,
+        shuffle=False if batch_sampler is not None else shuffle,
+        sampler=None if batch_sampler is not None else sampler,
+        batch_sampler=batch_sampler,
+        drop_last=False if batch_sampler is not None else drop_last,
+        **loader_kwargs,
     )
+
+    if is_main_process():
+        sampler_name = (
+            batch_sampler.__class__.__name__
+            if batch_sampler is not None
+            else sampler.__class__.__name__
+            if sampler is not None
+            else "None"
+        )
+        logging.info(
+            "DataLoader built for %s: num_workers=%d, pin_memory=%s, prefetch_factor=%s, "
+            "persistent_workers=%s, sampler=%s",
+            Path(csv_path).name,
+            num_workers,
+            loader_kwargs["pin_memory"],
+            prefetch_factor if prefetch_factor is not None else "None",
+            bool(persistent_workers),
+            sampler_name,
+        )
 
     return loader
 

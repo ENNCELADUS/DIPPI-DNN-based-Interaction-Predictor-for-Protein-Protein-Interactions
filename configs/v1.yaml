@@ -23,6 +23,12 @@ data_config:
   embeddings_path: "data/embedding/complete_TMP_embeddings_combined.npz"
   embedding_dtype: "bf16"
   max_sequence_length: 1024
+  dataloader:
+    num_workers: 8
+    prefetch_factor: 4
+    persistent_workers: true
+    pin_memory: true
+    drop_last: false
 
   pretrain:
     train_csv: "data/TMP_protein/processed/protein-no-leakage/split/pretrain_train.csv"
@@ -170,4 +176,3 @@ evaluate:
     "f1",
     "mcc",
   ]
-
