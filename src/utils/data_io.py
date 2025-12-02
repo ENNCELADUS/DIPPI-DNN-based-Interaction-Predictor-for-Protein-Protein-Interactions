@@ -263,17 +263,25 @@ class DistributedBatchSampler:
         pad: bool = True,
     ) -> None:
         self.batch_sampler = batch_sampler
-        self.num_replicas = int(num_replicas if num_replicas is not None else get_world_size())
+        self.num_replicas = int(
+            num_replicas if num_replicas is not None else get_world_size()
+        )
         self.rank = int(rank if rank is not None else get_rank())
         self.pad = pad
 
         if self.num_replicas <= 0:
-            raise ValueError("num_replicas must be positive for DistributedBatchSampler")
+            raise ValueError(
+                "num_replicas must be positive for DistributedBatchSampler"
+            )
         if self.rank < 0 or self.rank >= self.num_replicas:
             raise ValueError("rank must be in the range [0, num_replicas)")
 
         self._total_batches = len(self.batch_sampler)
-        self._max_per_rank = math.ceil(self._total_batches / self.num_replicas) if self.num_replicas > 0 else 0
+        self._max_per_rank = (
+            math.ceil(self._total_batches / self.num_replicas)
+            if self.num_replicas > 0
+            else 0
+        )
 
     def __iter__(self):
         local_batches: list[list[int]] = []
@@ -284,7 +292,11 @@ class DistributedBatchSampler:
             if idx % self.num_replicas == self.rank:
                 local_batches.append(batch)
 
-        if self.pad and self._total_batches > 0 and len(local_batches) < self._max_per_rank:
+        if (
+            self.pad
+            and self._total_batches > 0
+            and len(local_batches) < self._max_per_rank
+        ):
             filler = local_batches[-1] if local_batches else last_batch
             while len(local_batches) < self._max_per_rank and filler is not None:
                 local_batches.append(filler)

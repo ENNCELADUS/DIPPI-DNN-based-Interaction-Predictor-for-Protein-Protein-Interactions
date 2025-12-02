@@ -94,7 +94,7 @@ class Evaluator:
         threshold_override: Optional[float] = None,
     ) -> Dict[str, float]:
         """
-        Run a single evaluation pass over the dataloader.
+        Run a single evaluation pass over the dataloader, yielding per-batch progress.
 
         Orchestrator must ensure model.eval() and torch.no_grad() are active.
 
@@ -102,6 +102,12 @@ class Evaluator:
             model: The model to evaluate (already in eval mode).
             loader: DataLoader yielding batches.
             device: Device to run on (cuda/cpu).
+            logit_bias: Optional bias to add to logits (for distribution alignment).
+            threshold_override: Optional threshold override for binary predictions.
+
+        Yields:
+            Per-batch dict with keys: batch_idx, batch_size, loss
+            Final dict with aggregated metrics and _evaluation_end=True
 
         Returns:
             Flat dict of metric name -> value, e.g.,
@@ -118,7 +124,7 @@ class Evaluator:
         n_total = 0
         threshold = self.threshold if threshold_override is None else threshold_override
 
-        for batch in loader:
+        for batch_idx, batch in enumerate(loader):
             # Move batch tensors to device
             batch = self._move_batch_to_device(batch, device)
 
@@ -152,7 +158,8 @@ class Evaluator:
                 )
 
             # Accumulate loss
-            loss_sum += loss.item() * batch_size
+            batch_loss = loss.item()
+            loss_sum += batch_loss * batch_size
             n_total += batch_size
 
             # Normalize logits shape: handle (N, 1) or (N, 2) → (N,)
@@ -181,6 +188,13 @@ class Evaluator:
                     preds = (probs > threshold).long()
                     metric.update(preds, labels_for_metrics)
 
+            # Yield per-batch metrics for pipeline logging
+            yield {
+                "batch_idx": batch_idx,
+                "batch_size": batch_size,
+                "loss": batch_loss,
+            }
+
         # Compute final results
         results: Dict[str, float] = {}
 
@@ -192,6 +206,9 @@ class Evaluator:
         for metric_name, metric in self.metrics.items():
             results[metric_name] = metric.compute().detach().cpu().item()
 
+        # Yield final aggregated metrics with sentinel
+        results["_evaluation_end"] = True
+        yield results
         return results
 
     def _move_batch_to_device(

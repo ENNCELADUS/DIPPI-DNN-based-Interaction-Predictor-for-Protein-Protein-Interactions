@@ -113,6 +113,10 @@ def run_evaluation(
     csv_path = log_dir / "evaluate.csv"
     columns = ["split"] + metrics_list
 
+    # Batch logging configuration
+    log_every_n_batches = 50  # Match pretrain/finetune default
+    batch_log_path = log_dir / "evaluate_batches.log"
+
     amp_dtype = None
     if device.type == "cuda":
         dtype_str = str(data_cfg.get("embedding_dtype", "fp32")).lower()
@@ -127,24 +131,67 @@ def run_evaluation(
     ]:
         logging.info(f"Evaluating on {split_name}...")
         model.eval()
+
+        metrics = None
         with torch.no_grad():
             if amp_dtype is not None:
                 with torch.amp.autocast(device_type=device.type, dtype=amp_dtype):
-                    metrics = evaluator.evaluate(
+                    for batch_metrics in evaluator.evaluate(
                         model,
                         test_loader,
                         device,
                         logit_bias=da_bias if use_da else 0.0,
                         threshold_override=da_threshold if use_da else None,
-                    )
+                    ):
+                        # Check if this is the final evaluation summary
+                        if batch_metrics.get("_evaluation_end", False):
+                            metrics = batch_metrics
+                            break
+
+                        # Log batch progress every N batches
+                        batch_idx = batch_metrics["batch_idx"]
+                        if (batch_idx + 1) % log_every_n_batches == 0:
+                            total_batches = len(test_loader)
+                            log_msg = (
+                                f"[EVALUATE] Split: {split_name} | "
+                                f"Batch {batch_idx + 1}/{total_batches} | "
+                                f"Loss: {batch_metrics['loss']:.6f}\n"
+                            )
+                            # Append to batch log file
+                            with open(batch_log_path, "a", encoding="utf-8") as f:
+                                f.write(log_msg)
             else:
-                metrics = evaluator.evaluate(
+                for batch_metrics in evaluator.evaluate(
                     model,
                     test_loader,
                     device,
                     logit_bias=da_bias if use_da else 0.0,
                     threshold_override=da_threshold if use_da else None,
-                )
+                ):
+                    # Check if this is the final evaluation summary
+                    if batch_metrics.get("_evaluation_end", False):
+                        metrics = batch_metrics
+                        break
+
+                    # Log batch progress every N batches
+                    batch_idx = batch_metrics["batch_idx"]
+                    if (batch_idx + 1) % log_every_n_batches == 0:
+                        total_batches = len(test_loader)
+                        log_msg = (
+                            f"[EVALUATE] Split: {split_name} | "
+                            f"Batch {batch_idx + 1}/{total_batches} | "
+                            f"Loss: {batch_metrics['loss']:.6f}\n"
+                        )
+                        # Append to batch log file
+                        with open(batch_log_path, "a", encoding="utf-8") as f:
+                            f.write(log_msg)
+
+        # Ensure we got the evaluation summary
+        if metrics is None:
+            raise RuntimeError("Evaluator did not yield evaluation summary")
+
+        # Remove sentinel key before logging
+        metrics.pop("_evaluation_end", None)
 
         logging.info(f"{split_name} results: {metrics}")
 

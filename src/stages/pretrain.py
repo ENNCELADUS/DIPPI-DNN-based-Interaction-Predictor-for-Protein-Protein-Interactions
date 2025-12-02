@@ -150,8 +150,35 @@ def run_pretrain(
         # Start epoch timer
         epoch_start_time = datetime.now()
 
-        # Train one epoch
-        train_metrics = trainer.train_one_epoch(train_loader)
+        # Get batch logging configuration
+        log_every_n_batches = pretrain_cfg.get("log_every_n_batches", 50)
+        batch_log_path = log_dir / "pretrain_batches.log"
+
+        # Train one epoch - consume generator for batch-level logging
+        train_metrics = None
+        for batch_metrics in trainer.train_one_epoch(train_loader):
+            # Check if this is the final epoch summary
+            if batch_metrics.get("_epoch_end", False):
+                train_metrics = batch_metrics
+                break
+
+            # Log batch progress every N batches
+            batch_idx = batch_metrics["batch_idx"]
+            if is_main_process() and (batch_idx + 1) % log_every_n_batches == 0:
+                total_batches = len(train_loader)
+                log_msg = (
+                    f"[PRETRAIN] Epoch {epoch}/{num_epochs - 1} | "
+                    f"Batch {batch_idx + 1}/{total_batches} | "
+                    f"Loss: {batch_metrics['loss']:.6f} | "
+                    f"LR: {batch_metrics['lr']:.2e}\n"
+                )
+                # Append to batch log file
+                with open(batch_log_path, "a", encoding="utf-8") as f:
+                    f.write(log_msg)
+
+        # Ensure we got the epoch summary
+        if train_metrics is None:
+            raise RuntimeError("Trainer did not yield epoch summary")
         # train_metrics = {
         #     "loss": float,
         #     "lr": float,

@@ -273,11 +273,21 @@ class Trainer:
     # Training loop
     # ------------------------------------------------------------------ #
     def train_one_epoch(self, loader: Iterable[Dict[str, Any]]) -> Dict[str, float]:
+        """
+        Train for one epoch, yielding per-batch metrics.
+
+        Yields:
+            Per-batch dict with keys: batch_idx, loss, lr, batch_size
+            Final dict with keys: loss (avg), lr, _epoch_end=True
+
+        Returns:
+            Dict with aggregated metrics (for backward compatibility if not consumed as generator)
+        """
         self.model.train()
         total_loss = 0.0
         total_batches = 0
 
-        for batch in loader:
+        for batch_idx, batch in enumerate(loader):
             batch = self._move_batch_to_device(batch)
 
             if self.use_amp:
@@ -314,15 +324,29 @@ class Trainer:
             if self.scheduler is not None and self._scheduler_step_per_batch:
                 self.scheduler.step()
 
-            total_loss += float(loss.detach().item())
+            batch_loss = float(loss.detach().item())
+            total_loss += batch_loss
             total_batches += 1
+
+            # Yield per-batch metrics for pipeline logging
+            batch_size = batch.get("label", next(iter(batch.values()))).size(0)
+            yield {
+                "batch_idx": batch_idx,
+                "loss": batch_loss,
+                "lr": self._current_lr(),
+                "batch_size": batch_size,
+            }
 
         if self.scheduler is not None and not self._scheduler_step_per_batch:
             self.scheduler.step()
 
         avg_loss = total_loss / total_batches if total_batches > 0 else 0.0
         current_lr = self._current_lr()
-        return {"loss": avg_loss, "lr": current_lr}
+
+        # Yield final aggregated metrics with sentinel
+        final_metrics = {"loss": avg_loss, "lr": current_lr, "_epoch_end": True}
+        yield final_metrics
+        return final_metrics
 
     # ------------------------------------------------------------------ #
     # Helpers
