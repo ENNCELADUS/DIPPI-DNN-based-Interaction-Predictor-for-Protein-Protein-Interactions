@@ -4,7 +4,7 @@
 #SBATCH -A hexm-critical
 #SBATCH -N 1
 #SBATCH -t 4-00:00:00
-#SBATCH --mem=256G
+#SBATCH --mem=300G
 #SBATCH --cpus-per-task=32
 #SBATCH --gres=gpu:NVIDIAA40:4
 #SBATCH --output=logs/v4/slurm_%j.out

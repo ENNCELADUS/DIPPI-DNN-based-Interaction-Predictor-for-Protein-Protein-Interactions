@@ -22,11 +22,11 @@ top_level_config:
 data_config:
   embeddings_path: "data/TMP/processed/TMP_embeddings.npz"
   embedding_dtype: "bf16"
-  max_sequence_length: 1024
+  max_sequence_length: 768
   dataloader:
-    num_workers: 8
-    prefetch_factor: 4
-    persistent_workers: true
+    num_workers: 0          # Disable multiprocessing to avoid fork() OOM (embeddings are memory-mapped)
+    prefetch_factor: 2      # Ignored when num_workers=0
+    persistent_workers: false  # Must be false when num_workers=0
     pin_memory: true
     drop_last: false
 
@@ -76,7 +76,7 @@ model_config:
 
 pretrain_config:
   epochs: 40
-  batch_size: 64
+  batch_size: 32            # Reduced from 64 for GPU memory (contact map scales as batch × L × L)
 
   # Logging configuration
   log_every_n_batches: 50
@@ -129,7 +129,7 @@ finetune_config:
         # Optional: could specify new optimizer_cfg/scheduler_cfg here for different LRs
 
   epochs: 30
-  batch_size: 32
+  batch_size: 32             # Reduced from 32 for GPU memory during finetune
 
   # Logging configuration
   log_every_n_batches: 50

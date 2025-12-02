@@ -4,7 +4,7 @@
 #SBATCH -A hexm
 #SBATCH -N 1
 #SBATCH -t 4-00:00:00
-#SBATCH --mem=256G
+#SBATCH --mem=300G
 #SBATCH --cpus-per-task=32
 #SBATCH --gres=gpu:NVIDIAL40:4
 #SBATCH --output=logs/v5/slurm_%j.out

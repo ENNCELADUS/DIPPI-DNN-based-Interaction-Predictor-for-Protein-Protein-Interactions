@@ -4,7 +4,7 @@
 #SBATCH -A hexm-critical
 #SBATCH -N 1
 #SBATCH -t 2-00:00:00
-#SBATCH --mem=256G
+#SBATCH --mem=300G
 #SBATCH --cpus-per-task=16
 #SBATCH --gres=gpu:NVIDIATITANRTX:3
 #SBATCH --exclude=ai_gpu28

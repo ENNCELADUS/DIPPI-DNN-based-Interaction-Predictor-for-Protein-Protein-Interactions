@@ -637,15 +637,23 @@ def build_loader(
     if persistent_workers:
         loader_kwargs["persistent_workers"] = True
 
-    loader = DataLoader(
-        dataset,
-        batch_size=None if batch_sampler is not None else batch_size,
-        shuffle=False if batch_sampler is not None else shuffle,
-        sampler=None if batch_sampler is not None else sampler,
-        batch_sampler=batch_sampler,
-        drop_last=False if batch_sampler is not None else drop_last,
-        **loader_kwargs,
-    )
+    # batch_sampler is mutually exclusive with batch_size, shuffle, sampler, drop_last
+    # Only pass the appropriate set of arguments
+    if batch_sampler is not None:
+        loader = DataLoader(
+            dataset,
+            batch_sampler=batch_sampler,
+            **loader_kwargs,
+        )
+    else:
+        loader = DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            sampler=sampler,
+            drop_last=drop_last,
+            **loader_kwargs,
+        )
 
     if is_main_process():
         sampler_name = (
