@@ -199,11 +199,20 @@ def run_pretrain(
                 )
                 if amp_dtype is not None:
                     with torch.amp.autocast(device_type=device.type, dtype=amp_dtype):
-                        val_metrics = evaluator.evaluate(model, val_loader, device)
+                        for metrics in evaluator.evaluate(model, val_loader, device):
+                            if metrics.get("_evaluation_end", False):
+                                val_metrics = metrics
+                                break
                 else:
-                    val_metrics = evaluator.evaluate(model, val_loader, device)
+                    for metrics in evaluator.evaluate(model, val_loader, device):
+                        if metrics.get("_evaluation_end", False):
+                            val_metrics = metrics
+                            break
             else:
-                val_metrics = evaluator.evaluate(model, val_loader, device)
+                for metrics in evaluator.evaluate(model, val_loader, device):
+                    if metrics.get("_evaluation_end", False):
+                        val_metrics = metrics
+                        break
         model.train()  # Back to training mode
         # val_metrics = {
         #     "loss": float,
