@@ -362,7 +362,14 @@ class ProteinPairDataset(Dataset):
         if not csv_path_obj.exists():
             raise FileNotFoundError(f"CSV file not found: {csv_path}")
 
-        self.df = pd.read_csv(csv_path)
+        self.df = pd.read_csv(
+            csv_path,
+            dtype={
+                "uniprotID_A": "category",
+                "uniprotID_B": "category",
+                "isInteraction": "float32",
+            },
+        )
 
         # Validate required columns
         required_cols = ["uniprotID_A", "uniprotID_B", "isInteraction"]
@@ -506,8 +513,8 @@ class ProteinPairDataset(Dataset):
         """
         row = self.df.iloc[idx]
 
-        protein_a = row["uniprotID_A"]
-        protein_b = row["uniprotID_B"]
+        protein_a = str(row["uniprotID_A"])
+        protein_b = str(row["uniprotID_B"])
         label = float(row["isInteraction"])
 
         # Process both proteins
