@@ -25,9 +25,9 @@ data_config:
   max_sequence_length: 1024
   dataloader:
     num_workers: 0
-    prefetch_factor: 2
+    prefetch_factor: null
     persistent_workers: false
-    pin_memory: true
+    pin_memory: false
     drop_last: false
 
   pretrain:
@@ -76,7 +76,7 @@ pretrain_config:
   batch_size: 32
 
   # Logging configuration
-  log_every_n_batches: 50
+  log_every_n_batches: 100
   logging_metrics:               # Two metrics to log to the training_step.csv file
     primary: auprc
     secondary: auroc
@@ -129,7 +129,7 @@ finetune_config:
   batch_size: 32
 
   # Logging configuration
-  log_every_n_batches: 50
+  log_every_n_batches: 100
   logging_metrics:               # Two metrics to log to the training_step.csv file
     primary: auprc
     secondary: auroc

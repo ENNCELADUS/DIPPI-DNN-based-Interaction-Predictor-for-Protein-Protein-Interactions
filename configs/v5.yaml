@@ -79,7 +79,7 @@ pretrain_config:
   batch_size: 16            # Reduced from 32 for GPU memory
   
   # Logging configuration
-  log_every_n_batches: 10   # More frequent logging to see progress
+  log_every_n_batches: 50   # More frequent logging to see progress
   logging_metrics:               # Two metrics to log to the training_step.csv file
     primary: auprc
     secondary: auroc
