@@ -24,7 +24,7 @@ data_config:
   embedding_dtype: "bf16"
   max_sequence_length: 768
   dataloader:
-    num_workers: 4          # Enable multiprocessing
+    num_workers: 2          # Enable multiprocessing (reduced to 2 for stability)
     prefetch_factor: 2      # Prefetch 2 batches per worker
     persistent_workers: true  # Keep workers alive
     pin_memory: true

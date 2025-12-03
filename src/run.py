@@ -492,6 +492,13 @@ def main(config_path: str) -> None:
 
 
 if __name__ == "__main__":
+    # Use 'spawn' to avoid OOM during fork() when memory usage is high (e.g. large mmaps)
+    import torch.multiprocessing as mp
+    try:
+        mp.set_start_method("spawn", force=True)
+    except RuntimeError as e:
+        print(f"Warning: Could not set start method to spawn: {e}")
+
     # Parse config path from command line
     if len(sys.argv) < 2:
         config_path = "configs/v3.yaml"
