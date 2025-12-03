@@ -58,12 +58,12 @@ model_config:
   n_heads: 12
 
   # Contact map modeling parameters
-  pair_dim: 64               # Reduced from 128 for memory
-  cnn_dim: 32                # Reduced from 64 for memory
+  pair_dim: 128
+  cnn_dim: 64
 
   # MLP head configuration (input is cnn_dim after global max pool)
   mlp_head:
-    hidden_dims: [32]        # Smaller head since input is only D_c=32
+    hidden_dims: [64]
     dropout: 0.20
     activation: "gelu"
     norm: "layernorm"
@@ -76,10 +76,10 @@ model_config:
 
 pretrain_config:
   epochs: 40
-  batch_size: 16            # Reduced from 32 for GPU memory
+  batch_size: 64
   
   # Logging configuration
-  log_every_n_batches: 50   # More frequent logging to see progress
+  log_every_n_batches: 100   # More frequent logging to see progress
   logging_metrics:               # Two metrics to log to the training_step.csv file
     primary: auprc
     secondary: auroc
@@ -129,7 +129,7 @@ finetune_config:
         # Optional: could specify new optimizer_cfg/scheduler_cfg here for different LRs
 
   epochs: 30
-  batch_size: 16             # Reduced from 32 for GPU memory during finetune
+  batch_size: 64
 
   # Logging configuration
   log_every_n_batches: 50
