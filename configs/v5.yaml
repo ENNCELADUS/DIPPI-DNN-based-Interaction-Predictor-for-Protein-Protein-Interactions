@@ -24,9 +24,9 @@ data_config:
   embedding_dtype: "bf16"
   max_sequence_length: 768
   dataloader:
-    num_workers: 0          # Disable multiprocessing to avoid fork() OOM (embeddings are memory-mapped)
-    prefetch_factor: 2      # Ignored when num_workers=0
-    persistent_workers: false  # Must be false when num_workers=0
+    num_workers: 4          # Enable multiprocessing
+    prefetch_factor: 2      # Prefetch 2 batches per worker
+    persistent_workers: true  # Keep workers alive
     pin_memory: true
     drop_last: false
 
@@ -58,12 +58,12 @@ model_config:
   n_heads: 12
 
   # Contact map modeling parameters
-  pair_dim: 128              # D_p: projection dim for interaction map (D_h/3)
-  cnn_dim: 64                # D_c: CNN channel dimension
+  pair_dim: 64               # Reduced from 128 for memory
+  cnn_dim: 32                # Reduced from 64 for memory
 
   # MLP head configuration (input is cnn_dim after global max pool)
   mlp_head:
-    hidden_dims: [32]        # Smaller head since input is only D_c=64
+    hidden_dims: [32]        # Smaller head since input is only D_c=32
     dropout: 0.20
     activation: "gelu"
     norm: "layernorm"
@@ -76,10 +76,10 @@ model_config:
 
 pretrain_config:
   epochs: 40
-  batch_size: 32            # Reduced from 64 for GPU memory (contact map scales as batch × L × L)
-
+  batch_size: 16            # Reduced from 32 for GPU memory
+  
   # Logging configuration
-  log_every_n_batches: 50
+  log_every_n_batches: 10   # More frequent logging to see progress
   logging_metrics:               # Two metrics to log to the training_step.csv file
     primary: auprc
     secondary: auroc
@@ -129,7 +129,7 @@ finetune_config:
         # Optional: could specify new optimizer_cfg/scheduler_cfg here for different LRs
 
   epochs: 30
-  batch_size: 32             # Reduced from 32 for GPU memory during finetune
+  batch_size: 16             # Reduced from 32 for GPU memory during finetune
 
   # Logging configuration
   log_every_n_batches: 50

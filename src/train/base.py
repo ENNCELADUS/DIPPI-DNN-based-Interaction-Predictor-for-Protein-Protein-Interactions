@@ -303,7 +303,7 @@ class Trainer:
                     "Model must return a 'loss' tensor or Trainer must be configured with loss_cfg."
                 )
 
-            self.optimizer.zero_grad()
+            self.optimizer.zero_grad(set_to_none=True)
             if self.scaler is not None:
                 self.scaler.scale(loss).backward()
                 if self.max_norm is not None:
