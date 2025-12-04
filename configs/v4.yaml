@@ -31,11 +31,8 @@ data_config:
     drop_last: false
 
   pretrain:
-    train_csv: "data/TMP/processed/pretrain_train.csv"
-    valid_csv: "data/TMP/processed/pretrain_val.csv"
-    sampling:
-      strategy: "imbalanced"
-      pos_neg_ratio: 8.0
+    train_csv: "data/TMP/processed/pretrain_train_balanced.csv"
+    valid_csv: "data/TMP/processed/pretrain_val_balanced.csv"
   finetune:
     train_csv: "data/TMP/processed/finetune_train.csv"
     valid_csv: "data/TMP/processed/finetune_val.csv"

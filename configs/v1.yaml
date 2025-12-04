@@ -31,24 +31,13 @@ data_config:
     drop_last: false
 
   pretrain:
-    train_csv: "data/TMP_protein/processed/protein-no-leakage/split/pretrain_train.csv"
-    valid_csv: "data/TMP_protein/processed/protein-no-leakage/split/pretrain_val.csv"
-    sampling:
-      strategy: "imbalanced"
-      pos_neg_ratio: 3.0
+    train_csv: "data/TMP/processed/pretrain_train_balanced.csv"
+    valid_csv: "data/TMP/processed/pretrain_val_balanced.csv"
   finetune:
-    train_csv: "data/TMP_protein/processed/protein-no-leakage/split/finetune_train.csv"
-    valid_csv: "data/TMP_protein/processed/protein-no-leakage/split/finetune_val.csv"
-    sampling:
-      strategy: "imbalanced"
-      pos_neg_ratio: 3.0
-    distribution_alignment:
-      target_prior: 0.5
-      threshold_search_metric: "f1"
-      search_steps: 100
+    train_csv: "data/TMP/processed/finetune_train.csv"
+    valid_csv: "data/TMP/processed/finetune_val.csv"
   evaluate:
-    test_balanced: "data/TMP_protein/processed/protein-no-leakage/test_balanced.csv"
-    test_realistic: "data/TMP_protein/processed/protein-no-leakage/val_balanced.csv"
+    test_balanced: "data/TMP/processed/test.csv"
 
 model_config:
   model: "v1"

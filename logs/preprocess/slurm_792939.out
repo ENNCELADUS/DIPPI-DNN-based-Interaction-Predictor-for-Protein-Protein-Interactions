@@ -1,0 +1,98 @@
+Loading data/TMP/processed/pretrain_train.csv...
+Original: 683,752 positives, 17,483,672 negatives (ratio 1:25.6)
+
+Step 1: Building PPI graph from positive samples...
+  V_pos: 17,022 proteins
+  E_pos: 683,752 edges
+
+Step 2: Computing degree statistics...
+  Degree range: 1 - 3909
+  Degree mean: 80.1, median: 28.0
+  Hub threshold (90.0th percentile): 204
+  Number of hub proteins: 1,712
+
+Step 3: Bucketing proteins by degree...
+  Bucket 0: 3,464 proteins, degree range [1-3]
+  Bucket 1: 1,682 proteins, degree range [4-8]
+  Bucket 2: 2,091 proteins, degree range [9-18]
+  Bucket 3: 2,538 proteins, degree range [19-40]
+  Bucket 4: 2,836 proteins, degree range [41-87]
+  Bucket 5: 2,507 proteins, degree range [88-187]
+  Bucket 6: 1,324 proteins, degree range [188-401]
+  Bucket 7: 469 proteins, degree range [402-855]
+  Bucket 8: 97 proteins, degree range [863-1772]
+  Bucket 9: 14 proteins, degree range [1895-3909]
+
+Step 4: Filtering and classifying negatives...
+  Processed 1,000,000/17,483,672 negatives...
+  Processed 2,000,000/17,483,672 negatives...
+  Processed 3,000,000/17,483,672 negatives...
+  Processed 4,000,000/17,483,672 negatives...
+  Processed 5,000,000/17,483,672 negatives...
+  Processed 7,000,000/17,483,672 negatives...
+  Processed 9,000,000/17,483,672 negatives...
+  Processed 12,000,000/17,483,672 negatives...
+  Processed 13,000,000/17,483,672 negatives...
+  Processed 14,000,000/17,483,672 negatives...
+  Processed 15,000,000/17,483,672 negatives...
+  Processed 16,000,000/17,483,672 negatives...
+  Processed 17,000,000/17,483,672 negatives...
+  Processed 18,000,000/17,483,672 negatives...
+  Filtered out 5,445,071 negatives (proteins not in V_pos)
+  Hard negatives: 11,422,782
+  Default negatives: 615,819
+  Total valid negatives: 12,038,601
+
+Step 5: Sampling 683,752 negatives (1:1 ratio)...
+  Target: 205,125 hard, 478,626 default
+  Sampled: 683,752 negatives
+
+Step 6: Creating output dataset...
+
+Output: data/TMP/processed/pretrain_train_balanced.csv
+  Total: 1,367,504 samples
+  Positives: 683,752
+  Negatives: 683,752
+  Ratio: 1:1.00
+Loading data/TMP/processed/pretrain_val.csv...
+Original: 35,987 positives, 920,194 negatives (ratio 1:25.6)
+
+Step 1: Building PPI graph from positive samples...
+  V_pos: 10,879 proteins
+  E_pos: 35,987 edges
+
+Step 2: Computing degree statistics...
+  Degree range: 1 - 185
+  Degree mean: 6.6, median: 3.0
+  Hub threshold (90.0th percentile): 15
+  Number of hub proteins: 1,143
+
+Step 3: Bucketing proteins by degree...
+  Bucket 0: 4,313 proteins, degree range [1-2]
+  Bucket 1: 1,165 proteins, degree range [3-3]
+  Bucket 2: 2,136 proteins, degree range [4-6]
+  Bucket 3: 1,628 proteins, degree range [7-11]
+  Bucket 4: 877 proteins, degree range [12-18]
+  Bucket 5: 458 proteins, degree range [19-29]
+  Bucket 6: 202 proteins, degree range [30-46]
+  Bucket 7: 69 proteins, degree range [47-74]
+  Bucket 8: 21 proteins, degree range [75-114]
+  Bucket 9: 10 proteins, degree range [120-185]
+
+Step 4: Filtering and classifying negatives...
+  Filtered out 292,069 negatives (proteins not in V_pos)
+  Hard negatives: 247,022
+  Default negatives: 381,103
+  Total valid negatives: 628,125
+
+Step 5: Sampling 35,987 negatives (1:1 ratio)...
+  Target: 10,796 hard, 25,190 default
+  Sampled: 35,987 negatives
+
+Step 6: Creating output dataset...
+
+Output: data/TMP/processed/pretrain_val_balanced.csv
+  Total: 71,974 samples
+  Positives: 35,987
+  Negatives: 35,987
+  Ratio: 1:1.00
