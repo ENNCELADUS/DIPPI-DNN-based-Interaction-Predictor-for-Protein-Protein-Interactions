@@ -421,7 +421,9 @@ class Trainer:
 
     def _move_batch_to_device(self, batch: Dict[str, Any]) -> Dict[str, Any]:
         return {
-            k: v.to(self.device) if isinstance(v, torch.Tensor) else v
+            k: v.to(self.device, non_blocking=True)
+            if isinstance(v, torch.Tensor)
+            else v
             for k, v in batch.items()
         }
 

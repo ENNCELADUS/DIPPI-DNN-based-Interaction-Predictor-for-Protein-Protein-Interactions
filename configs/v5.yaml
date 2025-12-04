@@ -24,10 +24,10 @@ data_config:
   embedding_dtype: "bf16"
   max_sequence_length: 768
   dataloader:
-    num_workers: 0          # Disable multiprocessing to save memory
-    prefetch_factor: null   # Disabled when num_workers=0
-    persistent_workers: false
-    pin_memory: false       # Disable pinning to save host memory
+    num_workers: 2          # Small worker count to avoid OOM
+    prefetch_factor: 2
+    persistent_workers: true
+    pin_memory: true
     drop_last: false
 
   pretrain:
@@ -114,7 +114,7 @@ pretrain_config:
     pos_weight: 1.0
     label_smoothing: 0.02
     use_class_weights: true
-    l1_lambda: 2.0e-6         # Small L1 penalty on weights (tunes sparsity; keep small)
+    l1_lambda: 0.0
 
 finetune_config:
   strategy:
@@ -186,7 +186,7 @@ finetune_config:
     pos_weight: 1.5
     label_smoothing: 0.01
     use_class_weights: true
-    l1_lambda: 1.0e-6         # Small L1 penalty on weights during finetune
+    l1_lambda: 0.0
   
 evaluate:
   metrics: [

@@ -23,16 +23,16 @@ data_config:
   test_balanced_csv: "data/TMP_protein/processed/pair-no-leakage/plm_interact/test_balanced.csv"
   test_realistic_csv: "data/TMP_protein/processed/pair-no-leakage/plm_interact/val_balanced.csv"
   dataloader:
-    num_workers: 8
-    prefetch_factor: 4
+    num_workers: 2
+    prefetch_factor: 2
     persistent_workers: true
     pin_memory: true
     drop_last: false
 
 train_config:
   epochs: 1
-  batch_size_train: 1
-  batch_size_eval: 4
+  batch_size_train: 32
+  batch_size_eval: 32
   lr: 2.0e-5
   weight_decay: 0.01
   grad_accum_steps: 8
