@@ -18,7 +18,8 @@ class ImbalancedBatchSampler:
     Batch sampler that maintains a target positive-to-negative ratio.
 
     Each epoch iterates through all positive indices once (without replacement)
-    and samples negatives with replacement to match the requested ratio.
+    and samples negatives once per epoch (with replacement) to match the
+    requested ratio.
     """
 
     def __init__(
@@ -84,19 +85,29 @@ class ImbalancedBatchSampler:
         if self.shuffle:
             self._rng.shuffle(pos_indices)
 
+        # Precompute batches of positives and required negatives for the epoch.
+        batches: list[list[int]] = []
+        neg_requirements: list[int] = []
         batch_size = self.pos_per_batch
 
         for start in range(0, len(pos_indices), batch_size):
             pos_batch = pos_indices[start : start + batch_size]
             if len(pos_batch) < batch_size and self.drop_last:
                 break
+            batches.append(pos_batch)
+            neg_requirements.append(self._negatives_for_batch(len(pos_batch)))
 
-            neg_count = self._negatives_for_batch(len(pos_batch))
-            neg_batch = (
-                self._rng.choices(self.neg_indices, k=neg_count)
-                if neg_count > 0
-                else []
-            )
+        total_negs_needed = sum(neg_requirements)
+        neg_pool = (
+            self._rng.choices(self.neg_indices, k=total_negs_needed)
+            if total_negs_needed > 0
+            else []
+        )
+
+        neg_offset = 0
+        for pos_batch, neg_count in zip(batches, neg_requirements):
+            neg_batch = neg_pool[neg_offset : neg_offset + neg_count]
+            neg_offset += neg_count
 
             batch = pos_batch + neg_batch
             self._rng.shuffle(batch)

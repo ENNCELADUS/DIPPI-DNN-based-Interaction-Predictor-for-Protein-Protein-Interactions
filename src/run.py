@@ -494,6 +494,7 @@ def main(config_path: str) -> None:
 if __name__ == "__main__":
     # Use 'spawn' to avoid OOM during fork() when memory usage is high (e.g. large mmaps)
     import torch.multiprocessing as mp
+
     try:
         mp.set_start_method("spawn", force=True)
     except RuntimeError as e:
