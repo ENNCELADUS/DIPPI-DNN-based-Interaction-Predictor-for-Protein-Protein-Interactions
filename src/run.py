@@ -101,6 +101,20 @@ def generate_run_id() -> str:
     return datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
+def enable_perf_optimizations(device: torch.device) -> None:
+    """Enable GPU-side speed optimizations that do not increase host memory."""
+    if device.type != "cuda":
+        return
+
+    # Allow TF32 and autotuned kernels for faster matmuls/convs without extra CPU RAM.
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+    torch.backends.cudnn.benchmark = True
+    if hasattr(torch, "set_float32_matmul_precision"):
+        torch.set_float32_matmul_precision("medium")
+    logging.info("Enabled TF32 matmul and cuDNN benchmarking for faster training")
+
+
 def create_run_directories(
     model_name: str, stage: str, run_id: str
 ) -> Tuple[Path, Path]:
@@ -272,6 +286,7 @@ def main(config_path: str) -> None:
     # Device selection (delegates to utils/device.py)
     device = get_device(top_level_cfg["device"])
     logging.info(f"Using device: {device}")
+    enable_perf_optimizations(device)
 
     # DDP initialization (delegates to utils/distributed.py)
     ddp_cfg = top_level_cfg["ddp"]

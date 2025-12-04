@@ -16,7 +16,7 @@ top_level_config:
     enabled: true
     backend: "nccl"
     init_method: "env://"
-    find_unused_parameters: true
+    find_unused_parameters: false # Enable only if model branches leave parameters unused.
 
 data_config:
   embeddings_path: "data/embedding/complete_soluble_proteins_embeddings.pkl"

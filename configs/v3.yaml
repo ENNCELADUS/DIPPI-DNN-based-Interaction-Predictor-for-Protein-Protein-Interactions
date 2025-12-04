@@ -17,7 +17,7 @@ top_level_config:
     enabled: true         # Enable DistributedDataParallel by default
     backend: "nccl"       # nccl | gloo (cpu)
     init_method: "env://"
-    find_unused_parameters: true  # Staged unfreeze toggles gradients dynamically; keep reducer safe.
+    find_unused_parameters: false # Enable only if model branches leave parameters unused.
 
 data_config:
   embeddings_path: "data/TMP/processed/TMP_embeddings.npz"
