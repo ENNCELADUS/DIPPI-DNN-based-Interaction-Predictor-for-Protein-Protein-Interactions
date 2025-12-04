@@ -76,7 +76,7 @@ model_config:
 
 pretrain_config:
   epochs: 40
-  batch_size: 64
+  batch_size: 32
   
   # Logging configuration
   log_every_n_batches: 100   # More frequent logging to see progress
@@ -129,7 +129,7 @@ finetune_config:
         # Optional: could specify new optimizer_cfg/scheduler_cfg here for different LRs
 
   epochs: 30
-  batch_size: 64
+  batch_size: 32
 
   # Logging configuration
   log_every_n_batches: 50
