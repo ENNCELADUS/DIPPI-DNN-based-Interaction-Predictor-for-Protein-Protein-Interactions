@@ -24,8 +24,8 @@ data_config:
   embedding_dtype: "bf16"
   max_sequence_length: 768
   dataloader:
-    num_workers: 1
-    prefetch_factor: 1
+    num_workers: 0
+    prefetch_factor: null
     persistent_workers: false
     pin_memory: false
     drop_last: false
