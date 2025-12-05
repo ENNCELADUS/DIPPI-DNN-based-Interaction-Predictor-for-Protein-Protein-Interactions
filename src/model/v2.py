@@ -239,6 +239,7 @@ class V2(nn.Module):
             raise ValueError(f"Missing required model configuration fields: {missing}")
 
         self.input_dim: int = int(model_config["input_dim"])
+        self.d_model: int = int(model_config["d_model"])
         # encoder_layers is optional and ignored in V2 (kept for config compatibility)
         self.encoder_layers: int = int(model_config.get("encoder_layers", 0))
         self.cross_attn_layers: int = int(model_config["cross_attn_layers"])
