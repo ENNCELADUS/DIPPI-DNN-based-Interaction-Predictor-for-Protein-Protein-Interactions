@@ -332,6 +332,27 @@ def main(config_path: str) -> None:
             # drop parameters from the forward graph.
             find_unused = False
 
+        # Staged unfreeze can temporarily freeze parameters, which makes DDP think
+        # they are unused unless find_unused_parameters is enabled. Auto-enable it
+        # when this strategy is active to avoid reducer errors.
+        if (
+            find_unused is False
+            and strategy_type == "staged_unfreeze"
+            and isinstance(strategy_cfg, dict)
+        ):
+            schedule = strategy_cfg.get("schedule") or []
+            has_freeze_steps = any(
+                isinstance(step, dict)
+                and (step.get("freeze") or step.get("unfreeze"))
+                for step in schedule
+            )
+            if has_freeze_steps:
+                logging.info(
+                    "Enabling find_unused_parameters for DDP because staged_unfreeze "
+                    "may freeze parameters during finetune."
+                )
+                find_unused = True
+
         ddp_kwargs["find_unused_parameters"] = bool(find_unused)
 
         model = DDP(model, **ddp_kwargs)
