@@ -32,7 +32,8 @@ from torch.utils.data import DataLoader
 class DistributionAligner:
     """Distribution Alignment for binary classification under prior shift."""
 
-    _VALID_METRICS = {"f1", "balanced_accuracy", "mcc"}
+    _RANK_METRICS = {"auprc", "auroc"}
+    _VALID_METRICS = {"f1", "balanced_accuracy", "mcc", *_RANK_METRICS}
 
     def __init__(
         self,
@@ -44,7 +45,7 @@ class DistributionAligner:
         Args:
             target_prior: Target positive prior for calibration (0 < prior < 1).
             search_metric: Metric used to select the best threshold
-                           ("f1", "balanced_accuracy", "mcc").
+                           ("f1", "balanced_accuracy", "mcc", "auprc", "auroc").
             search_steps: Number of thresholds uniformly sampled in [0, 1].
         """
         if not 0 < target_prior < 1:
@@ -184,13 +185,17 @@ class DistributionAligner:
         probs_np = probs.detach().to(dtype=torch.float32, device="cpu").numpy()
         labels_np = labels.detach().to(device="cpu").numpy()
 
+        # Metrics like AUROC/AUPRC are threshold-independent; keep default threshold.
+        if self.search_metric in self._RANK_METRICS:
+            return 0.5
+
         thresholds = np.linspace(0.0, 1.0, num=self.search_steps, dtype=np.float32)
         best_metric = float("-inf")
         best_threshold = 0.5
 
         for thr in thresholds:
             preds = (probs_np >= thr).astype(int)
-            metric_value = self._compute_search_metric(preds, labels_np)
+            metric_value = self._compute_search_metric(preds, labels_np, probs_np)
             if metric_value > best_metric or (
                 math.isclose(metric_value, best_metric) and thr < best_threshold
             ):
@@ -218,12 +223,18 @@ class DistributionAligner:
         }
         return metrics
 
-    def _compute_search_metric(self, preds: np.ndarray, labels: np.ndarray) -> float:
+    def _compute_search_metric(
+        self, preds: np.ndarray, labels: np.ndarray, probs: np.ndarray
+    ) -> float:
         """Return metric value used in threshold search."""
         if self.search_metric == "f1":
             return f1_score(labels, preds, zero_division=0)
         if self.search_metric == "balanced_accuracy":
             return balanced_accuracy_score(labels, preds)
+        if self.search_metric == "auprc":
+            return self._safe_average_precision(labels, probs)
+        if self.search_metric == "auroc":
+            return self._safe_auc(labels, probs)
         return matthews_corrcoef(labels, preds)
 
     def _compute_bias(self, logits: torch.Tensor, predicted_prior: float) -> float:

@@ -157,7 +157,7 @@ class DistributionAligner:
         Args:
             target_prior: Target positive prior (0.5 for balanced test)
             search_metric: Metric to optimize during threshold search
-                          Options: "f1", "balanced_accuracy", "mcc"
+                          Options: "f1", "balanced_accuracy", "mcc", "auprc", "auroc"
             search_steps: Number of thresholds in [0,1] to evaluate
         """
         
@@ -512,7 +512,7 @@ data_config:
       pos_neg_ratio: 3.0
     distribution_alignment:            # NEW SECTION (always enabled in finetune)
       target_prior: 0.5                # Target prior for balanced test
-      threshold_search_metric: "f1"    # Metric for threshold optimization ("f1" | "balanced_accuracy" | "mcc")
+      threshold_search_metric: "f1"    # Metric for threshold optimization ("f1" | "balanced_accuracy" | "mcc" | "auprc" | "auroc")
       search_steps: 100                # Number of thresholds to try
       
   evaluate:

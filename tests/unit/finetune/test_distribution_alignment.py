@@ -110,3 +110,21 @@ def test_distribution_aligner_validates_metric_name():
     """Invalid metric should raise ValueError."""
     with pytest.raises(ValueError, match="search_metric must be one of"):
         DistributionAligner(target_prior=0.5, search_metric="invalid")
+
+
+def test_distribution_aligner_supports_rank_based_metrics():
+    """AUROC/AUPRC should be accepted as search metrics without crashing."""
+    logits = torch.linspace(-1, 1, steps=10).tolist()
+    labels = [0] * 5 + [1] * 5
+    loader = build_loader(logits, labels, batch_size=5)
+    model = PassthroughLogitModel()
+    aligner = DistributionAligner(
+        target_prior=0.5, search_metric="auprc", search_steps=16
+    )
+
+    model.eval()
+    with torch.no_grad():
+        result = aligner.calibrate_and_search(model, loader, torch.device("cpu"))
+
+    assert result["threshold"] == pytest.approx(0.5)
+    assert "auprc" in result["metrics"]
