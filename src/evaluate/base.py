@@ -15,6 +15,7 @@ It does NOT handle:
 Design follows patterns from docs/evaluator.md.
 """
 
+import logging
 from typing import Any, Dict, List, Optional
 
 import torch
@@ -22,13 +23,17 @@ import torch.nn as nn
 from torchmetrics.classification import (
     BinaryAccuracy,
     BinaryAUROC,
+    BinaryAveragePrecision,
     BinaryF1Score,
     BinaryMatthewsCorrCoef,
     BinaryPrecision,
     BinaryRecall,
     BinarySpecificity,
-    BinaryAveragePrecision,
 )
+
+# Number of bins used for AUROC/AUPRC when no explicit config is provided.
+# Using thresholds bounds memory so evaluation on large splits does not OOM.
+DEFAULT_CURVE_THRESHOLDS = 512
 
 
 class Evaluator:
@@ -39,7 +44,14 @@ class Evaluator:
     Evaluator only performs computation and returns a flat metrics dict.
     """
 
-    def __init__(self, metrics_list: List[str], threshold: float = 0.5):
+    DEFAULT_CURVE_THRESHOLDS = DEFAULT_CURVE_THRESHOLDS
+
+    def __init__(
+        self,
+        metrics_list: List[str],
+        threshold: float = 0.5,
+        curve_thresholds: Optional[int] = DEFAULT_CURVE_THRESHOLDS,
+    ):
         """
         Initialize evaluator.
 
@@ -49,26 +61,37 @@ class Evaluator:
                  "sensitivity", "specificity", "mcc"]
             threshold: Decision boundary for hard predictions (default 0.5).
                 Only affects accuracy/precision/recall/F1/sensitivity/specificity.
-                AUROC is threshold-free.
+                AUROC/AUPRC ignore this threshold.
+            curve_thresholds: Number of thresholds to use when computing AUROC/AUPRC.
+                Setting this bounds memory (O(num_thresholds) instead of O(num_samples)).
+                Set to None to fall back to exact accumulation (higher memory).
         """
         self.metrics_list = metrics_list
         self.threshold = threshold
 
-        # Map metric names to torchmetrics classes
+        if curve_thresholds is not None:
+            if curve_thresholds < 2:
+                raise ValueError("curve_thresholds must be >= 2 when provided")
+            self.curve_thresholds: Optional[int] = int(curve_thresholds)
+        else:
+            self.curve_thresholds = None
+
+        # Map metric names to torchmetrics classes and whether they support binned curves
         # Note: sensitivity is an alias for recall
         metric_map = {
-            "auroc": (BinaryAUROC, False),  # (class, needs_threshold)
+            "auroc": (BinaryAUROC, False, True),  # (class, needs_threshold, supports_curve_bins)
             "auprc": (
                 BinaryAveragePrecision,
                 False,
+                True,
             ),  # Area under precision-recall curve
-            "accuracy": (BinaryAccuracy, True),
-            "precision": (BinaryPrecision, True),
-            "recall": (BinaryRecall, True),
-            "sensitivity": (BinaryRecall, True),  # Alias
-            "f1": (BinaryF1Score, True),
-            "specificity": (BinarySpecificity, True),
-            "mcc": (BinaryMatthewsCorrCoef, True),
+            "accuracy": (BinaryAccuracy, True, False),
+            "precision": (BinaryPrecision, True, False),
+            "recall": (BinaryRecall, True, False),
+            "sensitivity": (BinaryRecall, True, False),  # Alias
+            "f1": (BinaryF1Score, True, False),
+            "specificity": (BinarySpecificity, True, False),
+            "mcc": (BinaryMatthewsCorrCoef, True, False),
         }
 
         # Instantiate only the requested metrics
@@ -76,14 +99,32 @@ class Evaluator:
         for metric_name in metrics_list:
             if metric_name == "loss":
                 continue  # Loss is computed manually
-            if metric_name in metric_map:
-                metric_class, needs_threshold = metric_map[metric_name]
-                if needs_threshold:
-                    self.metrics[metric_name] = metric_class(threshold=threshold)
-                else:
-                    self.metrics[metric_name] = metric_class()
-            else:
+            if metric_name not in metric_map:
                 raise ValueError(f"Unsupported metric: {metric_name}")
+
+            metric_class, needs_threshold, supports_bins = metric_map[metric_name]
+            metric_kwargs: Dict[str, Any] = {}
+            if needs_threshold:
+                metric_kwargs["threshold"] = threshold
+            if supports_bins and self.curve_thresholds:
+                metric_kwargs["thresholds"] = self.curve_thresholds
+
+            # Older torchmetrics versions may not accept thresholds; fall back gracefully
+            try:
+                self.metrics[metric_name] = metric_class(**metric_kwargs)
+            except TypeError as exc:
+                if "thresholds" in metric_kwargs:
+                    metric_kwargs.pop("thresholds", None)
+                    logging.warning(
+                        "Metric %s does not support 'thresholds' on this torchmetrics "
+                        "version; falling back to exact accumulation (higher memory). "
+                        "Error: %s",
+                        metric_name,
+                        exc,
+                    )
+                    self.metrics[metric_name] = metric_class(**metric_kwargs)
+                else:
+                    raise
 
     def evaluate(
         self,
@@ -205,6 +246,10 @@ class Evaluator:
         # Compute and add all other metrics
         for metric_name, metric in self.metrics.items():
             results[metric_name] = metric.compute().detach().cpu().item()
+
+        # Clear metric state to release memory before the next split/run
+        for metric in self.metrics.values():
+            metric.reset()
 
         # Yield final aggregated metrics with sentinel
         results["_evaluation_end"] = True

@@ -48,6 +48,19 @@ def run_evaluation(
 
     logging.info(f"Starting evaluation with metrics: {metrics_list}")
 
+    curve_thresholds = eval_cfg.get("curve_thresholds")
+    if curve_thresholds is None:
+        curve_thresholds = cfg.get("data_config", {}).get("curve_thresholds")
+    if curve_thresholds is None:
+        curve_thresholds = Evaluator.DEFAULT_CURVE_THRESHOLDS
+    else:
+        curve_thresholds = int(curve_thresholds)
+
+    logging.info(
+        "Using %s thresholds for AUROC/AUPRC accumulation to bound host memory",
+        curve_thresholds,
+    )
+
     # Load checkpoint
     if load_checkpoint_path is None:
         raise ValueError("eval_only mode requires load_checkpoint_path")
@@ -115,6 +128,7 @@ def run_evaluation(
     evaluator = Evaluator(
         metrics_list=metrics_list,
         threshold=eval_cfg.get("classification_threshold", 0.5),
+        curve_thresholds=curve_thresholds,
     )
 
     # Evaluate on each test set

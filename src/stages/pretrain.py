@@ -114,12 +114,22 @@ def run_pretrain(
         loss_cfg=pretrain_cfg.get("loss"),
     )
 
+    eval_cfg = cfg.get("evaluate", {}) or {}
+    curve_thresholds = eval_cfg.get("curve_thresholds")
+    if curve_thresholds is None:
+        curve_thresholds = cfg.get("data_config", {}).get("curve_thresholds")
+    if curve_thresholds is None:
+        curve_thresholds = Evaluator.DEFAULT_CURVE_THRESHOLDS
+    else:
+        curve_thresholds = int(curve_thresholds)
+
     # Instantiate Evaluator
     primary = pretrain_cfg["logging_metrics"]["primary"]
     secondary = pretrain_cfg["logging_metrics"]["secondary"]
     evaluator = Evaluator(
         metrics_list=["loss", primary, secondary],
         threshold=pretrain_cfg.get("classification_threshold", 0.5),
+        curve_thresholds=curve_thresholds,
     )
 
     # Early stopping: track metric history for check_early_stop

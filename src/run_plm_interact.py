@@ -121,10 +121,15 @@ def evaluate_model(
     device: torch.device,
     metrics: list[str],
     threshold: float,
+    curve_thresholds: int | None,
     amp_dtype: torch.dtype | None = None,
 ) -> Dict[str, Dict[str, float]]:
     model.eval()
-    evaluator = Evaluator(metrics_list=metrics, threshold=threshold)
+    evaluator = Evaluator(
+        metrics_list=metrics,
+        threshold=threshold,
+        curve_thresholds=curve_thresholds,
+    )
 
     results: Dict[str, Dict[str, float]] = {}
     for name, loader in loaders.items():
@@ -227,6 +232,9 @@ def main(config_path: str) -> None:
 
     metrics = eval_cfg["metrics"]
     threshold = eval_cfg.get("classification_threshold", 0.5)
+    curve_thresholds = eval_cfg.get(
+        "curve_thresholds", Evaluator.DEFAULT_CURVE_THRESHOLDS
+    )
     amp_dtype = (
         torch.float16
         if device.type == "cuda" and train_cfg.get("use_amp", True)
@@ -234,7 +242,15 @@ def main(config_path: str) -> None:
     )
 
     if mode == "eval_only":
-        evaluate_model(model, eval_loaders, device, metrics, threshold, amp_dtype)
+        evaluate_model(
+            model,
+            eval_loaders,
+            device,
+            metrics,
+            threshold,
+            curve_thresholds,
+            amp_dtype,
+        )
         return
 
     # Finetune then eval
@@ -268,7 +284,13 @@ def main(config_path: str) -> None:
         )
         logging.info(f"Epoch {epoch} train_loss={loss:.4f}")
         val_metrics = evaluate_model(
-            model, {"val": loaders["val"]}, device, metrics, threshold, amp_dtype
+            model,
+            {"val": loaders["val"]},
+            device,
+            metrics,
+            threshold,
+            curve_thresholds,
+            amp_dtype,
         )["val"]
         val_score = val_metrics.get(eval_cfg.get("monitor_metric", "auroc"), 0.0)
         if val_score > best_metric:
@@ -279,7 +301,15 @@ def main(config_path: str) -> None:
     # Load best and run final eval
     if best_file.exists():
         load_weights(model, str(best_file))
-    evaluate_model(model, eval_loaders, device, metrics, threshold, amp_dtype)
+    evaluate_model(
+        model,
+        eval_loaders,
+        device,
+        metrics,
+        threshold,
+        curve_thresholds,
+        amp_dtype,
+    )
 
 
 if __name__ == "__main__":
