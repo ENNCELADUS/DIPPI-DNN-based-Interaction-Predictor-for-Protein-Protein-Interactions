@@ -254,3 +254,60 @@ def test_evaluation_applies_loaded_da_params(tmp_path, monkeypatch):
     )
 
     assert eval_calls == [(0.3, 0.55)]
+
+
+def test_evaluation_skips_da_for_v2(tmp_path, monkeypatch):
+    """Evaluation runner should ignore DA params when disabled by config."""
+    model = nn.Linear(1, 1)
+    ckpt_path = tmp_path / "finetune_best.pth"
+    torch.save(
+        {
+            "epoch": 0,
+            "state_dict": model.state_dict(),
+            "extra": {"da_bias": 0.7, "da_threshold": 0.25},
+        },
+        ckpt_path,
+    )
+
+    cfg = {
+        "data_config": {
+            "embeddings_path": "unused",
+            "max_sequence_length": 32,
+            "embedding_dtype": "fp32",
+            "evaluate": {
+                "test_balanced": "balanced.csv",
+            },
+        },
+        "evaluate": {"metrics": ["auroc"], "apply_distribution_alignment": False},
+    }
+
+    loaders = [DummyLoader()]
+
+    def fake_build_loader(**kwargs):
+        return loaders.pop(0)
+
+    monkeypatch.setattr("tests.stage_evaluate.build_loader", fake_build_loader)
+
+    eval_calls = []
+
+    def fake_evaluate(
+        self, model, loader, device, logit_bias=0.0, threshold_override=None
+    ):
+        eval_calls.append((logit_bias, threshold_override))
+        yield {"_evaluation_end": True, "auroc": 0.5}
+
+    monkeypatch.setattr("tests.stage_evaluate.Evaluator.evaluate", fake_evaluate)
+
+    log_dir = tmp_path / "eval_logs"
+    log_dir.mkdir()
+
+    run_evaluation(
+        cfg=cfg,
+        model=model,
+        device=torch.device("cpu"),
+        eval_run_id="eval",
+        log_dir=log_dir,
+        load_checkpoint_path=str(ckpt_path),
+    )
+
+    assert eval_calls == [(0.0, None)]

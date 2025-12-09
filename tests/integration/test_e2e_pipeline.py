@@ -67,11 +67,7 @@ def get_artifact_paths(stage: str, run_id: str) -> Dict[str, Path]:
 def get_expected_splits(config: Dict) -> Set[str]:
     """Return configured evaluation splits with paths."""
     eval_cfg = config.get("data_config", {}).get("evaluate", {})
-    return {
-        name
-        for name, path in eval_cfg.items()
-        if name.startswith("test") and path
-    }
+    return {name for name, path in eval_cfg.items() if name.startswith("test") and path}
 
 
 def verify_file_exists(

@@ -242,18 +242,23 @@ def sample_negatives(
 
     # Adjust if pools are insufficient
     if len(hard_negs) < num_hard:
-        print(f"  Warning: Only {len(hard_negs):,} hard negatives available, "
-              f"requested {num_hard:,}")
+        print(
+            f"  Warning: Only {len(hard_negs):,} hard negatives available, "
+            f"requested {num_hard:,}"
+        )
         num_hard = len(hard_negs)
         num_default = num_samples - num_hard
 
     if len(default_negs) < num_default:
-        print(f"  Warning: Only {len(default_negs):,} default negatives available, "
-              f"requested {num_default:,}")
+        print(
+            f"  Warning: Only {len(default_negs):,} default negatives available, "
+            f"requested {num_default:,}"
+        )
         num_default = len(default_negs)
         # Try to compensate with more hard negatives
-        extra_hard = min(num_samples - num_hard - num_default,
-                         len(hard_negs) - num_hard)
+        extra_hard = min(
+            num_samples - num_hard - num_default, len(hard_negs) - num_hard
+        )
         num_hard += extra_hard
 
     # Sample
@@ -301,8 +306,10 @@ def main() -> None:
     num_pos = len(positives)
     num_neg_orig = len(negatives)
 
-    print(f"Original: {num_pos:,} positives, {num_neg_orig:,} negatives "
-          f"(ratio 1:{num_neg_orig / num_pos:.1f})")
+    print(
+        f"Original: {num_pos:,} positives, {num_neg_orig:,} negatives "
+        f"(ratio 1:{num_neg_orig / num_pos:.1f})"
+    )
 
     # Step 1: Build PPI graph from positives
     print("\nStep 1: Building PPI graph from positive samples...")
@@ -328,8 +335,10 @@ def main() -> None:
         proteins = bucket_to_proteins[bucket_idx]
         if proteins:
             bucket_degrees = [degree[p] for p in proteins]
-            print(f"  Bucket {bucket_idx}: {len(proteins):,} proteins, "
-                  f"degree range [{min(bucket_degrees)}-{max(bucket_degrees)}]")
+            print(
+                f"  Bucket {bucket_idx}: {len(proteins):,} proteins, "
+                f"degree range [{min(bucket_degrees)}-{max(bucket_degrees)}]"
+            )
 
     # Step 4: Filter and classify negatives
     print("\nStep 4: Filtering and classifying negatives...")
@@ -342,8 +351,10 @@ def main() -> None:
 
     # Step 5: Sample negatives (1:1 ratio)
     print(f"\nStep 5: Sampling {num_pos:,} negatives (1:1 ratio)...")
-    print(f"  Target: {int(num_pos * args.hard_ratio):,} hard, "
-          f"{int(num_pos * (1 - args.hard_ratio)):,} default")
+    print(
+        f"  Target: {int(num_pos * args.hard_ratio):,} hard, "
+        f"{int(num_pos * (1 - args.hard_ratio)):,} default"
+    )
 
     sampled_negs = sample_negatives(
         hard_negs, default_negs, num_pos, args.hard_ratio, rng
@@ -375,4 +386,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
