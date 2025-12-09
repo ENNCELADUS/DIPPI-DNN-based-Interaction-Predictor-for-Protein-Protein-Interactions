@@ -36,13 +36,6 @@ data_config:
   finetune:
     train_csv: "data/TMP/processed/finetune_train.csv"
     valid_csv: "data/TMP/processed/finetune_val.csv"
-    sampling:
-      strategy: "imbalanced"
-      pos_neg_ratio: 10.0
-    distribution_alignment:
-      target_prior: 0.10
-      threshold_search_metric: "auprc"
-      search_steps: 200
   evaluate:
     test_balanced: "data/TMP/processed/test.csv"
 

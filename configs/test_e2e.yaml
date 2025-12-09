@@ -40,13 +40,6 @@ data_config:
   finetune:
     train_csv: "data/test_e2e/splits/finetune_train.csv"
     valid_csv: "data/test_e2e/splits/finetune_validation.csv"
-    sampling:
-      strategy: "imbalanced"
-      pos_neg_ratio: 3.0
-    distribution_alignment:
-      target_prior: 0.5
-      threshold_search_metric: "f1"
-      search_steps: 100
   evaluate:
     test_balanced: "data/test_e2e/test_balanced.csv"
     test_realistic: "data/test_e2e/test_realistic.csv"
