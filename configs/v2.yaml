@@ -1,12 +1,12 @@
 # V2 Config - Ablation without encoder transformer layers
 
 run_config:
-  mode: "full_pipeline"  # full_pipeline | finetune_from_pretrain | eval_only
+  mode: "eval_only"  # full_pipeline | finetune_from_pretrain | eval_only
   seed: 47
-  pretrain_run_id: null   # Auto-timestamp if null
-  finetune_run_id: null   # Auto-timestamp if null
-  eval_run_id: null       # Auto-timestamp if null
-  load_checkpoint_path: null  # If mode = full_pipeline, then NULL checkpoint.
+  pretrain_run_id: "20251207_062111"   # Auto-timestamp if null
+  finetune_run_id: "20251207_062111"   # Auto-timestamp if null
+  eval_run_id: null     # Auto-timestamp if null
+  load_checkpoint_path: "models/v2/finetune/20251207_062111/best_model.pth"  # If mode = full_pipeline, then NULL checkpoint.
                               # If mode = finetune_from_pretrain, then the checkpoint of the pretrain run.
                               # If mode = eval_only, then the checkpoint of the finetune run.
   save_best_only: true     # If true, only save the best checkpoint. If not, save checkpoint at every epoch end, while also keeps a best model checkpoint.
@@ -14,7 +14,7 @@ run_config:
 top_level_config:
   device: "cuda"
   ddp:
-    enabled: true         # Enable DistributedDataParallel by default
+    enabled: false         # Enable DistributedDataParallel by default
     backend: "nccl"       # nccl | gloo (cpu)
     init_method: "env://"
     find_unused_parameters: false # Enable only if model branches leave parameters unused.
