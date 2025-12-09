@@ -1,0 +1,58 @@
+2025-12-09 23:01:32,271 | INFO | ================================================================================
+2025-12-09 23:01:32,272 | INFO | Starting ML training for model 'random_forest' with run_id '20251209_230132'
+2025-12-09 23:01:32,272 | INFO | Logs will be written to: logs/ml/random_forest/20251209_230132/log.log
+2025-12-09 23:01:32,272 | INFO | ================================================================================
+2025-12-09 23:01:32,272 | INFO | Loading training data...
+2025-12-09 23:01:32,274 | INFO | Loading ML embeddings from data/TMP/processed/TMP_embeddings.npz...
+2025-12-09 23:03:28,070 | INFO | Loaded 21391 protein embeddings
+2025-12-09 23:03:28,226 | INFO | Loading ML features: 511104 pairs, feature_dim=3072
+2025-12-09 23:03:57,172 | INFO | Class distribution: 58989 positive, 452115 negative
+2025-12-09 23:03:57,177 | INFO | Loading validation data...
+2025-12-09 23:03:57,194 | INFO | Loading ML features: 56791 pairs, feature_dim=3072
+2025-12-09 23:04:00,395 | INFO | Class distribution: 6555 positive, 50236 negative
+2025-12-09 23:04:00,396 | INFO | Loading test data...
+2025-12-09 23:04:00,439 | INFO | Loading ML features: 188697 pairs, feature_dim=3072
+2025-12-09 23:04:11,024 | INFO | Class distribution: 4788 positive, 183909 negative
+2025-12-09 23:04:11,026 | INFO | Data loaded: train=511104, val=56791, test=188697
+2025-12-09 23:04:11,027 | INFO | Building model: random_forest
+2025-12-09 23:04:11,027 | INFO | Model params: {'n_estimators': 300, 'max_depth': 12, 'min_samples_split': 10, 'min_samples_leaf': 5, 'max_features': 'sqrt', 'class_weight': 'balanced', 'n_jobs': -1, 'verbose': 1, 'random_state': 47}
+2025-12-09 23:04:11,027 | INFO | Starting training...
+2025-12-09 23:04:11,027 | INFO | Training RandomForest on 511104 samples, 3072 features
+2025-12-09 23:09:24,784 | INFO | RandomForest training complete
+2025-12-09 23:09:25,043 | INFO | Model saved to: models/ml/random_forest/20251209_230132/random_forest_model.joblib
+2025-12-09 23:09:25,044 | INFO | Evaluating on validation: 56791 samples
+2025-12-09 23:09:26,482 | INFO | validation results:
+2025-12-09 23:09:26,482 | INFO |   auroc: 0.9357
+2025-12-09 23:09:26,482 | INFO |   auprc: 0.7976
+2025-12-09 23:09:26,482 | INFO |   accuracy: 0.9208
+2025-12-09 23:09:26,482 | INFO |   precision: 0.6275
+2025-12-09 23:09:26,482 | INFO |   recall: 0.7724
+2025-12-09 23:09:26,483 | INFO |   sensitivity: 0.7724
+2025-12-09 23:09:26,483 | INFO |   specificity: 0.9402
+2025-12-09 23:09:26,483 | INFO |   f1: 0.6924
+2025-12-09 23:09:26,483 | INFO |   mcc: 0.6521
+2025-12-09 23:09:26,483 | INFO | Evaluating on test: 188697 samples
+2025-12-09 23:09:30,453 | INFO | test results:
+2025-12-09 23:09:30,453 | INFO |   auroc: 0.7654
+2025-12-09 23:09:30,453 | INFO |   auprc: 0.1646
+2025-12-09 23:09:30,453 | INFO |   accuracy: 0.8176
+2025-12-09 23:09:30,453 | INFO |   precision: 0.0792
+2025-12-09 23:09:30,453 | INFO |   recall: 0.5827
+2025-12-09 23:09:30,453 | INFO |   sensitivity: 0.5827
+2025-12-09 23:09:30,453 | INFO |   specificity: 0.8237
+2025-12-09 23:09:30,453 | INFO |   f1: 0.1395
+2025-12-09 23:09:30,453 | INFO |   mcc: 0.1640
+2025-12-09 23:09:30,453 | INFO | Evaluating on train: 511104 samples
+2025-12-09 23:09:45,449 | INFO | train results:
+2025-12-09 23:09:45,450 | INFO |   auroc: 0.9611
+2025-12-09 23:09:45,450 | INFO |   auprc: 0.8594
+2025-12-09 23:09:45,450 | INFO |   accuracy: 0.9328
+2025-12-09 23:09:45,450 | INFO |   precision: 0.6673
+2025-12-09 23:09:45,450 | INFO |   recall: 0.8333
+2025-12-09 23:09:45,450 | INFO |   sensitivity: 0.8333
+2025-12-09 23:09:45,450 | INFO |   specificity: 0.9458
+2025-12-09 23:09:45,451 | INFO |   f1: 0.7411
+2025-12-09 23:09:45,451 | INFO |   mcc: 0.7088
+2025-12-09 23:09:45,464 | INFO | Results saved to: logs/ml/random_forest/20251209_230132/evaluation_results.csv
+2025-12-09 23:09:45,471 | INFO | Full results saved to: logs/ml/random_forest/20251209_230132/results.json
+2025-12-09 23:09:45,471 | INFO | ML pipeline completed successfully
