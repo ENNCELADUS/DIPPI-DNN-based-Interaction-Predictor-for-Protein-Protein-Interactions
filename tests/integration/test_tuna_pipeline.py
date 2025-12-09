@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Set
 
 import pytest
 import yaml
@@ -58,6 +58,16 @@ def get_artifact_paths(stage: str, run_id: str) -> Dict[str, Path]:
         )
 
     return paths
+
+
+def get_expected_splits(config: Dict) -> Set[str]:
+    """Return configured evaluation splits with paths."""
+    eval_cfg = config.get("data_config", {}).get("evaluate", {})
+    return {
+        name
+        for name, path in eval_cfg.items()
+        if name.startswith("test") and path
+    }
 
 
 def verify_file_exists(
@@ -124,7 +134,9 @@ def verify_training_artifacts(stage: str, run_id: str, num_epochs: int) -> None:
     print(f"✓ All {stage} artifacts verified")
 
 
-def verify_evaluation_artifacts(run_id: str, expected_metrics: List[str]) -> None:
+def verify_evaluation_artifacts(
+    run_id: str, expected_metrics: List[str], expected_splits: Set[str]
+) -> None:
     """Verify all evaluation artifacts."""
     print("\nVerifying evaluate artifacts...")
     paths = get_artifact_paths("evaluate", run_id)
@@ -133,11 +145,13 @@ def verify_evaluation_artifacts(run_id: str, expected_metrics: List[str]) -> Non
     verify_file_exists(paths["log_file"], "evaluate log", allow_empty=True)
 
     # 2. Evaluate CSV with both test splits
+    assert expected_splits, "No evaluation splits configured for verification"
+
     expected_cols = ["split"] + expected_metrics
     verify_csv_structure(
         paths["evaluate_csv"],
         expected_cols,
-        min_rows=2,  # Two test splits: test_balanced and test_realistic
+        min_rows=len(expected_splits),
         description="evaluate.csv",
     )
 
@@ -146,11 +160,11 @@ def verify_evaluation_artifacts(run_id: str, expected_metrics: List[str]) -> Non
         reader = csv.DictReader(f)
         splits = {row["split"] for row in reader}
 
-    expected_splits = {"test_balanced", "test_realistic"}
     missing_splits = expected_splits - splits
     assert not missing_splits, f"evaluate.csv missing splits: {missing_splits}"
     print(
-        f"✓ evaluate.csv has both test splits with all {len(expected_metrics)} metrics"
+        "✓ evaluate.csv has expected test splits with all "
+        f"{len(expected_metrics)} metrics"
     )
 
     print("✓ All evaluate artifacts verified")
@@ -257,6 +271,7 @@ def test_tuna_eval_only(cleanup_after_tests):
         config = yaml.safe_load(f)
 
     expected_metrics = config["evaluate"]["metrics"]
+    expected_splits = get_expected_splits(config)
     print(f"Expected metrics: {expected_metrics}")
 
     # Get finetune checkpoint path
@@ -301,7 +316,7 @@ def test_tuna_eval_only(cleanup_after_tests):
         print("✓ Evaluation completed successfully")
 
         # Verify evaluation artifacts
-        verify_evaluation_artifacts(EVAL_RUN_ID, expected_metrics)
+        verify_evaluation_artifacts(EVAL_RUN_ID, expected_metrics, expected_splits)
 
         print("\n" + "=" * 80)
         print("✓ TEST PASSED: TUnA E2E Eval Only")

@@ -219,13 +219,12 @@ def test_evaluation_applies_loaded_da_params(tmp_path, monkeypatch):
             "embedding_dtype": "fp32",
             "evaluate": {
                 "test_balanced": "balanced.csv",
-                "test_realistic": "realistic.csv",
             },
         },
         "evaluate": {"metrics": ["auroc"]},
     }
 
-    loaders = [DummyLoader(), DummyLoader()]
+    loaders = [DummyLoader()]
 
     def fake_build_loader(**kwargs):
         return loaders.pop(0)
@@ -238,7 +237,7 @@ def test_evaluation_applies_loaded_da_params(tmp_path, monkeypatch):
         self, model, loader, device, logit_bias=0.0, threshold_override=None
     ):
         eval_calls.append((logit_bias, threshold_override))
-        return {"auroc": 0.5}
+        yield {"_evaluation_end": True, "auroc": 0.5}
 
     monkeypatch.setattr("tests.stage_evaluate.Evaluator.evaluate", fake_evaluate)
 
@@ -254,4 +253,4 @@ def test_evaluation_applies_loaded_da_params(tmp_path, monkeypatch):
         load_checkpoint_path=str(ckpt_path),
     )
 
-    assert eval_calls == [(0.3, 0.55), (0.3, 0.55)]
+    assert eval_calls == [(0.3, 0.55)]

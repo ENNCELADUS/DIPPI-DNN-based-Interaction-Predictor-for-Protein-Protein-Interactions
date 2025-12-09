@@ -81,27 +81,35 @@ def run_evaluation(
     eval_data_cfg = data_cfg["evaluate"]
     dataloader_cfg = data_cfg.get("dataloader", {})
 
-    test_balanced_loader = build_loader(
-        csv_path=eval_data_cfg["test_balanced"],
-        embeddings_path=data_cfg["embeddings_path"],
-        batch_size=32,  # Fixed for eval
-        max_len=data_cfg["max_sequence_length"],
-        dtype=data_cfg["embedding_dtype"],
-        ddp=False,  # No DDP for eval
-        shuffle=False,
-        dataloader_cfg=dataloader_cfg,
-    )
+    test_loaders = []
 
-    test_realistic_loader = build_loader(
-        csv_path=eval_data_cfg["test_realistic"],
-        embeddings_path=data_cfg["embeddings_path"],
-        batch_size=32,
-        max_len=data_cfg["max_sequence_length"],
-        dtype=data_cfg["embedding_dtype"],
-        ddp=False,
-        shuffle=False,
-        dataloader_cfg=dataloader_cfg,
-    )
+    # Balanced split is expected for evaluation; realistic split is optional.
+    split_paths = {
+        "test_balanced": eval_data_cfg.get("test_balanced"),
+        "test_realistic": eval_data_cfg.get("test_realistic"),
+    }
+
+    for split_name, csv_path in split_paths.items():
+        if not csv_path:
+            if split_name == "test_realistic":
+                logging.info("No test_realistic split configured; skipping")
+                continue
+            raise ValueError(f"Missing CSV path for required split: {split_name}")
+
+        loader = build_loader(
+            csv_path=csv_path,
+            embeddings_path=data_cfg["embeddings_path"],
+            batch_size=32,  # Fixed for eval
+            max_len=data_cfg["max_sequence_length"],
+            dtype=data_cfg["embedding_dtype"],
+            ddp=False,  # No DDP for eval
+            shuffle=False,
+            dataloader_cfg=dataloader_cfg,
+        )
+        test_loaders.append((split_name, loader))
+
+    if not test_loaders:
+        raise ValueError("No evaluation splits configured in data_config.evaluate")
 
     # Instantiate Evaluator
     evaluator = Evaluator(
@@ -125,10 +133,7 @@ def run_evaluation(
         elif dtype_str in {"fp16", "float16", "half"}:
             amp_dtype = torch.float16
 
-    for split_name, test_loader in [
-        ("test_balanced", test_balanced_loader),
-        ("test_realistic", test_realistic_loader),
-    ]:
+    for split_name, test_loader in test_loaders:
         logging.info(f"Evaluating on {split_name}...")
         model.eval()
 
