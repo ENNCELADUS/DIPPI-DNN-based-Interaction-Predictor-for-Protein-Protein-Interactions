@@ -14,7 +14,7 @@ run_config:
 top_level_config:
   device: "cuda"
   ddp:
-    enabled: false         # Enable DistributedDataParallel by default
+    enabled: true         # Enable DistributedDataParallel by default
     backend: "nccl"       # nccl | gloo (cpu)
     init_method: "env://"
     find_unused_parameters: false # Enable only if model branches leave parameters unused.
