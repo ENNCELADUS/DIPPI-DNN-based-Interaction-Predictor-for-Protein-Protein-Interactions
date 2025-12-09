@@ -342,8 +342,7 @@ def main(config_path: str) -> None:
         ):
             schedule = strategy_cfg.get("schedule") or []
             has_freeze_steps = any(
-                isinstance(step, dict)
-                and (step.get("freeze") or step.get("unfreeze"))
+                isinstance(step, dict) and (step.get("freeze") or step.get("unfreeze"))
                 for step in schedule
             )
             if has_freeze_steps:

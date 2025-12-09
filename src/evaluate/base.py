@@ -79,7 +79,11 @@ class Evaluator:
         # Map metric names to torchmetrics classes and whether they support binned curves
         # Note: sensitivity is an alias for recall
         metric_map = {
-            "auroc": (BinaryAUROC, False, True),  # (class, needs_threshold, supports_curve_bins)
+            "auroc": (
+                BinaryAUROC,
+                False,
+                True,
+            ),  # (class, needs_threshold, supports_curve_bins)
             "auprc": (
                 BinaryAveragePrecision,
                 False,
