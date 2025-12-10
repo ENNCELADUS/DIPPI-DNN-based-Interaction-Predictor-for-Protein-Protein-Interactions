@@ -1,0 +1,141 @@
+2025-12-10 01:02:25,972 | INFO | ================================================================================
+2025-12-10 01:02:25,973 | INFO | Starting finetune stage for model 'v2' with run_id '20251210_010225'
+2025-12-10 01:02:25,973 | INFO | Logs will be written to: logs/v2/finetune/20251210_010225/log.log
+2025-12-10 01:02:25,973 | INFO | ================================================================================
+2025-12-10 01:02:25,973 | INFO | ================================================================================
+2025-12-10 01:02:25,975 | INFO | ================================================================================
+2025-12-10 01:02:25,975 | INFO | Starting finetune stage for model 'v2' with run_id '20251210_010225'
+2025-12-10 01:02:25,975 | INFO | Starting finetune stage for model 'v2' with run_id '20251210_010225'
+2025-12-10 01:02:25,975 | INFO | Logs will be written to: logs/v2/finetune/20251210_010225/log.log
+2025-12-10 01:02:25,975 | INFO | Logs will be written to: logs/v2/finetune/20251210_010225/log.log
+2025-12-10 01:02:25,975 | INFO | ================================================================================
+2025-12-10 01:02:25,975 | INFO | ================================================================================
+2025-12-10 01:02:25,975 | INFO | Trainable parameters: 5,563,073
+2025-12-10 01:02:25,975 | INFO | Building dataloaders for finetune stage
+2025-12-10 01:02:25,975 | INFO | Trainable parameters: 5,563,073
+2025-12-10 01:02:25,975 | INFO | Trainable parameters: 5,563,073
+2025-12-10 01:02:25,975 | INFO | Building dataloaders for finetune stage
+2025-12-10 01:02:25,975 | INFO | Building dataloaders for finetune stage
+2025-12-10 01:02:25,976 | INFO | ================================================================================
+2025-12-10 01:02:25,976 | INFO | Starting finetune stage for model 'v2' with run_id '20251210_010225'
+2025-12-10 01:02:25,976 | INFO | Logs will be written to: logs/v2/finetune/20251210_010225/log.log
+2025-12-10 01:02:25,976 | INFO | ================================================================================
+2025-12-10 01:02:25,976 | INFO | Trainable parameters: 5,563,073
+2025-12-10 01:02:25,976 | INFO | Building dataloaders for finetune stage
+2025-12-10 01:02:25,978 | INFO | Loading embeddings from data/TMP/processed/TMP_embeddings.npz (this may take a while...)
+2025-12-10 01:04:50,078 | INFO | Memory-mapped structured .npz format: 21391 proteins (embeddings stay on disk, loaded on-demand)
+2025-12-10 01:04:50,079 | INFO | Loaded 21391 protein embeddings
+2025-12-10 01:04:50,286 | INFO | Dataset: 511104 pairs (58989 pos, 452115 neg)
+2025-12-10 01:04:50,287 | INFO | DataLoader built for finetune_train.csv: num_workers=0, pin_memory=False, prefetch_factor=None, persistent_workers=False, sampler=DistributedSampler
+2025-12-10 01:04:50,322 | INFO | Dataset: 56791 pairs (6555 pos, 50236 neg)
+2025-12-10 01:04:50,322 | INFO | DataLoader built for finetune_val.csv: num_workers=0, pin_memory=False, prefetch_factor=None, persistent_workers=False, sampler=DistributedSampler
+2025-12-10 01:04:50,322 | INFO | Starting finetune for 30 epochs
+2025-12-10 01:04:50,322 | INFO | Strategy: staged_unfreeze
+2025-12-10 01:04:50,322 | INFO | Monitor metric: f1, Patience: 5
+2025-12-10 01:04:50,712 | INFO | Loaded checkpoint from: models/v2/pretrain/20251207_062111/best_model.pth (pretrain epoch 15)
+2025-12-10 01:04:50,712 | INFO | Created StagedUnfreeze strategy with 2 schedule entries
+2025-12-10 01:04:50,714 | INFO | StagedUnfreeze applied at epoch 0 via on_train_begin; trainable parameters: 4,972,097
+2025-12-10 01:04:50,715 | INFO | Trainable parameters: 4,972,097
+2025-12-10 01:04:50,715 | INFO | Distribution Alignment enabled: target_prior=0.5, search_metric=f1
+2025-12-10 01:04:50,715 | INFO | 
+============================================================
+2025-12-10 01:04:50,715 | INFO | Finetune Epoch 0/29
+2025-12-10 01:04:50,715 | INFO | ============================================================
+2025-12-10 01:49:19,334 | INFO | Epoch 0: avg_loss=0.808795, lr=1.17e-05
+2025-12-10 01:49:19,335 | INFO | DA validation: loss=0.325499, bias=2.2090, threshold=0.6667, pred_prior=0.1225, cal_prior=0.5000
+2025-12-10 01:49:19,335 | INFO | DA metrics: f1=0.319066, auprc=0.274950, auroc=0.706026
+2025-12-10 01:49:19,508 | INFO | Saved best finetune checkpoint: models/v2/finetune/20251210_010225/best_model.pth (f1=0.319066)
+2025-12-10 01:49:19,508 | INFO | 
+============================================================
+2025-12-10 01:49:19,508 | INFO | Finetune Epoch 1/29
+2025-12-10 01:49:19,508 | INFO | ============================================================
+2025-12-10 02:33:44,629 | INFO | Epoch 1: avg_loss=0.269554, lr=2.33e-05
+2025-12-10 02:33:44,630 | INFO | DA validation: loss=0.196661, bias=3.4210, threshold=0.9394, pred_prior=0.1087, cal_prior=0.5000
+2025-12-10 02:33:44,630 | INFO | DA metrics: f1=0.650512, auprc=0.718002, auroc=0.903208
+2025-12-10 02:33:44,817 | INFO | Saved best finetune checkpoint: models/v2/finetune/20251210_010225/best_model.pth (f1=0.650512)
+2025-12-10 02:33:44,817 | INFO | 
+============================================================
+2025-12-10 02:33:44,817 | INFO | Finetune Epoch 2/29
+2025-12-10 02:33:44,817 | INFO | ============================================================
+2025-12-10 03:18:02,096 | INFO | Epoch 2: avg_loss=0.185383, lr=3.50e-05
+2025-12-10 03:18:02,097 | INFO | DA validation: loss=0.157421, bias=4.0294, threshold=0.9596, pred_prior=0.0995, cal_prior=0.5000
+2025-12-10 03:18:02,097 | INFO | DA metrics: f1=0.737274, auprc=0.813288, auroc=0.937101
+2025-12-10 03:18:02,282 | INFO | Saved best finetune checkpoint: models/v2/finetune/20251210_010225/best_model.pth (f1=0.737274)
+2025-12-10 03:18:02,282 | INFO | 
+============================================================
+2025-12-10 03:18:02,282 | INFO | Finetune Epoch 3/29
+2025-12-10 03:18:02,282 | INFO | ============================================================
+2025-12-10 03:18:02,284 | INFO | StagedUnfreeze applied at epoch 3 via on_epoch_begin; trainable parameters: 5,563,073
+2025-12-10 04:02:33,624 | INFO | Epoch 3: avg_loss=0.152545, lr=1.17e-05
+2025-12-10 04:02:33,625 | INFO | DA validation: loss=0.146846, bias=4.3716, threshold=0.9798, pred_prior=0.1089, cal_prior=0.5000
+2025-12-10 04:02:33,625 | INFO | DA metrics: f1=0.757945, auprc=0.832373, auroc=0.943605
+2025-12-10 04:02:33,815 | INFO | Saved best finetune checkpoint: models/v2/finetune/20251210_010225/best_model.pth (f1=0.757945)
+2025-12-10 04:02:33,815 | INFO | 
+============================================================
+2025-12-10 04:02:33,815 | INFO | Finetune Epoch 4/29
+2025-12-10 04:02:33,815 | INFO | ============================================================
+2025-12-10 04:47:10,381 | INFO | Epoch 4: avg_loss=0.143400, lr=2.33e-05
+2025-12-10 04:47:10,382 | INFO | DA validation: loss=0.142629, bias=4.6797, threshold=0.9798, pred_prior=0.0963, cal_prior=0.5000
+2025-12-10 04:47:10,382 | INFO | DA metrics: f1=0.771043, auprc=0.847052, auroc=0.949201
+2025-12-10 04:47:10,576 | INFO | Saved best finetune checkpoint: models/v2/finetune/20251210_010225/best_model.pth (f1=0.771043)
+2025-12-10 04:47:10,576 | INFO | 
+============================================================
+2025-12-10 04:47:10,576 | INFO | Finetune Epoch 5/29
+2025-12-10 04:47:10,576 | INFO | ============================================================
+2025-12-10 05:31:37,923 | INFO | Epoch 5: avg_loss=0.131475, lr=3.50e-05
+2025-12-10 05:31:37,923 | INFO | DA validation: loss=0.127306, bias=4.5644, threshold=0.9899, pred_prior=0.1141, cal_prior=0.5000
+2025-12-10 05:31:37,923 | INFO | DA metrics: f1=0.791117, auprc=0.865518, auroc=0.956524
+2025-12-10 05:31:38,110 | INFO | Saved best finetune checkpoint: models/v2/finetune/20251210_010225/best_model.pth (f1=0.791117)
+2025-12-10 05:31:38,110 | INFO | 
+============================================================
+2025-12-10 05:31:38,110 | INFO | Finetune Epoch 6/29
+2025-12-10 05:31:38,111 | INFO | ============================================================
+2025-12-10 06:16:13,299 | INFO | Epoch 6: avg_loss=0.120558, lr=3.49e-05
+2025-12-10 06:16:13,300 | INFO | DA validation: loss=0.122691, bias=5.0943, threshold=0.9899, pred_prior=0.1077, cal_prior=0.5000
+2025-12-10 06:16:13,300 | INFO | DA metrics: f1=0.803882, auprc=0.877278, auroc=0.959778
+2025-12-10 06:16:13,487 | INFO | Saved best finetune checkpoint: models/v2/finetune/20251210_010225/best_model.pth (f1=0.803882)
+2025-12-10 06:16:13,487 | INFO | 
+============================================================
+2025-12-10 06:16:13,487 | INFO | Finetune Epoch 7/29
+2025-12-10 06:16:13,487 | INFO | ============================================================
+2025-12-10 07:00:42,507 | INFO | Epoch 7: avg_loss=0.107920, lr=3.45e-05
+2025-12-10 07:00:42,508 | INFO | DA validation: loss=0.123858, bias=5.6296, threshold=0.9899, pred_prior=0.1037, cal_prior=0.5000
+2025-12-10 07:00:42,509 | INFO | DA metrics: f1=0.812196, auprc=0.880981, auroc=0.960268
+2025-12-10 07:00:42,714 | INFO | Saved best finetune checkpoint: models/v2/finetune/20251210_010225/best_model.pth (f1=0.812196)
+2025-12-10 07:00:42,714 | INFO | 
+============================================================
+2025-12-10 07:00:42,714 | INFO | Finetune Epoch 8/29
+2025-12-10 07:00:42,714 | INFO | ============================================================
+2025-12-10 07:45:20,216 | INFO | Epoch 8: avg_loss=0.099913, lr=3.39e-05
+2025-12-10 07:45:20,217 | INFO | DA validation: loss=0.121271, bias=5.7965, threshold=0.9899, pred_prior=0.1052, cal_prior=0.5000
+2025-12-10 07:45:20,217 | INFO | DA metrics: f1=0.801491, auprc=0.885741, auroc=0.961438
+2025-12-10 07:45:20,236 | INFO | 
+============================================================
+2025-12-10 07:45:20,236 | INFO | Finetune Epoch 9/29
+2025-12-10 07:45:20,236 | INFO | ============================================================
+2025-12-10 08:28:38,788 | INFO | Epoch 9: avg_loss=0.091202, lr=3.31e-05
+2025-12-10 08:28:38,790 | INFO | DA validation: loss=0.117473, bias=6.1493, threshold=0.9899, pred_prior=0.1063, cal_prior=0.5000
+2025-12-10 08:28:38,790 | INFO | DA metrics: f1=0.793073, auprc=0.894309, auroc=0.963407
+2025-12-10 08:28:38,805 | INFO | 
+============================================================
+2025-12-10 08:28:38,805 | INFO | Finetune Epoch 10/29
+2025-12-10 08:28:38,805 | INFO | ============================================================
+2025-12-10 09:10:11,343 | INFO | Epoch 10: avg_loss=0.084545, lr=3.21e-05
+2025-12-10 09:10:11,344 | INFO | DA validation: loss=0.118329, bias=6.0220, threshold=0.9899, pred_prior=0.1109, cal_prior=0.5000
+2025-12-10 09:10:11,344 | INFO | DA metrics: f1=0.785486, auprc=0.891355, auroc=0.963732
+2025-12-10 09:10:11,372 | INFO | 
+============================================================
+2025-12-10 09:10:11,372 | INFO | Finetune Epoch 11/29
+2025-12-10 09:10:11,372 | INFO | ============================================================
+2025-12-10 09:51:38,310 | INFO | Epoch 11: avg_loss=0.077241, lr=3.09e-05
+2025-12-10 09:51:38,310 | INFO | DA validation: loss=0.119602, bias=6.6093, threshold=0.9899, pred_prior=0.1074, cal_prior=0.5000
+2025-12-10 09:51:38,310 | INFO | DA metrics: f1=0.768252, auprc=0.894925, auroc=0.962539
+2025-12-10 09:51:38,315 | INFO | 
+============================================================
+2025-12-10 09:51:38,315 | INFO | Finetune Epoch 12/29
+2025-12-10 09:51:38,315 | INFO | ============================================================
+2025-12-10 10:32:55,783 | INFO | Epoch 12: avg_loss=0.072114, lr=2.95e-05
+2025-12-10 10:32:55,784 | INFO | DA validation: loss=0.124234, bias=6.6782, threshold=0.9899, pred_prior=0.1100, cal_prior=0.5000
+2025-12-10 10:32:55,784 | INFO | DA metrics: f1=0.764964, auprc=0.894219, auroc=0.963938
+2025-12-10 10:32:55,802 | INFO | Early stopping triggered at epoch 12 (no improvement in f1 for 5 epochs)
+2025-12-10 10:32:55,802 | INFO | Finetune completed. Best f1: 0.812196
