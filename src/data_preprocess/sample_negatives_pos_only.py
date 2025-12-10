@@ -92,7 +92,9 @@ def main() -> None:
 
     num_pos = len(positives)
     num_neg = len(negatives)
-    print(f"Original: {num_pos:,} positives, {num_neg:,} negatives (1:{num_neg/num_pos:.1f})")
+    print(
+        f"Original: {num_pos:,} positives, {num_neg:,} negatives (1:{num_neg / num_pos:.1f})"
+    )
 
     print("\nFiltering negatives to proteins present in positives...")
     positive_proteins: Set[str] = set(positives["uniprotID_A"]).union(

@@ -4,8 +4,8 @@ run_config:
   mode: "finetune_from_pretrain"  # full_pipeline | finetune_from_pretrain | eval_only
   seed: 47
   pretrain_run_id: null   # Auto-timestamp if null
-  finetune_run_id: "20251205_004148"   # Auto-timestamp if null
-  eval_run_id: "20251205_004148"       # Auto-timestamp if null
+  finetune_run_id: null   # Auto-timestamp if null
+  eval_run_id: null       # Auto-timestamp if null
   load_checkpoint_path: "models/v5/pretrain/20251205_004148/best_model.pth"  # If mode = full_pipeline, then NULL checkpoint.
                               # If mode = finetune_from_pretrain, then the checkpoint of the pretrain run.
                               # If mode = eval_only, then the checkpoint of the finetune run.
