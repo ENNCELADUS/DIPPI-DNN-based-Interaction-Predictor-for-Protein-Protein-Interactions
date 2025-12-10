@@ -190,8 +190,14 @@ def run_finetune(
             )
     else:
         # No DA configured: use standard Evaluator (same as pretrain validation)
+        # Include primary and secondary metrics to align CSV with pretrain
+        primary_metric = finetune_cfg["logging_metrics"]["primary"]
+        secondary_metric = finetune_cfg["logging_metrics"]["secondary"]
+        eval_metrics = list(
+            set([monitor_metric, primary_metric, secondary_metric, "loss"])
+        )
         evaluator = Evaluator(
-            metrics_list=[monitor_metric, "loss"],
+            metrics_list=eval_metrics,
             threshold=0.5,
         )
         if is_main_process():
@@ -228,7 +234,8 @@ def run_finetune(
             "Epoch Time",
             "Train Loss",
             "Val Loss",
-            f"Val {monitor_metric}",
+            f"Val {primary}",
+            f"Val {secondary}",
             "Learning Rate",
         ]
 
@@ -390,16 +397,19 @@ def run_finetune(
                     f"lr={train_metrics['lr']:.2e}"
                 )
                 logging.info(
-                    f"Validation: loss={val_loss:.6f}, {monitor_metric}={current_metric:.6f}"
+                    f"Validation: loss={val_loss:.6f}, "
+                    f"{primary}={val_metrics.get(primary, 0.0):.6f}, "
+                    f"{secondary}={val_metrics.get(secondary, 0.0):.6f}"
                 )
 
-            # Append to CSV (standard columns)
+            # Append to CSV (standard columns, aligned with pretrain)
             row = {
                 "Epoch": epoch,
                 "Epoch Time": epoch_time,
                 "Train Loss": train_metrics["loss"],
                 "Val Loss": val_loss,
-                f"Val {monitor_metric}": current_metric,
+                f"Val {primary}": val_metrics.get(primary, 0.0),
+                f"Val {secondary}": val_metrics.get(secondary, 0.0),
                 "Learning Rate": train_metrics["lr"],
             }
 
