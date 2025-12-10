@@ -1,0 +1,65 @@
+2025-12-10 13:15:38,903 | INFO | ================================================================================
+2025-12-10 13:15:38,903 | INFO | Starting evaluate stage for model 'v4' with run_id '20251208_043321'
+2025-12-10 13:15:38,903 | INFO | Logs will be written to: logs/v4/evaluate/20251208_043321/log.log
+2025-12-10 13:15:38,903 | INFO | ================================================================================
+2025-12-10 13:15:38,903 | INFO | Trainable parameters: 4,687,745
+2025-12-10 13:15:38,904 | INFO | ================================================================================
+2025-12-10 13:15:38,904 | INFO | Starting evaluation with metrics: ['auroc', 'auprc', 'accuracy', 'sensitivity', 'specificity', 'precision', 'recall', 'f1', 'mcc']
+2025-12-10 13:15:38,904 | INFO | Starting evaluate stage for model 'v4' with run_id '20251208_043321'
+2025-12-10 13:15:38,904 | INFO | Logs will be written to: logs/v4/evaluate/20251208_043321/log.log
+2025-12-10 13:15:38,904 | INFO | Using 512 thresholds for AUROC/AUPRC accumulation to bound host memory
+2025-12-10 13:15:38,904 | INFO | ================================================================================
+2025-12-10 13:15:38,904 | INFO | ================================================================================
+2025-12-10 13:15:38,904 | INFO | Starting evaluate stage for model 'v4' with run_id '20251208_043321'
+2025-12-10 13:15:38,904 | INFO | Logs will be written to: logs/v4/evaluate/20251208_043321/log.log
+2025-12-10 13:15:38,904 | INFO | ================================================================================
+2025-12-10 13:15:38,904 | INFO | ================================================================================
+2025-12-10 13:15:38,904 | INFO | Trainable parameters: 4,687,745
+2025-12-10 13:15:38,904 | INFO | Starting evaluate stage for model 'v4' with run_id '20251208_043321'
+2025-12-10 13:15:38,904 | INFO | Logs will be written to: logs/v4/evaluate/20251208_043321/log.log
+2025-12-10 13:15:38,904 | INFO | Starting evaluation with metrics: ['auroc', 'auprc', 'accuracy', 'sensitivity', 'specificity', 'precision', 'recall', 'f1', 'mcc']
+2025-12-10 13:15:38,904 | INFO | ================================================================================
+2025-12-10 13:15:38,904 | INFO | Using 512 thresholds for AUROC/AUPRC accumulation to bound host memory
+2025-12-10 13:15:38,904 | INFO | Trainable parameters: 4,687,745
+2025-12-10 13:15:38,904 | INFO | Starting evaluation with metrics: ['auroc', 'auprc', 'accuracy', 'sensitivity', 'specificity', 'precision', 'recall', 'f1', 'mcc']
+2025-12-10 13:15:38,904 | INFO | Using 512 thresholds for AUROC/AUPRC accumulation to bound host memory
+2025-12-10 13:15:38,904 | INFO | Trainable parameters: 4,687,745
+2025-12-10 13:15:38,905 | INFO | Starting evaluation with metrics: ['auroc', 'auprc', 'accuracy', 'sensitivity', 'specificity', 'precision', 'recall', 'f1', 'mcc']
+2025-12-10 13:15:38,905 | INFO | Using 512 thresholds for AUROC/AUPRC accumulation to bound host memory
+2025-12-10 13:15:39,006 | INFO | Loaded checkpoint from: models/v4/finetune/20251208_043321/best_model.pth (epoch 9)
+2025-12-10 13:15:39,006 | INFO | Loaded checkpoint from: models/v4/finetune/20251208_043321/best_model.pth (epoch 9)
+2025-12-10 13:15:39,006 | INFO | Distribution alignment disabled by config; ignoring checkpoint parameters (bias=5.1198, threshold=0.9899)
+2025-12-10 13:15:39,006 | INFO | Loaded checkpoint from: models/v4/finetune/20251208_043321/best_model.pth (epoch 9)
+2025-12-10 13:15:39,006 | INFO | Distribution alignment disabled by config; ignoring checkpoint parameters (bias=5.1198, threshold=0.9899)
+2025-12-10 13:15:39,006 | INFO | Loaded checkpoint from: models/v4/finetune/20251208_043321/best_model.pth (epoch 9)
+2025-12-10 13:15:39,006 | INFO | Distribution alignment disabled by config; ignoring checkpoint parameters (bias=5.1198, threshold=0.9899)
+2025-12-10 13:15:39,006 | INFO | Distribution alignment disabled by config; ignoring checkpoint parameters (bias=5.1198, threshold=0.9899)
+2025-12-10 13:15:39,008 | INFO | Loading embeddings from data/TMP/processed/TMP_embeddings.npz (this may take a while...)
+2025-12-10 13:17:49,127 | INFO | No test_realistic split configured; skipping
+2025-12-10 13:17:49,134 | INFO | Evaluating on test_balanced...
+2025-12-10 13:17:49,403 | INFO | Memory-mapped structured .npz format: 21391 proteins (embeddings stay on disk, loaded on-demand)
+2025-12-10 13:17:49,403 | INFO | Loaded 21391 protein embeddings
+2025-12-10 13:17:49,467 | INFO | No test_realistic split configured; skipping
+2025-12-10 13:17:49,468 | INFO | Dataset: 188697 pairs (4788 pos, 183909 neg)
+2025-12-10 13:17:49,469 | INFO | DataLoader built for test.csv: num_workers=0, pin_memory=False, prefetch_factor=None, persistent_workers=False, sampler=None
+2025-12-10 13:17:49,469 | INFO | No test_realistic split configured; skipping
+2025-12-10 13:17:49,471 | INFO | No test_realistic split configured; skipping
+2025-12-10 13:17:49,473 | INFO | Evaluating on test_balanced...
+2025-12-10 13:17:49,475 | INFO | Evaluating on test_balanced...
+2025-12-10 13:17:49,477 | INFO | Evaluating on test_balanced...
+2025-12-10 13:52:04,746 | INFO | test_balanced results: {'auroc': 0.7630914449691772, 'auprc': 0.09813226759433746, 'accuracy': 0.8207655549049377, 'sensitivity': 0.60317462682724, 'specificity': 0.8264304399490356, 'precision': 0.08296705037355423, 'recall': 0.60317462682724, 'f1': 0.145869642496109, 'mcc': 0.1741805225610733}
+2025-12-10 13:52:04,746 | INFO | test_balanced results: {'auroc': 0.7630914449691772, 'auprc': 0.09813226759433746, 'accuracy': 0.8207655549049377, 'sensitivity': 0.60317462682724, 'specificity': 0.8264304399490356, 'precision': 0.08296705037355423, 'recall': 0.60317462682724, 'f1': 0.145869642496109, 'mcc': 0.1741805225610733}
+2025-12-10 13:52:04,746 | INFO | test_balanced results: {'auroc': 0.7630914449691772, 'auprc': 0.09813226759433746, 'accuracy': 0.8207655549049377, 'sensitivity': 0.60317462682724, 'specificity': 0.8264304399490356, 'precision': 0.08296705037355423, 'recall': 0.60317462682724, 'f1': 0.145869642496109, 'mcc': 0.1741805225610733}
+2025-12-10 13:52:04,751 | INFO | test_balanced results: {'auroc': 0.7630914449691772, 'auprc': 0.09813226759433746, 'accuracy': 0.8207655549049377, 'sensitivity': 0.60317462682724, 'specificity': 0.8264304399490356, 'precision': 0.08296705037355423, 'recall': 0.60317462682724, 'f1': 0.145869642496109, 'mcc': 0.1741805225610733}
+2025-12-10 13:52:04,755 | INFO | Evaluation completed
+2025-12-10 13:52:04,756 | INFO | Evaluation completed
+2025-12-10 13:52:04,758 | INFO | Evaluation completed
+2025-12-10 13:52:04,758 | INFO | Evaluation completed
+2025-12-10 13:52:05,021 | INFO | DDP cleaned up successfully
+2025-12-10 13:52:05,021 | INFO | Pipeline execution completed successfully
+2025-12-10 13:52:05,045 | INFO | DDP cleaned up successfully
+2025-12-10 13:52:05,045 | INFO | Pipeline execution completed successfully
+2025-12-10 13:52:05,053 | INFO | DDP cleaned up successfully
+2025-12-10 13:52:05,053 | INFO | Pipeline execution completed successfully
+2025-12-10 13:52:05,094 | INFO | DDP cleaned up successfully
+2025-12-10 13:52:05,094 | INFO | Pipeline execution completed successfully
