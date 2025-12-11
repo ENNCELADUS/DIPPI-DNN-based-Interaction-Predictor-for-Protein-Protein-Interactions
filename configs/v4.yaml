@@ -1,12 +1,12 @@
 # V4 Config
 
 run_config:
-  mode: "finetune_from_pretrain"  # full_pipeline | finetune_from_pretrain | eval_only
+  mode: "eval_only"  # full_pipeline | finetune_from_pretrain | eval_only
   seed: 47
   pretrain_run_id: null   # Auto-timestamp if null
   finetune_run_id: null   # Auto-timestamp if null
-  eval_run_id: null       # Auto-timestamp if null
-  load_checkpoint_path: "models/v4/pretrain/20251208_043321/best_model.pth"             # If mode = full_pipeline, then NULL checkpoint.
+  eval_run_id: "20251211_022940"       # Auto-timestamp if null
+  load_checkpoint_path: "models/v4/finetune/20251211_022940/best_model.pth"             # If mode = full_pipeline, then NULL checkpoint.
                                         # If mode = finetune_from_pretrain, then the checkpoint of the pretrain run.
                                         # If mode = eval_only, then the checkpoint of the finetune run.
   save_best_only: true     # If true, only save the best checkpoint. If not, save checkpoint at every epoch end, while also keeps a best model checkpoint.
