@@ -16,7 +16,7 @@ from typing import Any, Dict, Optional
 import torch
 import torch.nn as nn
 
-from .v2 import SiameseEncoder, MLPHead, _build_padding_mask
+from .v3 import SiameseEncoder, MLPHead, _build_padding_mask
 
 
 class BidirectionalCrossAttentionLayer(nn.Module):
@@ -282,6 +282,7 @@ class V5(nn.Module):
         required_fields = [
             "input_dim",
             "d_model",
+            "encoder_layers",
             "cross_attn_layers",
             "n_heads",
             "pair_dim",
@@ -293,6 +294,7 @@ class V5(nn.Module):
 
         self.input_dim: int = int(model_config["input_dim"])
         self.d_model: int = int(model_config["d_model"])
+        self.encoder_layers: int = int(model_config["encoder_layers"])
         self.cross_attn_layers: int = int(model_config["cross_attn_layers"])
         self.n_heads: int = int(model_config["n_heads"])
         self.pair_dim: int = int(model_config["pair_dim"])
@@ -320,13 +322,17 @@ class V5(nn.Module):
             reg_cfg.get("cross_attention_dropout", self.encoder_dropout)
         )
         self.token_dropout = float(reg_cfg.get("token_dropout", 0.0))
+        self.stochastic_depth = float(reg_cfg.get("stochastic_depth", 0.0))
 
-        # Build modules
+        # Build modules - V5: Use v3-style encoder with transformer layers
         self.encoder = SiameseEncoder(
             input_dim=self.input_dim,
             d_model=self.d_model,
+            n_layers=self.encoder_layers,
+            n_heads=self.n_heads,
             dropout=self.encoder_dropout,
             token_dropout=self.token_dropout,
+            stochastic_depth=self.stochastic_depth,
         )
 
         self.cross_attention = BidirectionalCrossAttention(

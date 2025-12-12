@@ -1,15 +1,13 @@
 # V4 Config
 
 run_config:
-  mode: "eval_only"  # full_pipeline | finetune_from_pretrain | eval_only
+  mode: "full_pipeline"  # full_pipeline | finetune_from_pretrain | eval_only
   seed: 47
   pretrain_run_id: null   # Auto-timestamp if null
   finetune_run_id: null   # Auto-timestamp if null
-  eval_run_id: "20251211_022940"       # Auto-timestamp if null
-  load_checkpoint_path: "models/v4/finetune/20251211_022940/best_model.pth"             # If mode = full_pipeline, then NULL checkpoint.
-                                        # If mode = finetune_from_pretrain, then the checkpoint of the pretrain run.
-                                        # If mode = eval_only, then the checkpoint of the finetune run.
-  save_best_only: true     # If true, only save the best checkpoint. If not, save checkpoint at every epoch end, while also keeps a best model checkpoint.
+  eval_run_id: null       # Auto-timestamp if null
+  load_checkpoint_path: null  # Start fresh with new architecture
+  save_best_only: true     # If true, only save the best checkpoint.
 
 top_level_config:
   device: "cuda"
@@ -43,7 +41,7 @@ model_config:
   model: "v4"
   input_dim: 1536
   d_model: 384
-  # No transformer layers in the encoder
+  encoder_layers: 2           # Now uses v3-style encoder with transformer layers
   cross_attn_layers: 2
   n_heads: 12
 
@@ -54,12 +52,12 @@ model_config:
     activation: "gelu"
     norm: "layernorm"
 
-  # Architecture related regularization (MVP)
+  # Architecture related regularization
   regularization:
-    dropout: 0.10                   # Required: transformer block dropout
-    token_dropout: 0.10             # Optional: dropout on embeddings before encoder (0.0 = disabled)
-    cross_attention_dropout: 0.05   # Optional: dropout for cross-attention
-    stochastic_depth: 0.05          # Max drop-path rate across encoder depth (linear schedule)
+    dropout: 0.15                   # Increased from 0.10 for better regularization
+    token_dropout: 0.15             # Increased from 0.10
+    cross_attention_dropout: 0.10   # Increased from 0.05
+    stochastic_depth: 0.10          # Increased from 0.05 for more regularization
 
 pretrain_config:
   epochs: 40
@@ -110,10 +108,9 @@ finetune_config:
       # Initial freeze: start finetune with encoder frozen (head-only training)
       - at_epoch: 0
         freeze: ["encoder."]
-      # Staged unfreeze: unfreeze encoder after 3 epochs
-      - at_epoch: 3
+      # Delayed unfreeze: unfreeze encoder after 5 epochs to let head stabilize
+      - at_epoch: 5
         unfreeze: ["encoder."]
-        # Optional: could specify new optimizer_cfg/scheduler_cfg here for different LRs
 
   epochs: 30
   batch_size: 32
@@ -149,21 +146,25 @@ finetune_config:
     param_groups:
       - name: "head"
         pattern: "output_head."
-        lr: 0.000035
-        weight_decay: 0.0      # No weight decay on task head
+        lr: 0.000025            # Reduced from 0.000035
+        weight_decay: 0.01      # Added weight decay to head
+      - name: "pool"
+        pattern: "pool_"
+        lr: 0.000020
+        weight_decay: 0.01
       - name: "cross_attention"
         pattern: "cross_attention."
-        lr: 0.000025
-        weight_decay: 0.01
+        lr: 0.000018            # Reduced from 0.000025
+        weight_decay: 0.015     # Increased from 0.01
       - name: "encoder"
         pattern: "encoder."
-        lr: 0.000015           # Lower LR for pretrained encoder (LLRD)
-        weight_decay: 0.015
+        lr: 0.000010            # Reduced from 0.000015
+        weight_decay: 0.020     # Increased from 0.015
   # Loss
   loss:
     type: "bce_with_logits"
-    pos_weight: 1.5
-    label_smoothing: 0.01
+    pos_weight: 1.3           # Reduced from 1.5
+    label_smoothing: 0.03     # Increased from 0.01
     use_class_weights: true
     l1_lambda: 0.0
   

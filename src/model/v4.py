@@ -5,8 +5,7 @@ from typing import Any, Dict, Optional
 import torch
 import torch.nn as nn
 
-from .v2 import SiameseEncoder
-from .v3 import MLPHead, _build_padding_mask
+from .v3 import SiameseEncoder, MLPHead, _build_padding_mask
 
 
 class AttentionPooling(nn.Module):
@@ -175,6 +174,7 @@ class V4(nn.Module):
         required_fields = [
             "input_dim",
             "d_model",
+            "encoder_layers",
             "cross_attn_layers",
             "n_heads",
         ]
@@ -184,8 +184,7 @@ class V4(nn.Module):
 
         self.input_dim: int = int(model_config["input_dim"])
         self.d_model: int = int(model_config["d_model"])
-        # encoder_layers is optional and ignored in V4 (kept for config compatibility)
-        self.encoder_layers: int = int(model_config.get("encoder_layers", 0))
+        self.encoder_layers: int = int(model_config["encoder_layers"])
         self.cross_attn_layers: int = int(model_config["cross_attn_layers"])
         self.n_heads: int = int(model_config["n_heads"])
 
@@ -209,13 +208,17 @@ class V4(nn.Module):
             reg_cfg.get("cross_attention_dropout", self.encoder_dropout)
         )
         self.token_dropout = float(reg_cfg.get("token_dropout", 0.0))
+        self.stochastic_depth = float(reg_cfg.get("stochastic_depth", 0.0))
 
-        # V4 ablation: encoder has no transformer layers (V2-style)
+        # V4: Use v3-style encoder with transformer layers
         self.encoder = SiameseEncoder(
             input_dim=self.input_dim,
             d_model=self.d_model,
+            n_layers=self.encoder_layers,
+            n_heads=self.n_heads,
             dropout=self.encoder_dropout,
             token_dropout=self.token_dropout,
+            stochastic_depth=self.stochastic_depth,
         )
 
         # Cross-attention (bidirectional, no CLS token)
