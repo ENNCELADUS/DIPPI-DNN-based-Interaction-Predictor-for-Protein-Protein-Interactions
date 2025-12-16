@@ -40,24 +40,24 @@ data_config:
 model_config:
   model: "v4"
   input_dim: 1536
-  d_model: 384
-  encoder_layers: 2           # Now uses v3-style encoder with transformer layers
-  cross_attn_layers: 2
-  n_heads: 12
+  d_model: 256
+  encoder_layers: 1
+  cross_attn_layers: 1
+  n_heads: 8
 
   # MLP head configuration (input_dim = 2*d_model = 768 after product|diff)
   mlp_head:
-    hidden_dims: [512, 256, 64]
-    dropout: 0.20
+    hidden_dims: [256, 64]
+    dropout: 0.25
     activation: "gelu"
     norm: "layernorm"
 
   # Architecture related regularization
   regularization:
-    dropout: 0.15                   # Increased from 0.10 for better regularization
-    token_dropout: 0.15             # Increased from 0.10
-    cross_attention_dropout: 0.10   # Increased from 0.05
-    stochastic_depth: 0.10          # Increased from 0.05 for more regularization
+    dropout: 0.20
+    token_dropout: 0.20
+    cross_attention_dropout: 0.15
+    stochastic_depth: 0.15
 
 pretrain_config:
   epochs: 40
@@ -75,6 +75,7 @@ pretrain_config:
   # Early stopping
   early_stopping_patience: 5
   monitor_metric: "auprc"     # Which metric to use for early stopping
+  max_grad_norm: 1.0
   
   # Scheduler settings.
   scheduler:
@@ -105,10 +106,13 @@ finetune_config:
   strategy:
     type: "staged_unfreeze"  # head_only | full | staged_unfreeze
     schedule:
-      # Initial freeze: start finetune with encoder frozen (head-only training)
+      # Head-only warmup: freeze interaction modules and encoder
       - at_epoch: 0
-        freeze: ["encoder."]
-      # Delayed unfreeze: unfreeze encoder after 5 epochs to let head stabilize
+        freeze: ["encoder.", "cross_attention.", "pool_a.", "pool_b."]
+      # Unfreeze pooling (learn global summaries first)
+      - at_epoch: 3
+        unfreeze: ["pool_a.", "pool_b."]
+      # Unfreeze encoder last
       - at_epoch: 5
         unfreeze: ["encoder."]
 
@@ -127,6 +131,7 @@ finetune_config:
   # Early stopping
   early_stopping_patience: 5
   monitor_metric: "auprc"     # Which metric to use for early stopping (lower is better)
+  max_grad_norm: 1.0
   
   scheduler:
     type: "warmup_cosine"
@@ -137,34 +142,34 @@ finetune_config:
   # Note: Schedulers (e.g., warmup_cosine) apply to all param_groups uniformly
   optimizer:
     type: "adamw"
-    lr: 0.00001                # Base LR for unmatched parameters
+    lr: 0.000005               # Base LR for unmatched parameters
     beta1: 0.9
     beta2: 0.999
     eps: 1.0e-8
-    weight_decay: 0.01         # Base weight_decay for unmatched parameters
+    weight_decay: 0.02         # Base weight_decay for unmatched parameters
     # LLRD: Different learning rates for different model components
     param_groups:
       - name: "head"
         pattern: "output_head."
-        lr: 0.000025            # Reduced from 0.000035
-        weight_decay: 0.01      # Added weight decay to head
-      - name: "pool"
-        pattern: "pool_"
         lr: 0.000020
         weight_decay: 0.01
+      - name: "pool"
+        pattern: "pool_"
+        lr: 0.000010
+        weight_decay: 0.02
       - name: "cross_attention"
         pattern: "cross_attention."
-        lr: 0.000018            # Reduced from 0.000025
-        weight_decay: 0.015     # Increased from 0.01
+        lr: 0.000008
+        weight_decay: 0.02
       - name: "encoder"
         pattern: "encoder."
-        lr: 0.000010            # Reduced from 0.000015
-        weight_decay: 0.020     # Increased from 0.015
+        lr: 0.000005
+        weight_decay: 0.03
   # Loss
   loss:
     type: "bce_with_logits"
-    pos_weight: 1.3           # Reduced from 1.5
-    label_smoothing: 0.03     # Increased from 0.01
+    pos_weight: 7.66
+    label_smoothing: 0.005
     use_class_weights: true
     l1_lambda: 0.0
   
