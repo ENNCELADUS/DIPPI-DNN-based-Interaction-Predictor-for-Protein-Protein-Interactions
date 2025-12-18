@@ -1,0 +1,252 @@
+2025-12-18 04:56:41,494 | INFO | ================================================================================
+2025-12-18 04:56:41,494 | INFO | ================================================================================
+2025-12-18 04:56:41,494 | INFO | ================================================================================
+2025-12-18 04:56:41,494 | INFO | ================================================================================
+2025-12-18 04:56:41,494 | INFO | Starting finetune stage for model 'v4' with run_id '20251216_151235'
+2025-12-18 04:56:41,494 | INFO | Starting finetune stage for model 'v4' with run_id '20251216_151235'
+2025-12-18 04:56:41,494 | INFO | Starting finetune stage for model 'v4' with run_id '20251216_151235'
+2025-12-18 04:56:41,494 | INFO | Starting finetune stage for model 'v4' with run_id '20251216_151235'
+2025-12-18 04:56:41,494 | INFO | Logs will be written to: logs/v4/finetune/20251216_151235/log.log
+2025-12-18 04:56:41,494 | INFO | Logs will be written to: logs/v4/finetune/20251216_151235/log.log
+2025-12-18 04:56:41,494 | INFO | Logs will be written to: logs/v4/finetune/20251216_151235/log.log
+2025-12-18 04:56:41,494 | INFO | Logs will be written to: logs/v4/finetune/20251216_151235/log.log
+2025-12-18 04:56:41,494 | INFO | ================================================================================
+2025-12-18 04:56:41,494 | INFO | ================================================================================
+2025-12-18 04:56:41,494 | INFO | ================================================================================
+2025-12-18 04:56:41,494 | INFO | ================================================================================
+2025-12-18 04:56:41,494 | INFO | Building dataloaders for finetune stage
+2025-12-18 04:56:41,494 | INFO | Building dataloaders for finetune stage
+2025-12-18 04:56:41,494 | INFO | Building dataloaders for finetune stage
+2025-12-18 04:56:41,494 | INFO | Building dataloaders for finetune stage
+2025-12-18 04:56:41,681 | INFO | Dataset: 511104 pairs (58989 pos, 452115 neg)
+2025-12-18 04:56:41,682 | INFO | DataLoader built for finetune_train.csv: num_workers=0, pin_memory=False, prefetch_factor=None, persistent_workers=False, sampler=DistributedSampler
+2025-12-18 04:56:41,711 | INFO | Dataset: 56791 pairs (6555 pos, 50236 neg)
+2025-12-18 04:56:41,712 | INFO | DataLoader built for finetune_val.csv: num_workers=0, pin_memory=False, prefetch_factor=None, persistent_workers=False, sampler=DistributedSampler
+2025-12-18 04:56:41,712 | INFO | Starting finetune for 30 epochs
+2025-12-18 04:56:41,712 | INFO | Strategy: staged_unfreeze
+2025-12-18 04:56:41,712 | INFO | Monitor metric: auprc, Patience: 5
+2025-12-18 04:56:41,769 | INFO | Loaded checkpoint from: models/v4/pretrain/20251216_151235/best_model.pth (pretrain epoch 24)
+2025-12-18 04:56:41,769 | INFO | Created StagedUnfreeze strategy with 3 schedule entries
+2025-12-18 04:56:41,771 | INFO | StagedUnfreeze applied at epoch 0 via on_train_begin; trainable parameters: 148,481
+2025-12-18 04:56:41,772 | INFO | Trainable parameters: 148,481
+2025-12-18 04:56:41,772 | INFO | No DA configured; using standard validation with monitor_metric=auprc
+2025-12-18 04:56:41,773 | INFO | 
+============================================================
+2025-12-18 04:56:41,773 | INFO | Finetune Epoch 0/29
+2025-12-18 04:56:41,773 | INFO | ============================================================
+2025-12-18 05:21:41,525 | INFO | Epoch 0: avg_loss=1.743390, lr=6.67e-06
+2025-12-18 05:21:41,525 | INFO | Validation: loss=0.357048, auprc=0.142247, auroc=0.565471
+2025-12-18 05:21:41,573 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.142247)
+2025-12-18 05:21:41,573 | INFO | 
+============================================================
+2025-12-18 05:21:41,573 | INFO | Finetune Epoch 1/29
+2025-12-18 05:21:41,573 | INFO | ============================================================
+2025-12-18 05:46:45,091 | INFO | Epoch 1: avg_loss=0.351757, lr=1.33e-05
+2025-12-18 05:46:45,092 | INFO | Validation: loss=0.343895, auprc=0.183140, auroc=0.636218
+2025-12-18 05:46:45,158 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.183140)
+2025-12-18 05:46:45,159 | INFO | 
+============================================================
+2025-12-18 05:46:45,159 | INFO | Finetune Epoch 2/29
+2025-12-18 05:46:45,159 | INFO | ============================================================
+2025-12-18 06:11:50,084 | INFO | Epoch 2: avg_loss=0.342807, lr=2.00e-05
+2025-12-18 06:11:50,085 | INFO | Validation: loss=0.334205, auprc=0.232356, auroc=0.678827
+2025-12-18 06:11:50,150 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.232356)
+2025-12-18 06:11:50,150 | INFO | 
+============================================================
+2025-12-18 06:11:50,150 | INFO | Finetune Epoch 3/29
+2025-12-18 06:11:50,150 | INFO | ============================================================
+2025-12-18 06:11:50,151 | INFO | StagedUnfreeze applied at epoch 3 via on_epoch_begin; trainable parameters: 676,353
+2025-12-18 06:36:52,002 | INFO | Epoch 3: avg_loss=0.335712, lr=6.67e-06
+2025-12-18 06:36:52,002 | INFO | Validation: loss=0.324101, auprc=0.280887, auroc=0.713344
+2025-12-18 06:36:52,074 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.280887)
+2025-12-18 06:36:52,074 | INFO | 
+============================================================
+2025-12-18 06:36:52,074 | INFO | Finetune Epoch 4/29
+2025-12-18 06:36:52,074 | INFO | ============================================================
+2025-12-18 07:01:57,173 | INFO | Epoch 4: avg_loss=0.320080, lr=1.33e-05
+2025-12-18 07:01:57,174 | INFO | Validation: loss=0.298639, auprc=0.392822, auroc=0.773098
+2025-12-18 07:01:57,248 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.392822)
+2025-12-18 07:01:57,248 | INFO | 
+============================================================
+2025-12-18 07:01:57,248 | INFO | Finetune Epoch 5/29
+2025-12-18 07:01:57,248 | INFO | ============================================================
+2025-12-18 07:01:57,250 | INFO | StagedUnfreeze applied at epoch 5 via on_epoch_begin; trainable parameters: 1,860,097
+2025-12-18 07:30:48,276 | INFO | Epoch 5: avg_loss=0.303079, lr=6.67e-06
+2025-12-18 07:30:48,277 | INFO | Validation: loss=0.282998, auprc=0.453254, auroc=0.800340
+2025-12-18 07:30:48,378 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.453254)
+2025-12-18 07:30:48,379 | INFO | 
+============================================================
+2025-12-18 07:30:48,379 | INFO | Finetune Epoch 6/29
+2025-12-18 07:30:48,379 | INFO | ============================================================
+2025-12-18 07:59:36,414 | INFO | Epoch 6: avg_loss=0.281617, lr=1.33e-05
+2025-12-18 07:59:36,414 | INFO | Validation: loss=0.253123, auprc=0.559738, auroc=0.844751
+2025-12-18 07:59:36,513 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.559738)
+2025-12-18 07:59:36,513 | INFO | 
+============================================================
+2025-12-18 07:59:36,513 | INFO | Finetune Epoch 7/29
+2025-12-18 07:59:36,513 | INFO | ============================================================
+2025-12-18 08:28:29,702 | INFO | Epoch 7: avg_loss=0.252607, lr=2.00e-05
+2025-12-18 08:28:29,703 | INFO | Validation: loss=0.223455, auprc=0.652979, auroc=0.881470
+2025-12-18 08:28:29,802 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.652979)
+2025-12-18 08:28:29,802 | INFO | 
+============================================================
+2025-12-18 08:28:29,802 | INFO | Finetune Epoch 8/29
+2025-12-18 08:28:29,802 | INFO | ============================================================
+2025-12-18 08:57:20,460 | INFO | Epoch 8: avg_loss=0.225344, lr=1.99e-05
+2025-12-18 08:57:20,460 | INFO | Validation: loss=0.202512, auprc=0.713488, auroc=0.903899
+2025-12-18 08:57:20,557 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.713488)
+2025-12-18 08:57:20,557 | INFO | 
+============================================================
+2025-12-18 08:57:20,557 | INFO | Finetune Epoch 9/29
+2025-12-18 08:57:20,557 | INFO | ============================================================
+2025-12-18 09:25:57,373 | INFO | Epoch 9: avg_loss=0.205050, lr=1.97e-05
+2025-12-18 09:25:57,374 | INFO | Validation: loss=0.187676, auprc=0.751588, auroc=0.917273
+2025-12-18 09:25:57,473 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.751588)
+2025-12-18 09:25:57,473 | INFO | 
+============================================================
+2025-12-18 09:25:57,473 | INFO | Finetune Epoch 10/29
+2025-12-18 09:25:57,473 | INFO | ============================================================
+2025-12-18 09:54:32,737 | INFO | Epoch 10: avg_loss=0.190583, lr=1.94e-05
+2025-12-18 09:54:32,737 | INFO | Validation: loss=0.178749, auprc=0.775512, auroc=0.925137
+2025-12-18 09:54:32,854 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.775512)
+2025-12-18 09:54:32,854 | INFO | 
+============================================================
+2025-12-18 09:54:32,854 | INFO | Finetune Epoch 11/29
+2025-12-18 09:54:32,854 | INFO | ============================================================
+2025-12-18 10:23:04,656 | INFO | Epoch 11: avg_loss=0.181223, lr=1.89e-05
+2025-12-18 10:23:04,656 | INFO | Validation: loss=0.172263, auprc=0.790905, auroc=0.930074
+2025-12-18 10:23:04,760 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.790905)
+2025-12-18 10:23:04,760 | INFO | 
+============================================================
+2025-12-18 10:23:04,760 | INFO | Finetune Epoch 12/29
+2025-12-18 10:23:04,760 | INFO | ============================================================
+2025-12-18 10:51:41,033 | INFO | Epoch 12: avg_loss=0.171131, lr=1.84e-05
+2025-12-18 10:51:41,034 | INFO | Validation: loss=0.165138, auprc=0.805264, auroc=0.935069
+2025-12-18 10:51:41,139 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.805264)
+2025-12-18 10:51:41,139 | INFO | 
+============================================================
+2025-12-18 10:51:41,139 | INFO | Finetune Epoch 13/29
+2025-12-18 10:51:41,139 | INFO | ============================================================
+2025-12-18 11:20:14,816 | INFO | Epoch 13: avg_loss=0.164637, lr=1.77e-05
+2025-12-18 11:20:14,817 | INFO | Validation: loss=0.161623, auprc=0.815598, auroc=0.938308
+2025-12-18 11:20:14,935 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.815598)
+2025-12-18 11:20:14,936 | INFO | 
+============================================================
+2025-12-18 11:20:14,936 | INFO | Finetune Epoch 14/29
+2025-12-18 11:20:14,936 | INFO | ============================================================
+2025-12-18 11:48:40,896 | INFO | Epoch 14: avg_loss=0.158494, lr=1.69e-05
+2025-12-18 11:48:40,897 | INFO | Validation: loss=0.156220, auprc=0.823493, auroc=0.940746
+2025-12-18 11:48:40,996 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.823493)
+2025-12-18 11:48:40,996 | INFO | 
+============================================================
+2025-12-18 11:48:40,996 | INFO | Finetune Epoch 15/29
+2025-12-18 11:48:40,996 | INFO | ============================================================
+2025-12-18 12:17:22,174 | INFO | Epoch 15: avg_loss=0.153445, lr=1.60e-05
+2025-12-18 12:17:22,175 | INFO | Validation: loss=0.155113, auprc=0.829117, auroc=0.942716
+2025-12-18 12:17:22,272 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.829117)
+2025-12-18 12:17:22,272 | INFO | 
+============================================================
+2025-12-18 12:17:22,273 | INFO | Finetune Epoch 16/29
+2025-12-18 12:17:22,273 | INFO | ============================================================
+2025-12-18 12:45:59,280 | INFO | Epoch 16: avg_loss=0.150617, lr=1.50e-05
+2025-12-18 12:45:59,281 | INFO | Validation: loss=0.149117, auprc=0.835783, auroc=0.944518
+2025-12-18 12:45:59,386 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.835783)
+2025-12-18 12:45:59,386 | INFO | 
+============================================================
+2025-12-18 12:45:59,386 | INFO | Finetune Epoch 17/29
+2025-12-18 12:45:59,386 | INFO | ============================================================
+2025-12-18 13:14:53,081 | INFO | Epoch 17: avg_loss=0.146063, lr=1.40e-05
+2025-12-18 13:14:53,081 | INFO | Validation: loss=0.148175, auprc=0.838083, auroc=0.945042
+2025-12-18 13:14:53,371 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.838083)
+2025-12-18 13:14:53,371 | INFO | 
+============================================================
+2025-12-18 13:14:53,371 | INFO | Finetune Epoch 18/29
+2025-12-18 13:14:53,371 | INFO | ============================================================
+2025-12-18 13:43:47,496 | INFO | Epoch 18: avg_loss=0.142445, lr=1.29e-05
+2025-12-18 13:43:47,498 | INFO | Validation: loss=0.147320, auprc=0.841395, auroc=0.946357
+2025-12-18 13:43:47,598 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.841395)
+2025-12-18 13:43:47,598 | INFO | 
+============================================================
+2025-12-18 13:43:47,598 | INFO | Finetune Epoch 19/29
+2025-12-18 13:43:47,598 | INFO | ============================================================
+2025-12-18 14:12:34,743 | INFO | Epoch 19: avg_loss=0.140000, lr=1.17e-05
+2025-12-18 14:12:34,743 | INFO | Validation: loss=0.144690, auprc=0.846133, auroc=0.947588
+2025-12-18 14:12:34,843 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.846133)
+2025-12-18 14:12:34,843 | INFO | 
+============================================================
+2025-12-18 14:12:34,843 | INFO | Finetune Epoch 20/29
+2025-12-18 14:12:34,843 | INFO | ============================================================
+2025-12-18 14:41:25,712 | INFO | Epoch 20: avg_loss=0.137440, lr=1.06e-05
+2025-12-18 14:41:25,714 | INFO | Validation: loss=0.143430, auprc=0.847540, auroc=0.948406
+2025-12-18 14:41:25,840 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.847540)
+2025-12-18 14:41:25,841 | INFO | 
+============================================================
+2025-12-18 14:41:25,841 | INFO | Finetune Epoch 21/29
+2025-12-18 14:41:25,841 | INFO | ============================================================
+2025-12-18 15:10:10,540 | INFO | Epoch 21: avg_loss=0.134827, lr=9.42e-06
+2025-12-18 15:10:10,542 | INFO | Validation: loss=0.143031, auprc=0.849218, auroc=0.948898
+2025-12-18 15:10:10,640 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.849218)
+2025-12-18 15:10:10,640 | INFO | 
+============================================================
+2025-12-18 15:10:10,640 | INFO | Finetune Epoch 22/29
+2025-12-18 15:10:10,640 | INFO | ============================================================
+2025-12-18 15:38:54,200 | INFO | Epoch 22: avg_loss=0.133000, lr=8.26e-06
+2025-12-18 15:38:54,201 | INFO | Validation: loss=0.139798, auprc=0.852778, auroc=0.950160
+2025-12-18 15:38:54,310 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.852778)
+2025-12-18 15:38:54,310 | INFO | 
+============================================================
+2025-12-18 15:38:54,310 | INFO | Finetune Epoch 23/29
+2025-12-18 15:38:54,310 | INFO | ============================================================
+2025-12-18 16:07:46,389 | INFO | Epoch 23: avg_loss=0.131688, lr=7.13e-06
+2025-12-18 16:07:46,390 | INFO | Validation: loss=0.139890, auprc=0.853928, auroc=0.950575
+2025-12-18 16:07:46,486 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.853928)
+2025-12-18 16:07:46,487 | INFO | 
+============================================================
+2025-12-18 16:07:46,487 | INFO | Finetune Epoch 24/29
+2025-12-18 16:07:46,487 | INFO | ============================================================
+2025-12-18 16:36:30,885 | INFO | Epoch 24: avg_loss=0.129986, lr=6.04e-06
+2025-12-18 16:36:30,887 | INFO | Validation: loss=0.139043, auprc=0.854190, auroc=0.950861
+2025-12-18 16:36:30,993 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.854190)
+2025-12-18 16:36:30,993 | INFO | 
+============================================================
+2025-12-18 16:36:30,993 | INFO | Finetune Epoch 25/29
+2025-12-18 16:36:30,993 | INFO | ============================================================
+2025-12-18 17:05:24,291 | INFO | Epoch 25: avg_loss=0.129458, lr=5.00e-06
+2025-12-18 17:05:24,292 | INFO | Validation: loss=0.139313, auprc=0.855675, auroc=0.951077
+2025-12-18 17:05:24,395 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.855675)
+2025-12-18 17:05:24,395 | INFO | 
+============================================================
+2025-12-18 17:05:24,395 | INFO | Finetune Epoch 26/29
+2025-12-18 17:05:24,395 | INFO | ============================================================
+2025-12-18 17:34:12,023 | INFO | Epoch 26: avg_loss=0.128025, lr=4.03e-06
+2025-12-18 17:34:12,024 | INFO | Validation: loss=0.137924, auprc=0.857159, auroc=0.951526
+2025-12-18 17:34:12,133 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.857159)
+2025-12-18 17:34:12,133 | INFO | 
+============================================================
+2025-12-18 17:34:12,133 | INFO | Finetune Epoch 27/29
+2025-12-18 17:34:12,133 | INFO | ============================================================
+2025-12-18 18:02:55,858 | INFO | Epoch 27: avg_loss=0.126771, lr=3.14e-06
+2025-12-18 18:02:55,860 | INFO | Validation: loss=0.138724, auprc=0.856837, auroc=0.951596
+2025-12-18 18:02:55,865 | INFO | 
+============================================================
+2025-12-18 18:02:55,865 | INFO | Finetune Epoch 28/29
+2025-12-18 18:02:55,865 | INFO | ============================================================
+2025-12-18 18:31:47,513 | INFO | Epoch 28: avg_loss=0.125482, lr=2.34e-06
+2025-12-18 18:31:47,514 | INFO | Validation: loss=0.138716, auprc=0.857458, auroc=0.951664
+2025-12-18 18:31:47,622 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.857458)
+2025-12-18 18:31:47,622 | INFO | 
+============================================================
+2025-12-18 18:31:47,622 | INFO | Finetune Epoch 29/29
+2025-12-18 18:31:47,622 | INFO | ============================================================
+2025-12-18 19:00:37,185 | INFO | Epoch 29: avg_loss=0.125403, lr=1.65e-06
+2025-12-18 19:00:37,186 | INFO | Full pipeline: will load models/v4/finetune/20251216_151235/best_model.pth for evaluation
+2025-12-18 19:00:37,186 | INFO | Full pipeline: will load models/v4/finetune/20251216_151235/best_model.pth for evaluation
+2025-12-18 19:00:37,186 | INFO | Full pipeline: will load models/v4/finetune/20251216_151235/best_model.pth for evaluation
+2025-12-18 19:00:37,186 | INFO | Validation: loss=0.138773, auprc=0.857640, auroc=0.951711
+2025-12-18 19:00:37,204 | INFO | Created directories: logs/v4/evaluate/20251216_151235, models/v4/evaluate/20251216_151235
+2025-12-18 19:00:37,205 | INFO | Created directories: logs/v4/evaluate/20251216_151235, models/v4/evaluate/20251216_151235
+2025-12-18 19:00:37,205 | INFO | Created directories: logs/v4/evaluate/20251216_151235, models/v4/evaluate/20251216_151235
+2025-12-18 19:00:37,288 | INFO | Saved best finetune checkpoint: models/v4/finetune/20251216_151235/best_model.pth (auprc=0.857640)
+2025-12-18 19:00:37,288 | INFO | Finetune completed. Best auprc: 0.857640
+2025-12-18 19:00:37,288 | INFO | Full pipeline: will load models/v4/finetune/20251216_151235/best_model.pth for evaluation
+2025-12-18 19:00:37,288 | INFO | Created directories: logs/v4/evaluate/20251216_151235, models/v4/evaluate/20251216_151235

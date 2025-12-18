@@ -1,0 +1,246 @@
+2025-12-16 15:12:36,070 | INFO | ================================================================================
+2025-12-16 15:12:36,070 | INFO | Starting pretrain stage for model 'v4' with run_id '20251216_151235'
+2025-12-16 15:12:36,070 | INFO | Logs will be written to: logs/v4/pretrain/20251216_151235/log.log
+2025-12-16 15:12:36,071 | INFO | ================================================================================
+2025-12-16 15:12:36,071 | INFO | ================================================================================
+2025-12-16 15:12:36,072 | INFO | ================================================================================
+2025-12-16 15:12:36,072 | INFO | Starting pretrain stage for model 'v4' with run_id '20251216_151235'
+2025-12-16 15:12:36,072 | INFO | Starting pretrain stage for model 'v4' with run_id '20251216_151235'
+2025-12-16 15:12:36,072 | INFO | Logs will be written to: logs/v4/pretrain/20251216_151235/log.log
+2025-12-16 15:12:36,072 | INFO | Logs will be written to: logs/v4/pretrain/20251216_151235/log.log
+2025-12-16 15:12:36,072 | INFO | ================================================================================
+2025-12-16 15:12:36,072 | INFO | ================================================================================
+2025-12-16 15:12:36,072 | INFO | Trainable parameters: 2,387,457
+2025-12-16 15:12:36,073 | INFO | Building dataloaders for pretrain stage
+2025-12-16 15:12:36,072 | INFO | Trainable parameters: 2,387,457
+2025-12-16 15:12:36,073 | INFO | Building dataloaders for pretrain stage
+2025-12-16 15:12:36,072 | INFO | Trainable parameters: 2,387,457
+2025-12-16 15:12:36,073 | INFO | Building dataloaders for pretrain stage
+2025-12-16 15:12:36,073 | INFO | ================================================================================
+2025-12-16 15:12:36,073 | INFO | Starting pretrain stage for model 'v4' with run_id '20251216_151235'
+2025-12-16 15:12:36,073 | INFO | Logs will be written to: logs/v4/pretrain/20251216_151235/log.log
+2025-12-16 15:12:36,073 | INFO | ================================================================================
+2025-12-16 15:12:36,073 | INFO | Trainable parameters: 2,387,457
+2025-12-16 15:12:36,074 | INFO | Building dataloaders for pretrain stage
+2025-12-16 15:12:36,077 | INFO | Loading embeddings from data/TMP/processed/TMP_embeddings.npz (this may take a while...)
+2025-12-16 15:14:45,445 | INFO | Memory-mapped structured .npz format: 21391 proteins (embeddings stay on disk, loaded on-demand)
+2025-12-16 15:14:45,445 | INFO | Loaded 21391 protein embeddings
+2025-12-16 15:14:46,158 | INFO | Dataset: 1367504 pairs (683752 pos, 683752 neg)
+2025-12-16 15:14:46,159 | INFO | DataLoader built for pretrain_train_balanced.csv: num_workers=0, pin_memory=False, prefetch_factor=None, persistent_workers=False, sampler=DistributedSampler
+2025-12-16 15:14:46,217 | INFO | Dataset: 71974 pairs (35987 pos, 35987 neg)
+2025-12-16 15:14:46,217 | INFO | DataLoader built for pretrain_val_balanced.csv: num_workers=0, pin_memory=False, prefetch_factor=None, persistent_workers=False, sampler=DistributedSampler
+2025-12-16 15:14:46,217 | INFO | Starting pretrain for 40 epochs
+2025-12-16 15:14:46,217 | INFO | Monitor metric: auprc, Patience: 5
+2025-12-16 15:14:46,222 | INFO | 
+============================================================
+2025-12-16 15:14:46,222 | INFO | Pretrain Epoch 0/39
+2025-12-16 15:14:46,222 | INFO | ============================================================
+2025-12-16 16:30:08,630 | INFO | Epoch 0: avg_loss=0.602751, lr=3.83e-06
+2025-12-16 16:30:08,631 | INFO | Validation metrics: val_loss=0.658586, val_auprc=0.703860, val_auroc=0.687631
+2025-12-16 16:30:08,748 | INFO | Saved best pretrain checkpoint: models/v4/pretrain/20251216_151235/best_model.pth (auprc=0.703860)
+2025-12-16 16:30:08,748 | INFO | 
+============================================================
+2025-12-16 16:30:08,748 | INFO | Pretrain Epoch 1/39
+2025-12-16 16:30:08,748 | INFO | ============================================================
+2025-12-16 17:42:54,310 | INFO | Epoch 1: avg_loss=0.522834, lr=9.03e-06
+2025-12-16 17:42:54,312 | INFO | Validation metrics: val_loss=0.626359, val_auprc=0.772510, val_auroc=0.761861
+2025-12-16 17:42:54,445 | INFO | Saved best pretrain checkpoint: models/v4/pretrain/20251216_151235/best_model.pth (auprc=0.772510)
+2025-12-16 17:42:54,445 | INFO | 
+============================================================
+2025-12-16 17:42:54,445 | INFO | Pretrain Epoch 2/39
+2025-12-16 17:42:54,445 | INFO | ============================================================
+2025-12-16 18:55:24,043 | INFO | Epoch 2: avg_loss=0.441295, lr=1.68e-05
+2025-12-16 18:55:24,045 | INFO | Validation metrics: val_loss=0.534580, val_auprc=0.836206, val_auroc=0.828412
+2025-12-16 18:55:24,174 | INFO | Saved best pretrain checkpoint: models/v4/pretrain/20251216_151235/best_model.pth (auprc=0.836206)
+2025-12-16 18:55:24,174 | INFO | 
+============================================================
+2025-12-16 18:55:24,174 | INFO | Pretrain Epoch 3/39
+2025-12-16 18:55:24,174 | INFO | ============================================================
+2025-12-16 20:08:26,134 | INFO | Epoch 3: avg_loss=0.362573, lr=2.60e-05
+2025-12-16 20:08:26,136 | INFO | Validation metrics: val_loss=0.489151, val_auprc=0.878692, val_auroc=0.873798
+2025-12-16 20:08:26,247 | INFO | Saved best pretrain checkpoint: models/v4/pretrain/20251216_151235/best_model.pth (auprc=0.878692)
+2025-12-16 20:08:26,247 | INFO | 
+============================================================
+2025-12-16 20:08:26,247 | INFO | Pretrain Epoch 4/39
+2025-12-16 20:08:26,247 | INFO | ============================================================
+2025-12-16 21:21:37,262 | INFO | Epoch 4: avg_loss=0.307398, lr=3.52e-05
+2025-12-16 21:21:37,263 | INFO | Validation metrics: val_loss=0.437155, val_auprc=0.904792, val_auroc=0.900602
+2025-12-16 21:21:37,372 | INFO | Saved best pretrain checkpoint: models/v4/pretrain/20251216_151235/best_model.pth (auprc=0.904792)
+2025-12-16 21:21:37,373 | INFO | 
+============================================================
+2025-12-16 21:21:37,373 | INFO | Pretrain Epoch 5/39
+2025-12-16 21:21:37,373 | INFO | ============================================================
+2025-12-16 22:34:30,235 | INFO | Epoch 5: avg_loss=0.272862, lr=4.30e-05
+2025-12-16 22:34:30,237 | INFO | Validation metrics: val_loss=0.389022, val_auprc=0.921488, val_auroc=0.917609
+2025-12-16 22:34:30,359 | INFO | Saved best pretrain checkpoint: models/v4/pretrain/20251216_151235/best_model.pth (auprc=0.921488)
+2025-12-16 22:34:30,359 | INFO | 
+============================================================
+2025-12-16 22:34:30,359 | INFO | Pretrain Epoch 6/39
+2025-12-16 22:34:30,359 | INFO | ============================================================
+2025-12-16 23:47:39,067 | INFO | Epoch 6: avg_loss=0.251061, lr=4.82e-05
+2025-12-16 23:47:39,068 | INFO | Validation metrics: val_loss=0.373897, val_auprc=0.930628, val_auroc=0.925492
+2025-12-16 23:47:39,187 | INFO | Saved best pretrain checkpoint: models/v4/pretrain/20251216_151235/best_model.pth (auprc=0.930628)
+2025-12-16 23:47:39,187 | INFO | 
+============================================================
+2025-12-16 23:47:39,187 | INFO | Pretrain Epoch 7/39
+2025-12-16 23:47:39,187 | INFO | ============================================================
+2025-12-17 01:01:07,082 | INFO | Epoch 7: avg_loss=0.233931, lr=5.00e-05
+2025-12-17 01:01:07,084 | INFO | Validation metrics: val_loss=0.365789, val_auprc=0.937829, val_auroc=0.933406
+2025-12-17 01:01:07,212 | INFO | Saved best pretrain checkpoint: models/v4/pretrain/20251216_151235/best_model.pth (auprc=0.937829)
+2025-12-17 01:01:07,212 | INFO | 
+============================================================
+2025-12-17 01:01:07,212 | INFO | Pretrain Epoch 8/39
+2025-12-17 01:01:07,212 | INFO | ============================================================
+2025-12-17 02:14:47,153 | INFO | Epoch 8: avg_loss=0.220815, lr=4.99e-05
+2025-12-17 02:14:47,155 | INFO | Validation metrics: val_loss=0.346575, val_auprc=0.941859, val_auroc=0.937478
+2025-12-17 02:14:47,283 | INFO | Saved best pretrain checkpoint: models/v4/pretrain/20251216_151235/best_model.pth (auprc=0.941859)
+2025-12-17 02:14:47,283 | INFO | 
+============================================================
+2025-12-17 02:14:47,283 | INFO | Pretrain Epoch 9/39
+2025-12-17 02:14:47,283 | INFO | ============================================================
+2025-12-17 03:32:06,598 | INFO | Epoch 9: avg_loss=0.210315, lr=4.95e-05
+2025-12-17 03:32:06,599 | INFO | Validation metrics: val_loss=0.354223, val_auprc=0.947654, val_auroc=0.943357
+2025-12-17 03:32:06,729 | INFO | Saved best pretrain checkpoint: models/v4/pretrain/20251216_151235/best_model.pth (auprc=0.947654)
+2025-12-17 03:32:06,729 | INFO | 
+============================================================
+2025-12-17 03:32:06,729 | INFO | Pretrain Epoch 10/39
+2025-12-17 03:32:06,729 | INFO | ============================================================
+2025-12-17 04:52:58,361 | INFO | Epoch 10: avg_loss=0.200922, lr=4.89e-05
+2025-12-17 04:52:58,362 | INFO | Validation metrics: val_loss=0.344779, val_auprc=0.947659, val_auroc=0.943333
+2025-12-17 04:52:58,477 | INFO | Saved best pretrain checkpoint: models/v4/pretrain/20251216_151235/best_model.pth (auprc=0.947659)
+2025-12-17 04:52:58,478 | INFO | 
+============================================================
+2025-12-17 04:52:58,478 | INFO | Pretrain Epoch 11/39
+2025-12-17 04:52:58,478 | INFO | ============================================================
+2025-12-17 06:13:24,569 | INFO | Epoch 11: avg_loss=0.193950, lr=4.81e-05
+2025-12-17 06:13:24,570 | INFO | Validation metrics: val_loss=0.330978, val_auprc=0.952498, val_auroc=0.948511
+2025-12-17 06:13:24,699 | INFO | Saved best pretrain checkpoint: models/v4/pretrain/20251216_151235/best_model.pth (auprc=0.952498)
+2025-12-17 06:13:24,699 | INFO | 
+============================================================
+2025-12-17 06:13:24,699 | INFO | Pretrain Epoch 12/39
+2025-12-17 06:13:24,699 | INFO | ============================================================
+2025-12-17 07:34:20,812 | INFO | Epoch 12: avg_loss=0.187485, lr=4.70e-05
+2025-12-17 07:34:20,812 | INFO | Validation metrics: val_loss=0.334831, val_auprc=0.953057, val_auroc=0.949305
+2025-12-17 07:34:20,920 | INFO | Saved best pretrain checkpoint: models/v4/pretrain/20251216_151235/best_model.pth (auprc=0.953057)
+2025-12-17 07:34:20,920 | INFO | 
+============================================================
+2025-12-17 07:34:20,920 | INFO | Pretrain Epoch 13/39
+2025-12-17 07:34:20,921 | INFO | ============================================================
+2025-12-17 08:54:55,539 | INFO | Epoch 13: avg_loss=0.180691, lr=4.58e-05
+2025-12-17 08:54:55,540 | INFO | Validation metrics: val_loss=0.328623, val_auprc=0.955153, val_auroc=0.951451
+2025-12-17 08:54:55,697 | INFO | Saved best pretrain checkpoint: models/v4/pretrain/20251216_151235/best_model.pth (auprc=0.955153)
+2025-12-17 08:54:55,697 | INFO | 
+============================================================
+2025-12-17 08:54:55,697 | INFO | Pretrain Epoch 14/39
+2025-12-17 08:54:55,697 | INFO | ============================================================
+2025-12-17 10:15:19,784 | INFO | Epoch 14: avg_loss=0.175729, lr=4.43e-05
+2025-12-17 10:15:19,785 | INFO | Validation metrics: val_loss=0.317734, val_auprc=0.957709, val_auroc=0.953971
+2025-12-17 10:15:19,904 | INFO | Saved best pretrain checkpoint: models/v4/pretrain/20251216_151235/best_model.pth (auprc=0.957709)
+2025-12-17 10:15:19,904 | INFO | 
+============================================================
+2025-12-17 10:15:19,904 | INFO | Pretrain Epoch 15/39
+2025-12-17 10:15:19,904 | INFO | ============================================================
+2025-12-17 11:35:56,001 | INFO | Epoch 15: avg_loss=0.170126, lr=4.27e-05
+2025-12-17 11:35:56,002 | INFO | Validation metrics: val_loss=0.310600, val_auprc=0.957730, val_auroc=0.954167
+2025-12-17 11:35:56,122 | INFO | Saved best pretrain checkpoint: models/v4/pretrain/20251216_151235/best_model.pth (auprc=0.957730)
+2025-12-17 11:35:56,123 | INFO | 
+============================================================
+2025-12-17 11:35:56,123 | INFO | Pretrain Epoch 16/39
+2025-12-17 11:35:56,123 | INFO | ============================================================
+2025-12-17 12:52:47,041 | INFO | Epoch 16: avg_loss=0.165624, lr=4.09e-05
+2025-12-17 12:52:47,042 | INFO | Validation metrics: val_loss=0.309902, val_auprc=0.959298, val_auroc=0.955757
+2025-12-17 12:52:47,159 | INFO | Saved best pretrain checkpoint: models/v4/pretrain/20251216_151235/best_model.pth (auprc=0.959298)
+2025-12-17 12:52:47,159 | INFO | 
+============================================================
+2025-12-17 12:52:47,160 | INFO | Pretrain Epoch 17/39
+2025-12-17 12:52:47,160 | INFO | ============================================================
+2025-12-17 14:07:04,445 | INFO | Epoch 17: avg_loss=0.161645, lr=3.89e-05
+2025-12-17 14:07:04,446 | INFO | Validation metrics: val_loss=0.314831, val_auprc=0.959358, val_auroc=0.955948
+2025-12-17 14:07:04,567 | INFO | Saved best pretrain checkpoint: models/v4/pretrain/20251216_151235/best_model.pth (auprc=0.959358)
+2025-12-17 14:07:04,567 | INFO | 
+============================================================
+2025-12-17 14:07:04,567 | INFO | Pretrain Epoch 18/39
+2025-12-17 14:07:04,567 | INFO | ============================================================
+2025-12-17 15:21:18,194 | INFO | Epoch 18: avg_loss=0.157718, lr=3.68e-05
+2025-12-17 15:21:18,196 | INFO | Validation metrics: val_loss=0.317140, val_auprc=0.959655, val_auroc=0.956433
+2025-12-17 15:21:18,299 | INFO | Saved best pretrain checkpoint: models/v4/pretrain/20251216_151235/best_model.pth (auprc=0.959655)
+2025-12-17 15:21:18,299 | INFO | 
+============================================================
+2025-12-17 15:21:18,299 | INFO | Pretrain Epoch 19/39
+2025-12-17 15:21:18,300 | INFO | ============================================================
+2025-12-17 16:35:23,474 | INFO | Epoch 19: avg_loss=0.153560, lr=3.46e-05
+2025-12-17 16:35:23,476 | INFO | Validation metrics: val_loss=0.314971, val_auprc=0.960793, val_auroc=0.957887
+2025-12-17 16:35:23,587 | INFO | Saved best pretrain checkpoint: models/v4/pretrain/20251216_151235/best_model.pth (auprc=0.960793)
+2025-12-17 16:35:23,588 | INFO | 
+============================================================
+2025-12-17 16:35:23,588 | INFO | Pretrain Epoch 20/39
+2025-12-17 16:35:23,588 | INFO | ============================================================
+2025-12-17 17:49:36,047 | INFO | Epoch 20: avg_loss=0.148913, lr=3.23e-05
+2025-12-17 17:49:36,050 | INFO | Validation metrics: val_loss=0.311338, val_auprc=0.960653, val_auroc=0.957539
+2025-12-17 17:49:36,061 | INFO | 
+============================================================
+2025-12-17 17:49:36,061 | INFO | Pretrain Epoch 21/39
+2025-12-17 17:49:36,061 | INFO | ============================================================
+2025-12-17 19:03:55,008 | INFO | Epoch 21: avg_loss=0.145989, lr=2.99e-05
+2025-12-17 19:03:55,008 | INFO | Validation metrics: val_loss=0.297789, val_auprc=0.962125, val_auroc=0.958966
+2025-12-17 19:03:55,122 | INFO | Saved best pretrain checkpoint: models/v4/pretrain/20251216_151235/best_model.pth (auprc=0.962125)
+2025-12-17 19:03:55,122 | INFO | 
+============================================================
+2025-12-17 19:03:55,122 | INFO | Pretrain Epoch 22/39
+2025-12-17 19:03:55,122 | INFO | ============================================================
+2025-12-17 20:17:59,694 | INFO | Epoch 22: avg_loss=0.141930, lr=2.75e-05
+2025-12-17 20:17:59,695 | INFO | Validation metrics: val_loss=0.303704, val_auprc=0.962212, val_auroc=0.959706
+2025-12-17 20:17:59,800 | INFO | Saved best pretrain checkpoint: models/v4/pretrain/20251216_151235/best_model.pth (auprc=0.962212)
+2025-12-17 20:17:59,800 | INFO | 
+============================================================
+2025-12-17 20:17:59,801 | INFO | Pretrain Epoch 23/39
+2025-12-17 20:17:59,801 | INFO | ============================================================
+2025-12-17 21:32:08,480 | INFO | Epoch 23: avg_loss=0.139040, lr=2.50e-05
+2025-12-17 21:32:08,480 | INFO | Validation metrics: val_loss=0.306888, val_auprc=0.961760, val_auroc=0.959398
+2025-12-17 21:32:08,494 | INFO | 
+============================================================
+2025-12-17 21:32:08,494 | INFO | Pretrain Epoch 24/39
+2025-12-17 21:32:08,494 | INFO | ============================================================
+2025-12-17 22:46:13,153 | INFO | Epoch 24: avg_loss=0.136122, lr=2.25e-05
+2025-12-17 22:46:13,154 | INFO | Validation metrics: val_loss=0.293966, val_auprc=0.963747, val_auroc=0.961055
+2025-12-17 22:46:13,255 | INFO | Saved best pretrain checkpoint: models/v4/pretrain/20251216_151235/best_model.pth (auprc=0.963747)
+2025-12-17 22:46:13,255 | INFO | 
+============================================================
+2025-12-17 22:46:13,255 | INFO | Pretrain Epoch 25/39
+2025-12-17 22:46:13,255 | INFO | ============================================================
+2025-12-18 00:00:16,559 | INFO | Epoch 25: avg_loss=0.132121, lr=2.01e-05
+2025-12-18 00:00:16,560 | INFO | Validation metrics: val_loss=0.301468, val_auprc=0.962568, val_auroc=0.960063
+2025-12-18 00:00:16,570 | INFO | 
+============================================================
+2025-12-18 00:00:16,570 | INFO | Pretrain Epoch 26/39
+2025-12-18 00:00:16,570 | INFO | ============================================================
+2025-12-18 01:14:23,199 | INFO | Epoch 26: avg_loss=0.129653, lr=1.77e-05
+2025-12-18 01:14:23,200 | INFO | Validation metrics: val_loss=0.304912, val_auprc=0.962323, val_auroc=0.960030
+2025-12-18 01:14:23,211 | INFO | 
+============================================================
+2025-12-18 01:14:23,211 | INFO | Pretrain Epoch 27/39
+2025-12-18 01:14:23,211 | INFO | ============================================================
+2025-12-18 02:28:27,995 | INFO | Epoch 27: avg_loss=0.125706, lr=1.54e-05
+2025-12-18 02:28:27,995 | INFO | Validation metrics: val_loss=0.296900, val_auprc=0.963001, val_auroc=0.960643
+2025-12-18 02:28:28,008 | INFO | 
+============================================================
+2025-12-18 02:28:28,008 | INFO | Pretrain Epoch 28/39
+2025-12-18 02:28:28,008 | INFO | ============================================================
+2025-12-18 03:42:33,944 | INFO | Epoch 28: avg_loss=0.123527, lr=1.32e-05
+2025-12-18 03:42:33,945 | INFO | Validation metrics: val_loss=0.303272, val_auprc=0.963005, val_auroc=0.960879
+2025-12-18 03:42:33,955 | INFO | 
+============================================================
+2025-12-18 03:42:33,955 | INFO | Pretrain Epoch 29/39
+2025-12-18 03:42:33,955 | INFO | ============================================================
+2025-12-18 04:56:41,466 | INFO | Epoch 29: avg_loss=0.120398, lr=1.11e-05
+2025-12-18 04:56:41,467 | INFO | Validation metrics: val_loss=0.303011, val_auprc=0.962464, val_auroc=0.960480
+2025-12-18 04:56:41,466 | INFO | Full pipeline: will load models/v4/pretrain/20251216_151235/best_model.pth for finetune
+2025-12-18 04:56:41,466 | INFO | Full pipeline: will load models/v4/pretrain/20251216_151235/best_model.pth for finetune
+2025-12-18 04:56:41,466 | INFO | Full pipeline: will load models/v4/pretrain/20251216_151235/best_model.pth for finetune
+2025-12-18 04:56:41,474 | INFO | Early stopping triggered at epoch 29 (no improvement in auprc for 5 epochs)
+2025-12-18 04:56:41,474 | INFO | Pretrain completed. Best auprc: 0.963747
+2025-12-18 04:56:41,474 | INFO | Full pipeline: will load models/v4/pretrain/20251216_151235/best_model.pth for finetune
+2025-12-18 04:56:41,483 | INFO | Created directories: logs/v4/finetune/20251216_151235, models/v4/finetune/20251216_151235
+2025-12-18 04:56:41,483 | INFO | Created directories: logs/v4/finetune/20251216_151235, models/v4/finetune/20251216_151235
+2025-12-18 04:56:41,483 | INFO | Created directories: logs/v4/finetune/20251216_151235, models/v4/finetune/20251216_151235
+2025-12-18 04:56:41,483 | INFO | Created directories: logs/v4/finetune/20251216_151235, models/v4/finetune/20251216_151235
