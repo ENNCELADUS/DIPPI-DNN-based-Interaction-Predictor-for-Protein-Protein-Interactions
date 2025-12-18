@@ -1,0 +1,49 @@
+2025-12-19 00:19:05,080 | INFO | ================================================================================
+2025-12-19 00:19:05,081 | INFO | Starting evaluate stage for model 'v5' with run_id '20251219_001904'
+2025-12-19 00:19:05,081 | INFO | Logs will be written to: logs/v5/evaluate/20251219_001904/log.log
+2025-12-19 00:19:05,081 | INFO | ================================================================================
+2025-12-19 00:19:05,081 | INFO | ================================================================================
+2025-12-19 00:19:05,081 | INFO | Starting evaluate stage for model 'v5' with run_id '20251219_001904'
+2025-12-19 00:19:05,081 | INFO | Logs will be written to: logs/v5/evaluate/20251219_001904/log.log
+2025-12-19 00:19:05,081 | INFO | Trainable parameters: 6,701,825
+2025-12-19 00:19:05,081 | INFO | ================================================================================
+2025-12-19 00:19:05,081 | INFO | Starting evaluation with metrics: ['auroc', 'auprc', 'accuracy', 'sensitivity', 'specificity', 'precision', 'recall', 'f1', 'mcc']
+2025-12-19 00:19:05,081 | INFO | Using 512 thresholds for AUROC/AUPRC accumulation to bound host memory
+2025-12-19 00:19:05,081 | INFO | Trainable parameters: 6,701,825
+2025-12-19 00:19:05,081 | INFO | Starting evaluation with metrics: ['auroc', 'auprc', 'accuracy', 'sensitivity', 'specificity', 'precision', 'recall', 'f1', 'mcc']
+2025-12-19 00:19:05,081 | INFO | Using 512 thresholds for AUROC/AUPRC accumulation to bound host memory
+2025-12-19 00:19:05,081 | INFO | ================================================================================
+2025-12-19 00:19:05,081 | INFO | ================================================================================
+2025-12-19 00:19:05,081 | INFO | Starting evaluate stage for model 'v5' with run_id '20251219_001904'
+2025-12-19 00:19:05,081 | INFO | Logs will be written to: logs/v5/evaluate/20251219_001904/log.log
+2025-12-19 00:19:05,081 | INFO | Starting evaluate stage for model 'v5' with run_id '20251219_001904'
+2025-12-19 00:19:05,081 | INFO | ================================================================================
+2025-12-19 00:19:05,081 | INFO | Logs will be written to: logs/v5/evaluate/20251219_001904/log.log
+2025-12-19 00:19:05,081 | INFO | ================================================================================
+2025-12-19 00:19:05,081 | INFO | Trainable parameters: 6,701,825
+2025-12-19 00:19:05,081 | INFO | Trainable parameters: 6,701,825
+2025-12-19 00:19:05,082 | INFO | Starting evaluation with metrics: ['auroc', 'auprc', 'accuracy', 'sensitivity', 'specificity', 'precision', 'recall', 'f1', 'mcc']
+2025-12-19 00:19:05,082 | INFO | Using 512 thresholds for AUROC/AUPRC accumulation to bound host memory
+2025-12-19 00:19:05,082 | INFO | Starting evaluation with metrics: ['auroc', 'auprc', 'accuracy', 'sensitivity', 'specificity', 'precision', 'recall', 'f1', 'mcc']
+2025-12-19 00:19:05,082 | INFO | Using 512 thresholds for AUROC/AUPRC accumulation to bound host memory
+2025-12-19 00:19:05,175 | INFO | Loaded checkpoint from: models/v5/finetune/20251213_025058/best_model.pth (epoch 18)
+2025-12-19 00:19:05,175 | INFO | Distribution alignment disabled by config; using raw logits
+2025-12-19 00:19:05,180 | INFO | Loaded checkpoint from: models/v5/finetune/20251213_025058/best_model.pth (epoch 18)
+2025-12-19 00:19:05,180 | INFO | Distribution alignment disabled by config; using raw logits
+2025-12-19 00:19:05,180 | INFO | Loading embeddings from data/TMP/processed/TMP_embeddings.npz (this may take a while...)
+2025-12-19 00:19:05,182 | INFO | Loaded checkpoint from: models/v5/finetune/20251213_025058/best_model.pth (epoch 18)
+2025-12-19 00:19:05,182 | INFO | Distribution alignment disabled by config; using raw logits
+2025-12-19 00:19:05,182 | INFO | Loaded checkpoint from: models/v5/finetune/20251213_025058/best_model.pth (epoch 18)
+2025-12-19 00:19:05,183 | INFO | Distribution alignment disabled by config; using raw logits
+2025-12-19 00:21:15,993 | INFO | No test_realistic split configured; skipping
+2025-12-19 00:21:16,002 | INFO | Evaluating on test_balanced...
+2025-12-19 00:21:16,164 | INFO | Memory-mapped structured .npz format: 21391 proteins (embeddings stay on disk, loaded on-demand)
+2025-12-19 00:21:16,164 | INFO | Loaded 21391 protein embeddings
+2025-12-19 00:21:16,234 | INFO | Dataset: 188697 pairs (4788 pos, 183909 neg)
+2025-12-19 00:21:16,235 | INFO | DataLoader built for test.csv: num_workers=0, pin_memory=False, prefetch_factor=None, persistent_workers=False, sampler=None
+2025-12-19 00:21:16,235 | INFO | No test_realistic split configured; skipping
+2025-12-19 00:21:16,240 | INFO | No test_realistic split configured; skipping
+2025-12-19 00:21:16,241 | INFO | Evaluating on test_balanced...
+2025-12-19 00:21:16,247 | INFO | Evaluating on test_balanced...
+2025-12-19 00:21:16,454 | INFO | No test_realistic split configured; skipping
+2025-12-19 00:21:16,461 | INFO | Evaluating on test_balanced...
