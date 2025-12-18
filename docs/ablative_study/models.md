@@ -321,3 +321,171 @@ v_a [B, 384]                     v_b [B, 384]
                 ▼
 logits [B, 1]
 ```
+
+## V5
+
+```
+emb_a                                    emb_b
+[B, L_a, 1536]                           [B, L_b, 1536]
+    │                                        │
+    ├────────────── SiameseEncoder ──────────┤
+    │               (shared weights)         │
+    ▼                                        ▼
+Linear(1536 → D_h)                       Linear(1536 → D_h)
+    │                                        │
+    ▼                                        ▼
+Dropout(token) [B, L_a, D_h]             Dropout(token) [B, L_b, D_h]
+    │                                        │
+    ▼                                        ▼
+LayerNorm(D_h) [B, L_a, D_h]             LayerNorm(D_h) [B, L_b, D_h]
+    │                                        │
+    ▼                                        ▼
+GELU [B, L_a, D_h]                       GELU [B, L_b, D_h]
+    │                                        │
+    ▼                                        ▼
+┌── TransformerEncoderLayer ×N ──┐   ┌── TransformerEncoderLayer ×N ──┐
+│ SelfAttn + FFN + Residual      │   │ SelfAttn + FFN + Residual      │
+└────────────────────────────────┘   └────────────────────────────────┘
+    │                                        │
+    ▼                                        ▼
+h_a [B, L_a, D_h]                        h_b [B, L_b, D_h]
+    │                                        │
+    └──────────┬─────────────────────────────┘
+               │
+               ▼
+    ┌─── BidirectionalCrossAttention ×N ───┐
+    │                                      │
+    │  ┌────────────────────────────────┐  │
+    │  │ A attends to B:                │  │
+    │  │   LayerNorm(h_a)               │  │
+    │  │       │                        │  │
+    │  │       ▼                        │  │
+    │  │   MultiHeadAttn(Q=h_a,         │  │
+    │  │                K=h_b, V=h_b)   │  │
+    │  │       │                        │  │
+    │  │       ▼                        │  │
+    │  │   Dropout + Residual → h_a'    │  │
+    │  └────────────────────────────────┘  │
+    │                                      │
+    │  ┌────────────────────────────────┐  │
+    │  │ B attends to A:                │  │
+    │  │   LayerNorm(h_b)               │  │
+    │  │       │                        │  │
+    │  │       ▼                        │  │
+    │  │   MultiHeadAttn(Q=h_b,         │  │
+    │  │                K=h_a', V=h_a') │  │
+    │  │       │                        │  │
+    │  │       ▼                        │  │
+    │  │   Dropout + Residual → h_b'    │  │
+    │  └────────────────────────────────┘  │
+    │                                      │
+    └──────────────────────────────────────┘
+               │
+               ▼
+h_a' [B, L_a, D_h]               h_b' [B, L_b, D_h]
+    │                                │
+    └───────────┬────────────────────┘
+                │
+                ▼
+    ┌─── InteractionMapBuilder ───┐
+    │                             │
+    │ proj_a: Linear(D_h → D_p)   │
+    │ proj_b: Linear(D_h → D_p)   │
+    │     │                       │
+    │     ▼                       │
+    │ z_a = GELU(proj_a(h_a'))    │
+    │ z_b = GELU(proj_b(h_b'))    │
+    │     │                       │
+    │     ▼                       │
+    │ Broadcast + Concat:         │
+    │   z_a: [B, L_a, D_p]        │
+    │   z_b: [B, L_b, D_p]        │
+    │        │                    │
+    │        ▼                    │
+    │   z_a_exp: [B, L_a, L_b, D_p]│
+    │   z_b_exp: [B, L_a, L_b, D_p]│
+    │        │                    │
+    │        ▼                    │
+    │   concat → [B, L_a, L_b, 2*D_p]│
+    │        │                    │
+    │        ▼                    │
+    │   permute → [B, 2*D_p, L_a, L_b]│
+    │                             │
+    └─────────────────────────────┘
+                │
+                ▼
+    M_in [B, 2*D_p, L_a, L_b]
+                │
+                ▼
+    ┌─── ContactMapCNN ───┐
+    │                     │
+    │ Feature Fusion:     │
+    │   Conv2d(2*D_p → D_c, 1×1)│
+    │       │             │
+    │       ▼             │
+    │   BatchNorm2d(D_c)  │
+    │       │             │
+    │       ▼             │
+    │   ReLU              │
+    │       │             │
+    │       ▼             │
+    │ ResidualBlock:      │
+    │   ┌─────────────┐   │
+    │   │ Conv3×3 → BN│   │
+    │   │     │       │   │
+    │   │     ▼       │   │
+    │   │   ReLU      │   │
+    │   │     │       │   │
+    │   │     ▼       │   │
+    │   │ Conv3×3 → BN│   │
+    │   │     │       │   │
+    │   │     ▼       │   │
+    │   │  + identity │   │
+    │   │     │       │   │
+    │   │     ▼       │   │
+    │   │   ReLU      │   │
+    │   └─────────────┘   │
+    │                     │
+    └─────────────────────┘
+                │
+                ▼
+    F_res [B, D_c, L_a, L_b]
+                │
+                ▼
+    ┌─── GlobalMaxPool2d ───┐
+    │                       │
+    │ AdaptiveMaxPool2d(1,1)│
+    │     │                 │
+    │     ▼                 │
+    │ flatten → [B, D_c]    │
+    │                       │
+    └───────────────────────┘
+                │
+                ▼
+    pooled [B, D_c]
+                │
+                ▼
+    ┌─── MLPHead ───┐
+    │               │
+    │ Linear(D_c → hidden_1)
+    │     │         │
+    │     ▼         │
+    │ LayerNorm     │
+    │     │         │
+    │     ▼         │
+    │ GELU          │
+    │     │         │
+    │     ▼         │
+    │ Dropout       │
+    │     │         │
+    │     ▼         │
+    │   ... (N layers)
+    │     │         │
+    │     ▼         │
+    │ Linear(→ 1)   │
+    │               │
+    └───────────────┘
+                │
+                ▼
+logits [B, 1]
+```
