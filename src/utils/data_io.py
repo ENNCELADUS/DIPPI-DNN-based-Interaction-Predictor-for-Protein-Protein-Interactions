@@ -19,6 +19,7 @@ Does NOT:
 - Manage distributed training internals (delegates to DistributedSampler)
 """
 
+import json
 import logging
 import math
 import pickle
@@ -84,12 +85,97 @@ class MemmapEmbeddingStore:
         return self._id_to_idx.keys()
 
 
+class ShardedEmbeddingStore:
+    """
+    Memory-mapped fixed-length embedding store backed by shard .npy files.
+
+    Expected directory layout:
+      - manifest.json
+      - index.npz (ids, shard_idx, row_idx, lengths)
+      - shard_00000.npy, shard_00001.npy, ...
+    """
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+        manifest_path = self.root / "manifest.json"
+        if not manifest_path.exists():
+            raise FileNotFoundError(f"manifest.json not found in {self.root}")
+
+        with open(manifest_path, "r", encoding="utf-8") as f:
+            manifest = json.load(f)
+
+        fmt = manifest.get("format")
+        if fmt != "dippi_sharded_embeddings_v1":
+            raise ValueError(f"Unsupported embeddings format: {fmt}")
+
+        self.max_len = int(manifest["max_len"])
+        self.embedding_dim = int(manifest["embedding_dim"])
+        self.storage_dtype = str(manifest.get("storage_dtype", "fp16"))
+        self.shards = manifest.get("shards", [])
+
+        index_path = self.root / manifest.get("index_file", "index.npz")
+        if not index_path.exists():
+            raise FileNotFoundError(f"index file not found: {index_path}")
+
+        index = np.load(index_path, allow_pickle=True)
+        ids = index["ids"]
+        shard_idx = index["shard_idx"].astype(np.int32)
+        row_idx = index["row_idx"].astype(np.int32)
+        lengths = index["lengths"].astype(np.int32) if "lengths" in index else None
+
+        self._id_to_pos: Dict[str, int] = {}
+        self._ids: list[str] = []
+        for pos, protein_id in enumerate(ids):
+            if isinstance(protein_id, bytes):
+                protein_id = protein_id.decode("utf-8")
+            elif isinstance(protein_id, np.str_):
+                protein_id = str(protein_id)
+            self._id_to_pos[protein_id] = pos
+            self._ids.append(protein_id)
+
+        self._shard_idx = shard_idx
+        self._row_idx = row_idx
+        self._lengths = lengths
+        self._shard_cache: Dict[int, np.ndarray] = {}
+
+    def __contains__(self, protein_id: str) -> bool:
+        return protein_id in self._id_to_pos
+
+    def __len__(self) -> int:
+        return len(self._ids)
+
+    def keys(self):
+        return self._ids
+
+    def _get_shard(self, shard_id: int) -> np.ndarray:
+        cached = self._shard_cache.get(shard_id)
+        if cached is not None:
+            return cached
+        if shard_id < 0 or shard_id >= len(self.shards):
+            raise IndexError(f"Shard index out of range: {shard_id}")
+        shard_file = self.root / self.shards[shard_id]["file"]
+        shard_data = np.load(shard_file, mmap_mode="r")
+        self._shard_cache[shard_id] = shard_data
+        return shard_data
+
+    def __getitem__(self, protein_id: str) -> Dict[str, Any]:
+        if protein_id not in self._id_to_pos:
+            raise KeyError(f"Protein ID '{protein_id}' not found in embeddings")
+        pos = self._id_to_pos[protein_id]
+        shard_id = int(self._shard_idx[pos])
+        row_id = int(self._row_idx[pos])
+        length = int(self._lengths[pos]) if self._lengths is not None else self.max_len
+        embeddings = self._get_shard(shard_id)[row_id]
+        return {"embeddings": embeddings, "length": length, "_fixed_len": True}
+
+
 def _load_embeddings(embeddings_path: str) -> Dict[str, Any]:
     """
     Load embeddings from pickle or npz file with module-level caching.
 
     Args:
-        embeddings_path: Path to embeddings file (.pkl, .pickle, or .npz)
+        embeddings_path: Path to embeddings file (.pkl, .pickle, .npz) or
+            a directory containing a sharded fixed-length embedding store.
 
     Returns:
         Dictionary-like object mapping protein IDs to embedding data
@@ -98,6 +184,7 @@ def _load_embeddings(embeddings_path: str) -> Dict[str, Any]:
         Uses module-level cache to avoid reloading the same file.
         For large .npz files with structured format (ids + embeddings arrays),
         uses memory-mapping to avoid loading the entire file into RAM.
+        For sharded stores, uses a manifest + index with per-shard .npy memmaps.
     """
     global _EMBEDDINGS_CACHE, _EMBEDDINGS_PATH_CACHE
 
@@ -109,6 +196,21 @@ def _load_embeddings(embeddings_path: str) -> Dict[str, Any]:
     embeddings_path_obj = Path(embeddings_path)
     if not embeddings_path_obj.exists():
         raise FileNotFoundError(f"Embeddings file not found: {embeddings_path}")
+
+    if embeddings_path_obj.is_dir():
+        manifest_path = embeddings_path_obj / "manifest.json"
+        if manifest_path.exists():
+            embeddings_dict = ShardedEmbeddingStore(embeddings_path_obj)
+            _EMBEDDINGS_CACHE = embeddings_dict
+            _EMBEDDINGS_PATH_CACHE = embeddings_path
+            if is_main_process():
+                logging.info(
+                    "Loaded sharded embeddings from %s (%d proteins, max_len=%d)",
+                    embeddings_path_obj,
+                    len(embeddings_dict),
+                    embeddings_dict.max_len,
+                )
+            return embeddings_dict
 
     if is_main_process():
         logging.info(
@@ -435,6 +537,21 @@ class ProteinPairDataset(Dataset):
 
         protein_data = self.embeddings_dict[protein_id]
 
+        # Fast path: fixed-length preprocessed embeddings with stored lengths.
+        if isinstance(protein_data, dict) and protein_data.get("_fixed_len"):
+            embedding = protein_data["embeddings"]
+            actual_length = int(protein_data.get("length", self.max_len))
+
+            if isinstance(embedding, np.ndarray):
+                embedding = torch.from_numpy(embedding)
+            if embedding.dim() == 3:
+                embedding = embedding.squeeze(0)
+
+            embedding = embedding.to(dtype=self.torch_dtype)
+            if actual_length > self.max_len:
+                actual_length = self.max_len
+            return embedding, actual_length
+
         # Handle both nested dict format {"embeddings": ...} and direct array format
         if isinstance(protein_data, dict) and "embeddings" in protein_data:
             embedding = protein_data["embeddings"]  # Shape: (1, L, D) or (L, D)
@@ -551,7 +668,7 @@ def build_loader(
 
     Args:
         csv_path: Path to CSV with protein pairs
-        embeddings_path: Path to pickle file with embeddings
+        embeddings_path: Path to embeddings file or sharded embeddings directory
         batch_size: Batch size
         max_len: Maximum sequence length (truncate/pad to this)
         dtype: Embedding dtype string ("bf16", "fp32", "fp16")
