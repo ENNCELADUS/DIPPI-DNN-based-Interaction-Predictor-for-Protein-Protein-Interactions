@@ -17,6 +17,8 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import shutil
+import tempfile
 from pathlib import Path
 from typing import Any, Tuple
 
@@ -92,8 +94,12 @@ def main() -> None:
     )
     parser.add_argument(
         "--output-dir",
-        required=True,
-        help="Output directory for shards",
+        help="Output directory for shards (omit when using --inplace)",
+    )
+    parser.add_argument(
+        "--inplace",
+        action="store_true",
+        help="Replace the input .npz with a sharded directory in-place",
     )
     parser.add_argument(
         "--max-len",
@@ -129,25 +135,54 @@ def main() -> None:
     if not input_path.exists():
         raise FileNotFoundError(f"Input not found: {input_path}")
 
-    output_dir = Path(args.output_dir)
+    if args.inplace and args.output_dir:
+        raise ValueError("--output-dir must be omitted when using --inplace")
+    if not args.inplace and not args.output_dir:
+        raise ValueError("--output-dir is required unless --inplace is used")
+
+    temp_dir: Path | None = None
+    if args.inplace:
+        if input_path.is_dir():
+            raise ValueError("--inplace expects a .npz file, not a directory")
+        temp_dir = Path(
+            tempfile.mkdtemp(
+                dir=input_path.parent,
+                prefix=f"{input_path.name}.sharded_tmp.",
+            )
+        )
+        output_dir = temp_dir
+        overwrite = True
+    else:
+        output_dir = Path(args.output_dir)
+        overwrite = args.overwrite
+
     if output_dir.exists():
-        if not args.overwrite:
+        if not overwrite:
             raise FileExistsError(
                 f"Output dir exists: {output_dir} (use --overwrite to replace)"
             )
+        if output_dir.is_dir():
+            shutil.rmtree(output_dir)
+        else:
+            output_dir.unlink()
     output_dir.mkdir(parents=True, exist_ok=True)
 
     storage_name, storage_dtype = _resolve_storage_dtype(args.storage_dtype)
     if args.storage_dtype.lower() == "bf16":
         print("Note: bf16 storage is not supported by numpy; using fp16 instead.")
 
-    data = np.load(input_path, allow_pickle=True)
-    if "ids" not in data or "embeddings" not in data:
-        raise ValueError("Input .npz must contain 'ids' and 'embeddings' arrays")
+    try:
+        with np.load(input_path, allow_pickle=True) as data:
+            if "ids" not in data or "embeddings" not in data:
+                raise ValueError("Input .npz must contain 'ids' and 'embeddings' arrays")
 
-    ids = data["ids"]
-    embeddings = data["embeddings"]
-    num_items = int(len(ids))
+            ids = data["ids"]
+            embeddings = data["embeddings"]
+            num_items = int(len(ids))
+    except Exception:
+        if temp_dir and temp_dir.exists():
+            shutil.rmtree(temp_dir)
+        raise
 
     ids_out = np.empty(num_items, dtype=object)
     shard_idx = np.empty(num_items, dtype=np.int32)
@@ -231,6 +266,15 @@ def main() -> None:
         json.dump(manifest, f, indent=2)
 
     print(f"Wrote manifest + index to {output_dir}")
+
+    if args.inplace:
+        try:
+            input_path.unlink()
+            output_dir.rename(input_path)
+        except Exception:
+            if temp_dir and temp_dir.exists():
+                shutil.rmtree(temp_dir)
+            raise
 
 
 if __name__ == "__main__":
