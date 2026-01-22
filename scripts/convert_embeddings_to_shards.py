@@ -174,7 +174,9 @@ def main() -> None:
     try:
         with np.load(input_path, allow_pickle=True) as data:
             if "ids" not in data or "embeddings" not in data:
-                raise ValueError("Input .npz must contain 'ids' and 'embeddings' arrays")
+                raise ValueError(
+                    "Input .npz must contain 'ids' and 'embeddings' arrays"
+                )
 
             ids = data["ids"]
             embeddings = data["embeddings"]

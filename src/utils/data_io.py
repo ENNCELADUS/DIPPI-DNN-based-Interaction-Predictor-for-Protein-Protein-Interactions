@@ -30,7 +30,7 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader, DistributedSampler
-from src.utils.samplers import ImbalancedBatchSampler
+from src.utils.samplers import ImbalancedBatchSampler, StagedHardNegativeBatchSampler
 from src.utils.distributed import get_rank, get_world_size, is_main_process
 
 
@@ -219,7 +219,6 @@ def _load_embeddings(embeddings_path: str) -> Dict[str, Any]:
 
     suffix = embeddings_path_obj.suffix.lower()
     if suffix == ".npz":
-<<<<<<< HEAD
         # First, check the format without memory mapping
         npz_probe = np.load(embeddings_path, allow_pickle=True)
         has_structured_format = (
@@ -235,29 +234,6 @@ def _load_embeddings(embeddings_path: str) -> Dict[str, Any]:
             embeddings_mmap = npz_data["embeddings"]  # Large, keep memory-mapped
 
             embeddings_dict = MemmapEmbeddingStore(ids_array, embeddings_mmap)
-=======
-        # NumPy compressed archive format
-        npz_data = np.load(embeddings_path, allow_pickle=True)
-
-        # Check if this is a structured format with 'ids' and 'embeddings' arrays
-        if "ids" in npz_data.files and "embeddings" in npz_data.files:
-            # Structured format: ids array + embeddings array (indexed by position)
-            ids_array = npz_data["ids"]
-            embeddings_array = npz_data["embeddings"]
-
-            # Convert to dict mapping protein_id -> {"embeddings": array}
-            embeddings_dict = {}
-            for idx, protein_id in enumerate(ids_array):
-                # Handle both string and bytes IDs
-                if isinstance(protein_id, bytes):
-                    protein_id = protein_id.decode("utf-8")
-                elif isinstance(protein_id, np.str_):
-                    protein_id = str(protein_id)
-
-                # Get corresponding embedding
-                emb = embeddings_array[idx]
-                embeddings_dict[protein_id] = {"embeddings": emb}
->>>>>>> b05d426 (Replaced the `src/embed` module with a single lightweight script `src/embed.py`. Updated the shell script.)
 
             if is_main_process():
                 logging.info(
@@ -432,6 +408,11 @@ class DistributedBatchSampler:
     def __len__(self) -> int:
         return self._max_per_rank
 
+    def set_epoch(self, epoch: int) -> None:
+        """Forward epoch to the wrapped sampler if supported."""
+        if hasattr(self.batch_sampler, "set_epoch"):
+            self.batch_sampler.set_epoch(epoch)
+
 
 class ProteinPairDataset(Dataset):
     """
@@ -561,7 +542,6 @@ class ProteinPairDataset(Dataset):
 
         protein_data = self.embeddings_dict[protein_id]
 
-<<<<<<< HEAD
         # Fast path: fixed-length preprocessed embeddings with stored lengths.
         if isinstance(protein_data, dict) and protein_data.get("_fixed_len"):
             embedding = protein_data["embeddings"]
@@ -576,9 +556,6 @@ class ProteinPairDataset(Dataset):
             if actual_length > self.max_len:
                 actual_length = self.max_len
             return embedding, actual_length
-
-=======
->>>>>>> b05d426 (Replaced the `src/embed` module with a single lightweight script `src/embed.py`. Updated the shell script.)
         # Handle both nested dict format {"embeddings": ...} and direct array format
         if isinstance(protein_data, dict) and "embeddings" in protein_data:
             embedding = protein_data["embeddings"]  # Shape: (1, L, D) or (L, D)
@@ -785,6 +762,52 @@ def build_loader(
         else:
             batch_sampler = base_sampler
         shuffle = False  # Batch sampler controls ordering
+    elif sampling_strategy == "staged_hard":
+        ratio = float(sampling_cfg.get("pos_neg_ratio", 16.0))
+        hard_ratio = float(sampling_cfg.get("hard_ratio", 0.7))
+        warmup_epochs = int(sampling_cfg.get("warmup_epochs", 2))
+        if "hard_start_epoch" in sampling_cfg:
+            warmup_epochs = int(sampling_cfg["hard_start_epoch"])
+        hard_score_col = str(sampling_cfg.get("hard_score_col", "hard_score"))
+        hard_score_top_fraction = sampling_cfg.get("hard_score_top_fraction")
+        if hard_score_top_fraction is not None:
+            hard_score_top_fraction = float(hard_score_top_fraction)
+
+        hard_scores = None
+        if hard_score_col in dataset.df.columns:
+            raw_scores = pd.to_numeric(dataset.df[hard_score_col], errors="coerce")
+            if raw_scores.notna().any():
+                hard_scores = raw_scores.tolist()
+            elif is_main_process():
+                logging.warning(
+                    "sampling.strategy=staged_hard: column '%s' has no valid scores; "
+                    "falling back to random negatives.",
+                    hard_score_col,
+                )
+        elif is_main_process():
+            logging.warning(
+                "sampling.strategy=staged_hard: column '%s' not found; "
+                "falling back to random negatives.",
+                hard_score_col,
+            )
+
+        base_sampler = StagedHardNegativeBatchSampler(
+            labels=list(dataset.df["isInteraction"].astype(int)),
+            hard_scores=hard_scores,
+            batch_size=batch_size,
+            pos_neg_ratio=ratio,
+            warmup_epochs=warmup_epochs,
+            hard_ratio=hard_ratio,
+            hard_score_top_fraction=hard_score_top_fraction,
+            shuffle=shuffle,
+            drop_last=drop_last,
+            seed=None,
+        )
+        if ddp and get_world_size() > 1:
+            batch_sampler = DistributedBatchSampler(base_sampler, pad=True)
+        else:
+            batch_sampler = base_sampler
+        shuffle = False  # Batch sampler controls ordering
     elif ddp:
         sampler = DistributedSampler(dataset, shuffle=shuffle)
         shuffle = False  # Sampler controls ordering
@@ -883,6 +906,7 @@ def _load_ml_embeddings(embeddings_path: str) -> Dict[str, np.ndarray]:
     # Load based on file extension
     if suffix == ".pkl":
         import pickle
+
         with open(embeddings_path, "rb") as f:
             raw_dict = pickle.load(f)
         # Handle nested dict format: {protein_id: {'embeddings': ndarray, ...}}

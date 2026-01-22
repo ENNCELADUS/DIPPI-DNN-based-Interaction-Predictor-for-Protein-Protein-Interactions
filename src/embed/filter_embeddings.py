@@ -35,13 +35,13 @@ def load_protein_list(csv_file: str) -> Set[str]:
     """Load protein IDs from CSV file."""
     protein_ids = set()
     try:
-        with open(csv_file, 'r', encoding='utf-8') as f:
+        with open(csv_file, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             if not reader.fieldnames:
                 print("Error: CSV is empty or missing headers.", file=sys.stderr)
                 sys.exit(1)
 
-            if 'uniprotID' not in reader.fieldnames:
+            if "uniprotID" not in reader.fieldnames:
                 print(
                     "Error: CSV must have 'uniprotID' column.",
                     file=sys.stderr,
@@ -49,7 +49,7 @@ def load_protein_list(csv_file: str) -> Set[str]:
                 sys.exit(1)
 
             for row in reader:
-                uid = row.get('uniprotID', '').strip()
+                uid = row.get("uniprotID", "").strip()
                 if uid:
                     protein_ids.add(uid)
 
@@ -64,15 +64,15 @@ def load_embeddings(npz_file: str) -> Tuple[np.ndarray, np.ndarray]:
     """Load ids and embeddings from a .npz file."""
     try:
         data = np.load(npz_file, allow_pickle=True)
-        if 'ids' not in data.files or 'embeddings' not in data.files:
+        if "ids" not in data.files or "embeddings" not in data.files:
             print(
                 f"Error: {npz_file} missing 'ids' or 'embeddings' key.",
                 file=sys.stderr,
             )
             sys.exit(1)
 
-        ids = data['ids']
-        embeddings = data['embeddings']
+        ids = data["ids"]
+        embeddings = data["embeddings"]
 
         print(f"Loaded {len(ids)} embeddings from {npz_file}", file=sys.stderr)
         return ids, embeddings
@@ -146,7 +146,9 @@ def main():
 
     # Filter
     print("Filtering embeddings...", file=sys.stderr)
-    filtered_ids, filtered_embeddings = filter_embeddings(ids, embeddings, target_proteins)
+    filtered_ids, filtered_embeddings = filter_embeddings(
+        ids, embeddings, target_proteins
+    )
 
     # Validate
     if len(filtered_ids) == 0:
@@ -175,5 +177,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
