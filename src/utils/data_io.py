@@ -774,6 +774,12 @@ def build_loader(
         hard_score_top_fraction = sampling_cfg.get("hard_score_top_fraction")
         if hard_score_top_fraction is not None:
             hard_score_top_fraction = float(hard_score_top_fraction)
+        hard_score_quantile_low = sampling_cfg.get("hard_score_quantile_low")
+        hard_score_quantile_high = sampling_cfg.get("hard_score_quantile_high")
+        if hard_score_quantile_low is not None:
+            hard_score_quantile_low = float(hard_score_quantile_low)
+        if hard_score_quantile_high is not None:
+            hard_score_quantile_high = float(hard_score_quantile_high)
 
         hard_scores = None
         if hard_score_col in dataset.df.columns:
@@ -801,6 +807,8 @@ def build_loader(
             warmup_epochs=warmup_epochs,
             hard_ratio=hard_ratio,
             hard_score_top_fraction=hard_score_top_fraction,
+            hard_score_quantile_low=hard_score_quantile_low,
+            hard_score_quantile_high=hard_score_quantile_high,
             shuffle=shuffle,
             drop_last=drop_last,
             seed=None,

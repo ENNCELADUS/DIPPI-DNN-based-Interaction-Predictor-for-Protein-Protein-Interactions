@@ -42,6 +42,12 @@ data_config:
       warmup_epochs: 2
       hard_ratio: 0.7
       hard_score_col: "hard_score"
+      online_mining: true
+      candidate_multiplier: 8
+      ema_alpha: 0.2
+      hard_score_quantile_low: 0.9
+      hard_score_quantile_high: 0.995
+      score_batch_size: 256
   evaluate:
     test_balanced: "data/TMP/processed/test.csv"
 
