@@ -1,12 +1,12 @@
 # V5 Config - Ablation with contact map modeling
 
 run_config:
-  mode: "full_pipeline"  # full_pipeline | finetune_from_pretrain | eval_only
+  mode: "finetune_from_pretrain"  # full_pipeline | finetune_from_pretrain | eval_only
   seed: 47
   pretrain_run_id: null   # Auto-timestamp if null
   finetune_run_id: null   # Auto-timestamp if null
   eval_run_id: null      # Auto-timestamp if null
-  load_checkpoint_path: null  # Start fresh with new architecture
+  load_checkpoint_path: "models/v5/pretrain/20251213_025058/best_model.pth"  # Start fresh with new architecture
   save_best_only: true     # If true, only save the best checkpoint.
 
 top_level_config:
