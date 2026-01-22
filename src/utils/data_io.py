@@ -548,6 +548,8 @@ class ProteinPairDataset(Dataset):
             actual_length = int(protein_data.get("length", self.max_len))
 
             if isinstance(embedding, np.ndarray):
+                if not embedding.flags.writeable:
+                    embedding = np.array(embedding, copy=True)
                 embedding = torch.from_numpy(embedding)
             if embedding.dim() == 3:
                 embedding = embedding.squeeze(0)
