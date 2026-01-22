@@ -15,12 +15,16 @@ Called by: run.py main orchestrator
 """
 
 import logging
+import math
+import random
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+import torch.distributed as dist
 from torch.utils.data import DataLoader
 
 from src.train.base import Trainer
@@ -30,7 +34,146 @@ from src.evaluate.base import Evaluator
 from src.utils.checkpoint import load_checkpoint, save_checkpoint, maybe_save_best
 from src.utils.early_stop import check_early_stop
 from src.utils.logging import append_row
-from src.utils.distributed import is_main_process
+from src.utils.distributed import barrier, get_world_size, is_main_process
+from src.utils.samplers import StagedHardNegativeBatchSampler
+
+
+def _move_batch_to_device(
+    batch: Dict[str, Any], device: torch.device
+) -> Dict[str, Any]:
+    moved: Dict[str, Any] = {}
+    for key, value in batch.items():
+        if isinstance(value, torch.Tensor):
+            moved[key] = value.to(device, non_blocking=True)
+        else:
+            moved[key] = value
+    return moved
+
+
+def _normalize_logits(logits: torch.Tensor) -> torch.Tensor:
+    if logits.dim() == 2:
+        if logits.size(1) == 2:
+            return logits[:, 1]
+        if logits.size(1) == 1:
+            return logits.squeeze(1)
+    return logits
+
+
+def _extract_logits(outputs: Any) -> torch.Tensor:
+    if isinstance(outputs, dict) and "logits" in outputs:
+        return outputs["logits"]
+    if isinstance(outputs, torch.Tensor):
+        return outputs
+    raise ValueError("Model outputs must include logits for hard-negative mining.")
+
+
+def _iter_chunks(items: list[int], chunk_size: int):
+    for i in range(0, len(items), chunk_size):
+        yield items[i : i + chunk_size]
+
+
+def _get_base_batch_sampler(
+    loader: DataLoader,
+) -> tuple[Optional[Any], Optional[Any]]:
+    batch_sampler = getattr(loader, "batch_sampler", None)
+    if batch_sampler is None:
+        return None, None
+    inner = batch_sampler
+    if hasattr(batch_sampler, "batch_sampler"):
+        inner = batch_sampler.batch_sampler
+    return inner, batch_sampler
+
+
+def _set_sampler_epoch(loader: DataLoader, epoch: int) -> None:
+    batch_sampler = getattr(loader, "batch_sampler", None)
+    if batch_sampler is not None and hasattr(batch_sampler, "set_epoch"):
+        batch_sampler.set_epoch(epoch)
+
+
+def _broadcast_hard_scores(
+    scores: list[float],
+    device: torch.device,
+) -> list[float]:
+    if not dist.is_available() or not dist.is_initialized():
+        return scores
+
+    backend = dist.get_backend()
+    tensor_device = device if backend == "nccl" else torch.device("cpu")
+    scores_tensor = torch.tensor(scores, dtype=torch.float32, device=tensor_device)
+    dist.broadcast(scores_tensor, src=0)
+    if scores_tensor.device.type != "cpu":
+        scores_tensor = scores_tensor.cpu()
+    return scores_tensor.tolist()
+
+
+def _refresh_hard_scores_epoch(
+    *,
+    model: nn.Module,
+    train_loader: DataLoader,
+    sampler: StagedHardNegativeBatchSampler,
+    device: torch.device,
+    epoch: int,
+    sampling_cfg: Dict[str, Any],
+    amp_dtype: Optional[torch.dtype],
+) -> dict:
+    dataset = train_loader.dataset
+    collate_fn = train_loader.collate_fn
+    if collate_fn is None:
+        raise ValueError("train_loader must define a collate_fn for mining")
+
+    candidate_multiplier = float(sampling_cfg.get("candidate_multiplier", 8.0))
+    ema_alpha = float(sampling_cfg.get("ema_alpha", 0.2))
+    score_batch_size = int(sampling_cfg.get("score_batch_size", 256))
+    if score_batch_size <= 0:
+        score_batch_size = 256
+
+    pos_indices = sampler.get_pos_indices()
+    neg_indices = sampler.get_neg_indices()
+
+    rng_seed = int(sampling_cfg.get("mining_seed", 0)) + epoch
+    rng = random.Random(rng_seed)
+    if sampler.shuffle:
+        rng.shuffle(pos_indices)
+
+    model_was_training = model.training
+    model.eval()
+
+    total_scored = 0
+    with torch.no_grad():
+        for start in range(0, len(pos_indices), sampler.pos_per_batch):
+            pos_batch = pos_indices[start : start + sampler.pos_per_batch]
+            if not pos_batch:
+                continue
+
+            neg_count = sampler.negatives_for_batch(len(pos_batch))
+            if neg_count <= 0:
+                continue
+
+            candidate_count = int(math.ceil(candidate_multiplier * neg_count))
+            if candidate_count <= 0:
+                continue
+
+            candidate_indices = rng.choices(neg_indices, k=candidate_count)
+            for chunk in _iter_chunks(candidate_indices, score_batch_size):
+                batch_items = [dataset[idx] for idx in chunk]
+                batch = collate_fn(batch_items)
+                batch = _move_batch_to_device(batch, device)
+
+                if amp_dtype is not None:
+                    with torch.amp.autocast(device_type=device.type, dtype=amp_dtype):
+                        outputs = model(batch)
+                else:
+                    outputs = model(batch)
+
+                logits = _normalize_logits(_extract_logits(outputs))
+                scores = F.softplus(logits).detach().float().cpu().tolist()
+                sampler.update_hard_scores(chunk, scores, ema_alpha=ema_alpha)
+                total_scored += len(chunk)
+
+    if model_was_training:
+        model.train()
+
+    return {"candidates_scored": total_scored}
 
 
 def prepare_scheduler_config(
@@ -96,6 +239,15 @@ def run_finetune(
     strategy_cfg = finetune_cfg["strategy"]
     num_epochs = finetune_cfg["epochs"]
     data_cfg = cfg["data_config"]
+    sampling_cfg = data_cfg.get("finetune", {}).get("sampling", {})
+    sampling_strategy = sampling_cfg.get("strategy")
+    online_mining = bool(
+        sampling_cfg.get("online_mining", sampling_strategy == "staged_hard")
+    )
+    warmup_epochs = int(
+        sampling_cfg.get("warmup_epochs", sampling_cfg.get("hard_start_epoch", 2))
+    )
+    hard_ratio = float(sampling_cfg.get("hard_ratio", 0.7))
 
     # Use monitor_metric from finetune_config (not from DA config)
     monitor_metric = finetune_cfg.get("monitor_metric", "auprc")
@@ -256,9 +408,57 @@ def run_finetune(
             logging.info(f"Finetune Epoch {epoch}/{num_epochs - 1}")
             logging.info(f"{'=' * 60}")
 
+        _set_sampler_epoch(train_loader, epoch)
+
         # Call strategy on_epoch_begin hook
         if strategy:
             strategy.on_epoch_begin(trainer, epoch)
+
+        if (
+            online_mining
+            and sampling_strategy == "staged_hard"
+            and epoch >= warmup_epochs
+            and hard_ratio > 0.0
+        ):
+            base_sampler, _ = _get_base_batch_sampler(train_loader)
+            if isinstance(base_sampler, StagedHardNegativeBatchSampler):
+                mining_stats = {}
+                if is_main_process():
+                    mining_stats = _refresh_hard_scores_epoch(
+                        model=model,
+                        train_loader=train_loader,
+                        sampler=base_sampler,
+                        device=device,
+                        epoch=epoch,
+                        sampling_cfg=sampling_cfg,
+                        amp_dtype=amp_dtype,
+                    )
+
+                if get_world_size() > 1:
+                    score_len = len(base_sampler.get_hard_scores())
+                    if is_main_process():
+                        scores = base_sampler.get_hard_scores()
+                    else:
+                        scores = [math.nan for _ in range(score_len)]
+                    scores = _broadcast_hard_scores(scores, device)
+                    base_sampler.set_hard_scores(scores)
+
+                pool_stats = base_sampler.refresh_hard_pool(
+                    quantile_low=sampling_cfg.get("hard_score_quantile_low"),
+                    quantile_high=sampling_cfg.get("hard_score_quantile_high"),
+                )
+                barrier()
+
+                if is_main_process():
+                    logging.info(
+                        "Hard-score refresh: candidates_scored=%d, scored_negatives=%d, "
+                        "hard_pool=%d, score_low=%s, score_high=%s",
+                        mining_stats.get("candidates_scored", 0),
+                        pool_stats.get("num_scored_negatives", 0),
+                        pool_stats.get("hard_pool_size", 0),
+                        pool_stats.get("score_low", "n/a"),
+                        pool_stats.get("score_high", "n/a"),
+                    )
 
         # Start epoch timer
         epoch_start_time = datetime.now()
