@@ -17,6 +17,7 @@ Called by: run.py main orchestrator
 import logging
 import math
 import random
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -25,6 +26,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributed as dist
+import numpy as np
 from torch.utils.data import DataLoader
 
 from src.train.base import Trainer
@@ -106,6 +108,37 @@ def _broadcast_hard_scores(
     return scores_tensor.tolist()
 
 
+def _sync_hard_scores_via_file(
+    *,
+    scores: list[float],
+    log_dir: Path,
+    epoch: int,
+    timeout_sec: int,
+) -> list[float]:
+    sync_dir = log_dir / "hard_scores"
+    sync_dir.mkdir(parents=True, exist_ok=True)
+    scores_path = sync_dir / f"hard_scores_epoch_{epoch}.npy"
+    ready_path = sync_dir / f"hard_scores_epoch_{epoch}.ready"
+
+    if is_main_process():
+        tmp_path = sync_dir / f"hard_scores_epoch_{epoch}.tmp.npy"
+        np.save(tmp_path, np.array(scores, dtype=np.float32))
+        tmp_path.replace(scores_path)
+        ready_path.write_text("ready", encoding="utf-8")
+        return scores
+
+    start = time.time()
+    while not ready_path.exists():
+        if time.time() - start > timeout_sec:
+            raise TimeoutError(
+                f"Timed out waiting for hard scores file after {timeout_sec} seconds"
+            )
+        time.sleep(5)
+
+    loaded = np.load(scores_path)
+    return loaded.astype(np.float32).tolist()
+
+
 def _refresh_hard_scores_epoch(
     *,
     model: nn.Module,
@@ -126,6 +159,12 @@ def _refresh_hard_scores_epoch(
     score_batch_size = int(sampling_cfg.get("score_batch_size", 256))
     if score_batch_size <= 0:
         score_batch_size = 256
+    max_candidates_per_epoch = sampling_cfg.get("max_candidates_per_epoch")
+    if max_candidates_per_epoch is not None:
+        max_candidates_per_epoch = int(max_candidates_per_epoch)
+    clear_cuda_cache_every = sampling_cfg.get("clear_cuda_cache_every")
+    if clear_cuda_cache_every is not None:
+        clear_cuda_cache_every = int(clear_cuda_cache_every)
 
     pos_indices = sampler.get_pos_indices()
     neg_indices = sampler.get_neg_indices()
@@ -139,7 +178,8 @@ def _refresh_hard_scores_epoch(
     model.eval()
 
     total_scored = 0
-    with torch.no_grad():
+    chunk_counter = 0
+    with torch.inference_mode():
         for start in range(0, len(pos_indices), sampler.pos_per_batch):
             pos_batch = pos_indices[start : start + sampler.pos_per_batch]
             if not pos_batch:
@@ -153,8 +193,24 @@ def _refresh_hard_scores_epoch(
             if candidate_count <= 0:
                 continue
 
-            candidate_indices = rng.choices(neg_indices, k=candidate_count)
-            for chunk in _iter_chunks(candidate_indices, score_batch_size):
+            remaining = candidate_count
+            while remaining > 0:
+                if (
+                    max_candidates_per_epoch is not None
+                    and total_scored >= max_candidates_per_epoch
+                ):
+                    break
+
+                step = min(score_batch_size, remaining)
+                if (
+                    max_candidates_per_epoch is not None
+                    and total_scored + step > max_candidates_per_epoch
+                ):
+                    step = max_candidates_per_epoch - total_scored
+                if step <= 0:
+                    break
+
+                chunk = rng.choices(neg_indices, k=step)
                 batch_items = [dataset[idx] for idx in chunk]
                 batch = collate_fn(batch_items)
                 batch = _move_batch_to_device(batch, device)
@@ -169,6 +225,21 @@ def _refresh_hard_scores_epoch(
                 scores = F.softplus(logits).detach().float().cpu().tolist()
                 sampler.update_hard_scores(chunk, scores, ema_alpha=ema_alpha)
                 total_scored += len(chunk)
+                remaining -= len(chunk)
+
+                chunk_counter += 1
+                if (
+                    clear_cuda_cache_every is not None
+                    and device.type == "cuda"
+                    and chunk_counter % clear_cuda_cache_every == 0
+                ):
+                    torch.cuda.empty_cache()
+
+            if (
+                max_candidates_per_epoch is not None
+                and total_scored >= max_candidates_per_epoch
+            ):
+                break
 
     if model_was_training:
         model.train()
@@ -248,6 +319,10 @@ def run_finetune(
         sampling_cfg.get("warmup_epochs", sampling_cfg.get("hard_start_epoch", 2))
     )
     hard_ratio = float(sampling_cfg.get("hard_ratio", 0.7))
+    hard_score_sync = sampling_cfg.get("hard_score_sync")
+    if not hard_score_sync:
+        hard_score_sync = "file" if get_world_size() > 1 else "broadcast"
+    hard_score_sync_timeout = int(sampling_cfg.get("hard_score_sync_timeout_sec", 7200))
 
     # Use monitor_metric from finetune_config (not from DA config)
     monitor_metric = finetune_cfg.get("monitor_metric", "auprc")
@@ -440,12 +515,32 @@ def run_finetune(
                         scores = base_sampler.get_hard_scores()
                     else:
                         scores = [math.nan for _ in range(score_len)]
-                    scores = _broadcast_hard_scores(scores, device)
+
+                    if hard_score_sync == "broadcast":
+                        scores = _broadcast_hard_scores(scores, device)
+                    elif hard_score_sync == "file":
+                        scores = _sync_hard_scores_via_file(
+                            scores=scores,
+                            log_dir=log_dir,
+                            epoch=epoch,
+                            timeout_sec=hard_score_sync_timeout,
+                        )
+                    else:
+                        raise ValueError(
+                            f"Unknown hard_score_sync method: {hard_score_sync}"
+                        )
                     base_sampler.set_hard_scores(scores)
 
+                quantile_low = sampling_cfg.get("hard_score_quantile_low")
+                quantile_high = sampling_cfg.get("hard_score_quantile_high")
+                if quantile_low is not None:
+                    quantile_low = float(quantile_low)
+                if quantile_high is not None:
+                    quantile_high = float(quantile_high)
+
                 pool_stats = base_sampler.refresh_hard_pool(
-                    quantile_low=sampling_cfg.get("hard_score_quantile_low"),
-                    quantile_high=sampling_cfg.get("hard_score_quantile_high"),
+                    quantile_low=quantile_low,
+                    quantile_high=quantile_high,
                 )
                 barrier()
 
