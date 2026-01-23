@@ -159,12 +159,10 @@ def _refresh_hard_scores_epoch(
     score_batch_size = int(sampling_cfg.get("score_batch_size", 256))
     if score_batch_size <= 0:
         score_batch_size = 256
-    max_candidates_per_epoch = sampling_cfg.get("max_candidates_per_epoch")
-    if max_candidates_per_epoch is not None:
-        max_candidates_per_epoch = int(max_candidates_per_epoch)
-    clear_cuda_cache_every = sampling_cfg.get("clear_cuda_cache_every")
-    if clear_cuda_cache_every is not None:
-        clear_cuda_cache_every = int(clear_cuda_cache_every)
+    max_candidates_per_epoch = sampling_cfg.get("max_candidates_per_epoch", 2_000_000)
+    max_candidates_per_epoch = int(max_candidates_per_epoch)
+    clear_cuda_cache_every = sampling_cfg.get("clear_cuda_cache_every", 200)
+    clear_cuda_cache_every = int(clear_cuda_cache_every)
 
     pos_indices = sampler.get_pos_indices()
     neg_indices = sampler.get_neg_indices()
@@ -234,6 +232,7 @@ def _refresh_hard_scores_epoch(
                     and chunk_counter % clear_cuda_cache_every == 0
                 ):
                     torch.cuda.empty_cache()
+                del batch_items, batch, outputs, logits, scores
 
             if (
                 max_candidates_per_epoch is not None
@@ -323,6 +322,10 @@ def run_finetune(
     if not hard_score_sync:
         hard_score_sync = "file" if get_world_size() > 1 else "broadcast"
     hard_score_sync_timeout = int(sampling_cfg.get("hard_score_sync_timeout_sec", 7200))
+    hard_score_quantile_low = float(sampling_cfg.get("hard_score_quantile_low", 0.9))
+    hard_score_quantile_high = float(
+        sampling_cfg.get("hard_score_quantile_high", 0.995)
+    )
 
     # Use monitor_metric from finetune_config (not from DA config)
     monitor_metric = finetune_cfg.get("monitor_metric", "auprc")
@@ -516,31 +519,30 @@ def run_finetune(
                     else:
                         scores = [math.nan for _ in range(score_len)]
 
-                    if hard_score_sync == "broadcast":
-                        scores = _broadcast_hard_scores(scores, device)
-                    elif hard_score_sync == "file":
-                        scores = _sync_hard_scores_via_file(
-                            scores=scores,
-                            log_dir=log_dir,
-                            epoch=epoch,
-                            timeout_sec=hard_score_sync_timeout,
-                        )
-                    else:
-                        raise ValueError(
-                            f"Unknown hard_score_sync method: {hard_score_sync}"
-                        )
+                    try:
+                        if hard_score_sync == "broadcast":
+                            scores = _broadcast_hard_scores(scores, device)
+                        elif hard_score_sync == "file":
+                            scores = _sync_hard_scores_via_file(
+                                scores=scores,
+                                log_dir=log_dir,
+                                epoch=epoch,
+                                timeout_sec=hard_score_sync_timeout,
+                            )
+                        else:
+                            raise ValueError(
+                                f"Unknown hard_score_sync method: {hard_score_sync}"
+                            )
+                    except TimeoutError:
+                        if is_main_process():
+                            logging.warning(
+                                "Hard-score sync timed out; using local scores for this epoch."
+                            )
                     base_sampler.set_hard_scores(scores)
 
-                quantile_low = sampling_cfg.get("hard_score_quantile_low")
-                quantile_high = sampling_cfg.get("hard_score_quantile_high")
-                if quantile_low is not None:
-                    quantile_low = float(quantile_low)
-                if quantile_high is not None:
-                    quantile_high = float(quantile_high)
-
                 pool_stats = base_sampler.refresh_hard_pool(
-                    quantile_low=quantile_low,
-                    quantile_high=quantile_high,
+                    quantile_low=hard_score_quantile_low,
+                    quantile_high=hard_score_quantile_high,
                 )
                 barrier()
 
