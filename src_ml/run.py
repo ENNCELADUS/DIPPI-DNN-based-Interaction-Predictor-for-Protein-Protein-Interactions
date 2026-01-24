@@ -1,5 +1,5 @@
 """
-DIPPI ML Pipeline Orchestrator (run_ml.py)
+DIPPI ML Pipeline Orchestrator (run.py)
 
 Minimal orchestrator for classical ML models (Random Forest, XGBoost).
 Separate from run.py to keep DL and ML pipelines decoupled.
@@ -13,8 +13,8 @@ This module owns:
 - Checkpointing (joblib) and logging
 
 Invocation:
-    python -m src.run_ml configs/ml.yaml
-    python -m src.run_ml configs/ml.yaml --model xgboost
+    python src_ml/run.py src_ml/ml.yaml
+    python src_ml/run.py src_ml/ml.yaml --model xgboost
 """
 
 import json
@@ -38,10 +38,14 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
-from src.model.ml import build_ml_model
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
 from src.utils.config import load_config, extract_keys
-from src.utils.data_io import load_ml_features
 from src.utils.logging import append_row
+
+# Local imports from src_ml
+from model import build_ml_model
+from data import load_ml_features
 
 
 def setup_logging(run_id: str, model_name: str, log_dir: Path) -> None:
@@ -421,8 +425,8 @@ if __name__ == "__main__":
         "config",
         type=str,
         nargs="?",
-        default="configs/ml.yaml",
-        help="Path to config file (default: configs/ml.yaml)",
+        default="src_ml/ml.yaml",
+        help="Path to config file (default: src_ml/ml.yaml)",
     )
     parser.add_argument(
         "--model",

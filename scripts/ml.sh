@@ -15,4 +15,4 @@ cd /public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Pro
 source ~/.bashrc
 conda activate esm
 
-python -m src.run_ml configs/ml.yaml
+python src_ml/run.py src_ml/ml.yaml
