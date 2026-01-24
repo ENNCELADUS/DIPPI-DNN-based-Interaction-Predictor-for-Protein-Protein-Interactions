@@ -167,7 +167,7 @@ finetune_config:
   # Loss
   loss:
     type: "bce_with_logits"
-    pos_weight: 16.0
+    pos_weight: 10.0
     label_smoothing: 0.01
     use_class_weights: true
     l1_lambda: 0.0

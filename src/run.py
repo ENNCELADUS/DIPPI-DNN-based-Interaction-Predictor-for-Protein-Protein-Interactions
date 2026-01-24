@@ -47,6 +47,7 @@ from src.model.v2 import V2
 from src.model.v3 import V3
 from src.model.v4 import V4
 from src.model.v5 import V5
+from src.model.v6 import V6
 from src.model.tuna import TUnA
 from src.stages import run_pretrain, run_finetune, run_evaluation
 
@@ -178,11 +179,13 @@ def build_model(cfg) -> Tuple[nn.Module, int]:
         model = V4(**model_cfg)
     elif model_name == "v5":
         model = V5(**model_cfg)
+    elif model_name == "v6":
+        model = V6(**model_cfg)
     elif model_name == "tuna":
         model = TUnA(**model_cfg)
     else:
         raise ValueError(
-            f"Unknown model: '{model_name}'. Supported models: 'v1', 'v2', 'v3', 'v4', 'v5', 'tuna'"
+            f"Unknown model: '{model_name}'. Supported models: 'v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'tuna'"
         )
 
     return model, count_trainable_parameters(model)

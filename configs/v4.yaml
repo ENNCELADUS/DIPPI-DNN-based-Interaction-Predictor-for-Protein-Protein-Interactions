@@ -52,7 +52,7 @@ model_config:
 
   # MLP head configuration (input_dim = 2*d_model = 768 after product|diff)
   mlp_head:
-    hidden_dims: [256, 64]
+    hidden_dims: [256, 128, 64]
     dropout: 0.25
     activation: "gelu"
     norm: "layernorm"
@@ -173,7 +173,7 @@ finetune_config:
   # Loss
   loss:
     type: "bce_with_logits"
-    pos_weight: 16.0
+    pos_weight: 10.0
     label_smoothing: 0.005
     use_class_weights: true
     l1_lambda: 0.0
