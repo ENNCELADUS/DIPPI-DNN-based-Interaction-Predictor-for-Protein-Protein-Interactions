@@ -8,21 +8,18 @@ This module provides:
 
 Responsibilities:
 - Load protein pairs from CSV (uniprotID_A, uniprotID_B, isInteraction)
-- Fetch pre-computed embeddings from pickle file
-- Apply truncation/padding to max_len
-- Clean CLS/EOS tokens from ESM embeddings
+- Fetch pre-computed embeddings from sharded .npy stores
 - Return batched tensors compatible with model forward pass
 
 Does NOT:
 - Perform data augmentation or transforms
-- Handle model-specific preprocessing beyond truncation/padding
+- Apply truncation/padding or CLS/EOS cleaning (assumed precomputed)
 - Manage distributed training internals (delegates to DistributedSampler)
 """
 
 import json
 import logging
 import math
-import pickle
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
@@ -37,52 +34,6 @@ from src.utils.distributed import get_rank, get_world_size, is_main_process
 # Module-level cache to avoid reloading large embeddings file
 _EMBEDDINGS_CACHE: Optional[Dict[str, Any]] = None
 _EMBEDDINGS_PATH_CACHE: Optional[str] = None
-
-
-class MemmapEmbeddingStore:
-    """
-    Memory-mapped embedding store for large npz files.
-
-    Uses numpy memory-mapping to access embeddings on-demand without
-    loading the entire file into RAM. This is critical for DDP training
-    where each process would otherwise load the full embeddings file.
-    """
-
-    def __init__(self, ids_array: np.ndarray, embeddings_mmap: np.ndarray):
-        """
-        Initialize memory-mapped embedding store.
-
-        Args:
-            ids_array: Array of protein IDs (loaded into memory, small)
-            embeddings_mmap: Memory-mapped embeddings array (stays on disk)
-        """
-        # Build ID -> index mapping (small memory footprint)
-        self._id_to_idx: Dict[str, int] = {}
-        for idx, protein_id in enumerate(ids_array):
-            if isinstance(protein_id, bytes):
-                protein_id = protein_id.decode("utf-8")
-            elif isinstance(protein_id, np.str_):
-                protein_id = str(protein_id)
-            self._id_to_idx[protein_id] = idx
-
-        # Keep reference to memory-mapped array (does NOT load into RAM)
-        self._embeddings = embeddings_mmap
-
-    def __contains__(self, protein_id: str) -> bool:
-        return protein_id in self._id_to_idx
-
-    def __getitem__(self, protein_id: str) -> Dict[str, np.ndarray]:
-        if protein_id not in self._id_to_idx:
-            raise KeyError(f"Protein ID '{protein_id}' not found in embeddings")
-        idx = self._id_to_idx[protein_id]
-        # Access embedding on-demand from memory-mapped array
-        return {"embeddings": self._embeddings[idx]}
-
-    def __len__(self) -> int:
-        return len(self._id_to_idx)
-
-    def keys(self):
-        return self._id_to_idx.keys()
 
 
 class ShardedEmbeddingStore:
@@ -171,20 +122,16 @@ class ShardedEmbeddingStore:
 
 def _load_embeddings(embeddings_path: str) -> Dict[str, Any]:
     """
-    Load embeddings from pickle or npz file with module-level caching.
+    Load embeddings from a sharded embedding directory with module-level caching.
 
     Args:
-        embeddings_path: Path to embeddings file (.pkl, .pickle, .npz) or
-            a directory containing a sharded fixed-length embedding store.
+        embeddings_path: Path to a sharded fixed-length embedding store directory.
 
     Returns:
         Dictionary-like object mapping protein IDs to embedding data
 
     Note:
-        Uses module-level cache to avoid reloading the same file.
-        For large .npz files with structured format (ids + embeddings arrays),
-        uses memory-mapping to avoid loading the entire file into RAM.
-        For sharded stores, uses a manifest + index with per-shard .npy memmaps.
+        Uses module-level cache to avoid reloading the same store.
     """
     global _EMBEDDINGS_CACHE, _EMBEDDINGS_PATH_CACHE
 
@@ -197,125 +144,28 @@ def _load_embeddings(embeddings_path: str) -> Dict[str, Any]:
     if not embeddings_path_obj.exists():
         raise FileNotFoundError(f"Embeddings file not found: {embeddings_path}")
 
-    if embeddings_path_obj.is_dir():
-        manifest_path = embeddings_path_obj / "manifest.json"
-        if manifest_path.exists():
-            embeddings_dict = ShardedEmbeddingStore(embeddings_path_obj)
-            _EMBEDDINGS_CACHE = embeddings_dict
-            _EMBEDDINGS_PATH_CACHE = embeddings_path
-            if is_main_process():
-                logging.info(
-                    "Loaded sharded embeddings from %s (%d proteins, max_len=%d)",
-                    embeddings_path_obj,
-                    len(embeddings_dict),
-                    embeddings_dict.max_len,
-                )
-            return embeddings_dict
-
-    if is_main_process():
-        logging.info(
-            f"Loading embeddings from {embeddings_path} (this may take a while...)"
-        )
-
-    suffix = embeddings_path_obj.suffix.lower()
-    if suffix == ".npz":
-        # First, check the format without memory mapping
-        npz_probe = np.load(embeddings_path, allow_pickle=True)
-        has_structured_format = (
-            "ids" in npz_probe.files and "embeddings" in npz_probe.files
-        )
-        npz_probe.close()
-
-        if has_structured_format:
-            # Use memory-mapped loading for large structured npz files
-            # This keeps the embeddings on disk and loads on-demand
-            npz_data = np.load(embeddings_path, allow_pickle=True, mmap_mode="r")
-            ids_array = np.array(npz_data["ids"])  # Small, load into memory
-            embeddings_mmap = npz_data["embeddings"]  # Large, keep memory-mapped
-
-            embeddings_dict = MemmapEmbeddingStore(ids_array, embeddings_mmap)
-
-            if is_main_process():
-                logging.info(
-                    f"Memory-mapped structured .npz format: {len(embeddings_dict)} proteins "
-                    f"(embeddings stay on disk, loaded on-demand)"
-                )
-        else:
-            # Legacy format: load into memory (typically smaller files)
-            npz_data = np.load(embeddings_path, allow_pickle=True)
-            embeddings_dict = {}
-            for key in npz_data.files:
-                val = npz_data[key]
-                if isinstance(val, dict):
-                    embeddings_dict[key] = val
-                else:
-                    embeddings_dict[key] = {"embeddings": val}
-
-            if is_main_process():
-                logging.info(
-                    f"Loaded legacy .npz format: {len(embeddings_dict)} proteins into memory"
-                )
-    elif suffix in (".pkl", ".pickle"):
-        with open(embeddings_path, "rb") as f:
-            embeddings_dict = pickle.load(f)
-    else:
+    if not embeddings_path_obj.is_dir():
         raise ValueError(
-            f"Unsupported embeddings format: '{suffix}'. "
-            "Supported formats: .npz, .pkl, .pickle"
+            "Embeddings path must be a directory containing sharded embeddings "
+            "(manifest.json, index.npz, shard_*.npy)."
         )
 
-    if is_main_process():
-        logging.info(f"Loaded {len(embeddings_dict)} protein embeddings")
+    manifest_path = embeddings_path_obj / "manifest.json"
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"manifest.json not found in {embeddings_path_obj}")
 
-    # Cache for future use
+    embeddings_dict = ShardedEmbeddingStore(embeddings_path_obj)
     _EMBEDDINGS_CACHE = embeddings_dict
     _EMBEDDINGS_PATH_CACHE = embeddings_path
+    if is_main_process():
+        logging.info(
+            "Loaded sharded embeddings from %s (%d proteins, max_len=%d)",
+            embeddings_path_obj,
+            len(embeddings_dict),
+            embeddings_dict.max_len,
+        )
 
     return embeddings_dict
-
-
-def _clean_tokens(
-    embeddings: torch.Tensor, lengths: torch.Tensor, strip_cls_eos: bool = True
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """
-    Clean protein embeddings by optionally removing CLS/EOS tokens.
-
-    Args:
-        embeddings: (B, L, D) protein embeddings
-        lengths: (B,) sequence lengths (without CLS/EOS if they exist)
-        strip_cls_eos: Whether to remove first/last tokens
-
-    Returns:
-        cleaned_embeddings: (B, L', D) cleaned embeddings
-        effective_lengths: (B,) adjusted lengths
-
-    Example:
-        # Remove CLS/EOS tokens from ESM-3 embeddings
-        clean_emb, clean_len = _clean_tokens(emb, lengths, strip_cls_eos=True)
-        # Keep embeddings as-is
-        clean_emb, clean_len = _clean_tokens(emb, lengths, strip_cls_eos=False)
-    """
-    device = embeddings.device
-    lengths = lengths.to(device)
-
-    if not strip_cls_eos:
-        # No cleaning - clamp lengths to actual embedding size
-        effective_lengths = torch.clamp(lengths, max=embeddings.size(1))
-        return embeddings, effective_lengths
-
-    # Heuristic: if padded length includes +2 over max length, assume CLS/EOS exist
-    has_cls_eos = embeddings.size(1) >= (lengths.max().item() + 2)
-
-    if has_cls_eos and embeddings.size(1) > 2:
-        # Remove first and last tokens (CLS and EOS)
-        cleaned = embeddings[:, 1:-1, :]
-        effective_lengths = lengths
-    else:
-        # Use as-is but clamp lengths to actual size
-        cleaned = embeddings
-        effective_lengths = torch.clamp(lengths, max=embeddings.size(1))
-
-    return cleaned, effective_lengths
 
 
 def _collate_protein_pairs(batch: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
@@ -419,13 +269,13 @@ class ProteinPairDataset(Dataset):
     PyTorch Dataset for protein-protein interaction pairs.
 
     Loads protein pair metadata from CSV and fetches pre-computed embeddings
-    from a pickle file. Applies truncation/padding to max_len.
+    from sharded numpy stores. Embeddings are assumed pre-cleaned and fixed-length.
 
     CSV format:
         uniprotID_A,uniprotID_B,isInteraction
 
     Embeddings dict format:
-        {protein_id: {"embeddings": np.ndarray[1, L, D], ...}, ...}
+        {protein_id: {"embeddings": np.ndarray[max_len, D], "length": int, "_fixed_len": True}, ...}
     """
 
     def __init__(
@@ -434,7 +284,6 @@ class ProteinPairDataset(Dataset):
         embeddings_dict: Dict[str, Any],
         max_len: int,
         dtype: str,
-        strip_cls_eos: bool = True,
     ):
         """
         Initialize dataset.
@@ -442,15 +291,13 @@ class ProteinPairDataset(Dataset):
         Args:
             csv_path: Path to CSV with protein pairs
             embeddings_dict: Pre-loaded embeddings dictionary
-            max_len: Maximum sequence length (truncate/pad to this)
+            max_len: Expected fixed sequence length for embeddings
             dtype: Embedding dtype string ("bf16", "fp32", "fp16")
-            strip_cls_eos: Whether to remove CLS/EOS tokens from embeddings
         """
         super().__init__()
 
         self.embeddings_dict = embeddings_dict
         self.max_len = max_len
-        self.strip_cls_eos = strip_cls_eos
 
         # Map dtype string to torch dtype
         self.dtype_map = {
@@ -518,14 +365,14 @@ class ProteinPairDataset(Dataset):
 
     def _process_embedding(self, protein_id: str) -> tuple[torch.Tensor, int]:
         """
-        Load and process single protein embedding.
+        Load a single protein embedding.
 
         Args:
             protein_id: UniProt ID
 
         Returns:
-            embedding: Tensor[max_len, D] (truncated/padded)
-            actual_length: Original sequence length (before padding)
+            embedding: Tensor[max_len, D] (fixed-length)
+            actual_length: Original sequence length (from index)
 
         Raises:
             KeyError: If protein_id is not found in embeddings_dict
@@ -542,7 +389,7 @@ class ProteinPairDataset(Dataset):
 
         protein_data = self.embeddings_dict[protein_id]
 
-        # Fast path: fixed-length preprocessed embeddings with stored lengths.
+        # Sharded embeddings: fixed-length with stored lengths.
         if isinstance(protein_data, dict) and protein_data.get("_fixed_len"):
             embedding = protein_data["embeddings"]
             actual_length = int(protein_data.get("length", self.max_len))
@@ -554,70 +401,19 @@ class ProteinPairDataset(Dataset):
             if embedding.dim() == 3:
                 embedding = embedding.squeeze(0)
 
+            if embedding.size(0) != self.max_len:
+                raise ValueError(
+                    f"Embedding length {embedding.size(0)} does not match expected "
+                    f"max_len {self.max_len}. Regenerate sharded embeddings or "
+                    "update config to match."
+                )
+
             embedding = embedding.to(dtype=self.torch_dtype)
-            if actual_length > self.max_len:
-                actual_length = self.max_len
             return embedding, actual_length
-        # Handle both nested dict format {"embeddings": ...} and direct array format
-        if isinstance(protein_data, dict) and "embeddings" in protein_data:
-            embedding = protein_data["embeddings"]  # Shape: (1, L, D) or (L, D)
-        elif isinstance(protein_data, (np.ndarray, torch.Tensor)):
-            # Direct array format
-            embedding = protein_data
-        else:
-            raise ValueError(
-                f"Unexpected embedding format for protein '{protein_id}'. "
-                f"Expected dict with 'embeddings' key or array, got {type(protein_data)}"
-            )
-
-        # Convert to torch and ensure 3D: (1, L, D)
-        if isinstance(embedding, np.ndarray):
-            # Handle object dtype arrays (from variable-length npz storage)
-            if embedding.dtype == object:
-                embedding = np.array(embedding, dtype=np.float32)
-            embedding = torch.from_numpy(embedding.astype(np.float32))
-
-        if embedding.dim() == 2:
-            embedding = embedding.unsqueeze(0)  # (L, D) -> (1, L, D)
-
-        # Centralized CLS/EOS handling via _clean_tokens
-        length_before = embedding.size(1)
-        lengths_tensor = torch.tensor(
-            [
-                length_before - 2
-                if (self.strip_cls_eos and length_before > 2)
-                else length_before
-            ],
-            dtype=torch.long,
-            device=embedding.device,
+        raise ValueError(
+            f"Unexpected embedding format for protein '{protein_id}'. "
+            "Expected sharded embeddings with _fixed_len metadata."
         )
-        cleaned, effective_lengths = _clean_tokens(
-            embedding, lengths_tensor, strip_cls_eos=self.strip_cls_eos
-        )
-        embedding = cleaned
-
-        # Squeeze batch dimension: (1, L, D) -> (L, D)
-        embedding = embedding.squeeze(0)
-        actual_length = int(effective_lengths.item())
-
-        # Truncate if necessary
-        if actual_length > self.max_len:
-            embedding = embedding[: self.max_len, :]
-            actual_length = self.max_len
-
-        # Pad if necessary
-        if actual_length < self.max_len:
-            padding = torch.zeros(
-                self.max_len - actual_length,
-                embedding.size(1),
-                dtype=embedding.dtype,
-            )
-            embedding = torch.cat([embedding, padding], dim=0)
-
-        # Convert to target dtype
-        embedding = embedding.to(dtype=self.torch_dtype)
-
-        return embedding, actual_length
 
     def __getitem__(self, idx: int) -> Dict[str, Any]:
         """
@@ -630,8 +426,8 @@ class ProteinPairDataset(Dataset):
             Dictionary with keys:
                 - emb_a: Tensor[max_len, D]
                 - emb_b: Tensor[max_len, D]
-                - len_a: int (actual length before padding)
-                - len_b: int (actual length before padding)
+                - len_a: int (actual sequence length)
+                - len_b: int (actual sequence length)
                 - label: float (0.0 or 1.0)
         """
         row = self.df.iloc[idx]
@@ -663,7 +459,6 @@ def build_loader(
     shuffle: bool = True,
     num_workers: Optional[int] = None,
     pin_memory: Optional[bool] = None,
-    strip_cls_eos: bool = True,
     sampling_cfg: Optional[Dict[str, Any]] = None,
     dataloader_cfg: Optional[Dict[str, Any]] = None,
 ) -> DataLoader:
@@ -674,15 +469,14 @@ def build_loader(
 
     Args:
         csv_path: Path to CSV with protein pairs
-        embeddings_path: Path to embeddings file or sharded embeddings directory
+        embeddings_path: Path to sharded embeddings directory
         batch_size: Batch size
-        max_len: Maximum sequence length (truncate/pad to this)
+        max_len: Expected fixed sequence length for embeddings
         dtype: Embedding dtype string ("bf16", "fp32", "fp16")
         ddp: Whether DDP is enabled (will use DistributedSampler)
         shuffle: Whether to shuffle data (ignored if ddp=True; sampler handles it)
-        num_workers: Optional override for dataloader workers (backward compat)
-        pin_memory: Optional override for pin_memory (backward compat)
-        strip_cls_eos: Whether to remove CLS/EOS tokens from embeddings
+        num_workers: Optional override for dataloader workers
+        pin_memory: Optional override for pin_memory
         sampling_cfg: Optional sampling configuration (e.g., {"strategy": "imbalanced", "pos_neg_ratio": 8})
         dataloader_cfg: Optional dataloader configuration dict:
             {
@@ -699,7 +493,7 @@ def build_loader(
     Example:
         train_loader = build_loader(
             csv_path="data/splits/train.csv",
-            embeddings_path="data/embeddings.pkl",
+            embeddings_path="data/embeddings_shards",
             batch_size=32,
             max_len=1024,
             dtype="bf16",
@@ -716,10 +510,9 @@ def build_loader(
         embeddings_dict=embeddings_dict,
         max_len=max_len,
         dtype=dtype,
-        strip_cls_eos=strip_cls_eos,
     )
 
-    # Dataloader settings (defaults keep backward compatibility)
+    # Dataloader settings
     dl_cfg = dataloader_cfg.copy() if dataloader_cfg else {}
     if num_workers is not None:
         dl_cfg["num_workers"] = num_workers

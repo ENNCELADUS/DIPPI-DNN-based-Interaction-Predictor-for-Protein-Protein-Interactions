@@ -77,30 +77,6 @@ def run_evaluation(
         f"Loaded checkpoint from: {load_checkpoint_path} "
         f"(epoch {ckpt_metadata.get('epoch', 'unknown')})"
     )
-    ckpt_extra = ckpt_metadata.get("extra", {}) or {}
-    da_bias = ckpt_extra.get("da_bias")
-    da_threshold = ckpt_extra.get("da_threshold")
-    da_available = da_bias is not None and da_threshold is not None
-    apply_da = bool(eval_cfg.get("apply_distribution_alignment", True))
-    use_da = da_available and apply_da
-
-    if not apply_da:
-        if da_available:
-            logging.info(
-                "Distribution alignment disabled by config; "
-                "ignoring checkpoint parameters (bias=%.4f, threshold=%.4f)",
-                da_bias,
-                da_threshold,
-            )
-        else:
-            logging.info("Distribution alignment disabled by config; using raw logits")
-    elif use_da:
-        logging.info(
-            "Applying distribution alignment parameters from checkpoint: "
-            f"bias={da_bias:.4f}, threshold={da_threshold:.4f}"
-        )
-    else:
-        logging.info("No DA parameters found in checkpoint; using raw logits")
 
     # Build test loaders
     data_cfg = cfg["data_config"]
@@ -172,8 +148,6 @@ def run_evaluation(
                         model,
                         test_loader,
                         device,
-                        logit_bias=da_bias if use_da else 0.0,
-                        threshold_override=da_threshold if use_da else None,
                     ):
                         # Check if this is the final evaluation summary
                         if batch_metrics.get("_evaluation_end", False):
@@ -197,8 +171,6 @@ def run_evaluation(
                     model,
                     test_loader,
                     device,
-                    logit_bias=da_bias if use_da else 0.0,
-                    threshold_override=da_threshold if use_da else None,
                 ):
                     # Check if this is the final evaluation summary
                     if batch_metrics.get("_evaluation_end", False):

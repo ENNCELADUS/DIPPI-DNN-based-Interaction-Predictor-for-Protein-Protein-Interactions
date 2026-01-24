@@ -135,8 +135,6 @@ class Evaluator:
         model: nn.Module,
         loader: torch.utils.data.DataLoader,
         device: torch.device,
-        logit_bias: float = 0.0,
-        threshold_override: Optional[float] = None,
     ) -> Dict[str, float]:
         """
         Run a single evaluation pass over the dataloader, yielding per-batch progress.
@@ -147,9 +145,6 @@ class Evaluator:
             model: The model to evaluate (already in eval mode).
             loader: DataLoader yielding batches.
             device: Device to run on (cuda/cpu).
-            logit_bias: Optional bias to add to logits (for distribution alignment).
-            threshold_override: Optional threshold override for binary predictions.
-
         Yields:
             Per-batch dict with keys: batch_idx, batch_size, loss
             Final dict with aggregated metrics and _evaluation_end=True
@@ -167,7 +162,7 @@ class Evaluator:
         # Loss accumulation
         loss_sum = 0.0
         n_total = 0
-        threshold = self.threshold if threshold_override is None else threshold_override
+        threshold = self.threshold
 
         for batch_idx, batch in enumerate(loader):
             # Move batch tensors to device
@@ -209,9 +204,6 @@ class Evaluator:
 
             # Normalize logits shape: handle (N, 1) or (N, 2) → (N,)
             logits = self._normalize_logits(logits)
-            if logit_bias:
-                logits = logits + float(logit_bias)
-
             # Convert logits to probabilities for metrics
             probs = torch.sigmoid(logits)
 

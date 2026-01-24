@@ -43,10 +43,6 @@ data_config:
     sampling:                       # Optional; remove if using natural ratio
       strategy: "imbalanced"
       pos_neg_ratio: 10.0
-    distribution_alignment:         # Optional test-time DA search during finetune
-      target_prior: 0.10
-      threshold_search_metric: "auprc"
-      search_steps: 200
 
   evaluate:
     test_balanced: "data/TMP/processed/test.csv"
@@ -152,4 +148,3 @@ finetune_config:
 evaluate:
   metrics: ["auroc", "auprc", "f1", "precision", "recall", "accuracy", "mcc"]
   classification_threshold: 0.5
-  apply_distribution_alignment: false   # If true and checkpoint has DA params, apply them

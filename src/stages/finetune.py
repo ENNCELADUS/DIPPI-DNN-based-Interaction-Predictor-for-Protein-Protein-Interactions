@@ -31,7 +31,6 @@ from torch.utils.data import DataLoader
 
 from src.train.base import Trainer
 from src.train.strategies import StagedUnfreeze
-from src.finetune.distribution_alignment import DistributionAligner
 from src.evaluate.base import Evaluator
 from src.utils.checkpoint import load_checkpoint, save_checkpoint, maybe_save_best
 from src.utils.early_stop import check_early_stop
@@ -327,14 +326,10 @@ def run_finetune(
         sampling_cfg.get("hard_score_quantile_high", 0.995)
     )
 
-    # Use monitor_metric from finetune_config (not from DA config)
+    # Use monitor_metric from finetune_config
     monitor_metric = finetune_cfg.get("monitor_metric", "auprc")
     patience = finetune_cfg["early_stopping_patience"]
     save_best_only = cfg["run_config"]["save_best_only"]
-
-    # Check if DA is configured (optional section in data_config.finetune)
-    da_cfg = data_cfg.get("finetune", {}).get("distribution_alignment", None)
-    use_da = da_cfg is not None
 
     if is_main_process():
         logging.info(f"Starting finetune for {num_epochs} epochs")
@@ -402,72 +397,33 @@ def run_finetune(
         if is_main_process():
             logging.info(f"Trainable parameters: {num_trainable:,}")
 
-    # Optionally instantiate DistributionAligner or Evaluator based on config
-    aligner = None
-    evaluator = None
-    if use_da:
-        da_search_metric = da_cfg.get("threshold_search_metric", monitor_metric)
-        aligner = DistributionAligner(
-            target_prior=da_cfg.get("target_prior", 0.5),
-            search_metric=da_search_metric,
-            search_steps=da_cfg.get("search_steps", 100),
-        )
-        if is_main_process():
-            logging.info(
-                "Distribution Alignment enabled: "
-                f"target_prior={da_cfg.get('target_prior', 0.5)}, "
-                f"search_metric={da_search_metric}"
-            )
-    else:
-        # No DA configured: use standard Evaluator (same as pretrain validation)
-        # Include primary and secondary metrics to align CSV with pretrain
-        primary_metric = finetune_cfg["logging_metrics"]["primary"]
-        secondary_metric = finetune_cfg["logging_metrics"]["secondary"]
-        eval_metrics = list(
-            set([monitor_metric, primary_metric, secondary_metric, "loss"])
-        )
-        evaluator = Evaluator(
-            metrics_list=eval_metrics,
-            threshold=0.5,
-        )
-        if is_main_process():
-            logging.info(
-                f"No DA configured; using standard validation with monitor_metric={monitor_metric}"
-            )
-
     primary = finetune_cfg["logging_metrics"]["primary"]
     secondary = finetune_cfg["logging_metrics"]["secondary"]
+
+    # Standard Evaluator (same as pretrain validation)
+    eval_metrics = list(set([monitor_metric, primary, secondary, "loss"]))
+    evaluator = Evaluator(
+        metrics_list=eval_metrics,
+        threshold=0.5,
+    )
+    if is_main_process():
+        logging.info(f"Using standard validation with monitor_metric={monitor_metric}")
 
     # Early stopping: track metric history for check_early_stop
     monitor_mode = "max"
     metric_history = []
 
-    # Setup CSV path and columns for logging (adapt based on DA mode)
+    # Setup CSV path and columns for logging
     csv_path = log_dir / "training_step.csv"
-    if use_da:
-        columns = [
-            "Epoch",
-            "Epoch Time",
-            "Train Loss",
-            "Val Loss",
-            f"Val {primary}",
-            f"Val {secondary}",
-            "DA Bias",
-            "DA Threshold",
-            "Predicted Prior",
-            "Calibrated Prior",
-            "Learning Rate",
-        ]
-    else:
-        columns = [
-            "Epoch",
-            "Epoch Time",
-            "Train Loss",
-            "Val Loss",
-            f"Val {primary}",
-            f"Val {secondary}",
-            "Learning Rate",
-        ]
+    columns = [
+        "Epoch",
+        "Epoch Time",
+        "Train Loss",
+        "Val Loss",
+        f"Val {primary}",
+        f"Val {secondary}",
+        "Learning Rate",
+    ]
 
     # Training loop
     best_metric = float("-inf")
@@ -582,128 +538,57 @@ def run_finetune(
         if train_metrics is None:
             raise RuntimeError("Trainer did not yield epoch summary")
 
-        # Validation: branch based on DA mode
+        # Validation
         model.eval()
+        val_metrics = None
         val_loss = 0.0
         current_metric = 0.0
         extra_payload = {}  # Checkpoint payload
-
-        if use_da:
-            # DA validation path
-            with torch.no_grad():
-                da_result = aligner.calibrate_and_search(
-                    model, val_loader, device, amp_dtype=amp_dtype
-                )
-
-            da_metrics = da_result["metrics"]
-            if monitor_metric not in da_metrics:
-                raise KeyError(
-                    f"Monitor metric '{monitor_metric}' not found in DA metrics: {da_metrics.keys()}"
-                )
-            current_metric = da_metrics[monitor_metric]
-            val_loss = da_result["loss"]
-
-            # Compute epoch time
-            epoch_time = (datetime.now() - epoch_start_time).total_seconds()
-
-            # Log DA validation results
-            if is_main_process():
-                logging.info(
-                    f"Epoch {epoch}: avg_loss={train_metrics['loss']:.6f}, "
-                    f"lr={train_metrics['lr']:.2e}"
-                )
-                logging.info(
-                    "DA validation: loss=%.6f, bias=%.4f, threshold=%.4f, "
-                    "pred_prior=%.4f, cal_prior=%.4f",
-                    da_result["loss"],
-                    da_result["bias"],
-                    da_result["threshold"],
-                    da_result["predicted_prior"],
-                    da_result["calibrated_prior"],
-                )
-                logging.info(
-                    f"DA metrics: {monitor_metric}={current_metric:.6f}, "
-                    f"{primary}={da_metrics.get(primary, 0.0):.6f}, "
-                    f"{secondary}={da_metrics.get(secondary, 0.0):.6f}"
-                )
-
-            # Append to CSV (DA columns)
-            row = {
-                "Epoch": epoch,
-                "Epoch Time": epoch_time,
-                "Train Loss": train_metrics["loss"],
-                "Val Loss": da_result["loss"],
-                f"Val {primary}": da_metrics.get(primary, 0.0),
-                f"Val {secondary}": da_metrics.get(secondary, 0.0),
-                "DA Bias": da_result["bias"],
-                "DA Threshold": da_result["threshold"],
-                "Predicted Prior": da_result["predicted_prior"],
-                "Calibrated Prior": da_result["calibrated_prior"],
-                "Learning Rate": train_metrics["lr"],
-            }
-
-            # DA checkpoint payload
-            extra_payload = {
-                "da_bias": da_result["bias"],
-                "da_threshold": da_result["threshold"],
-                "da_metrics": da_metrics,
-                "predicted_prior": da_result["predicted_prior"],
-                "calibrated_prior": da_result["calibrated_prior"],
-            }
-
-        else:
-            # Raw validation path (no DA)
-            val_metrics = None
-            with torch.no_grad():
-                if amp_dtype is not None:
-                    with torch.amp.autocast(device_type=device.type, dtype=amp_dtype):
-                        for batch_metrics in evaluator.evaluate(
-                            model, val_loader, device
-                        ):
-                            if batch_metrics.get("_evaluation_end", False):
-                                val_metrics = batch_metrics
-                                break
-                else:
+        with torch.no_grad():
+            if amp_dtype is not None:
+                with torch.amp.autocast(device_type=device.type, dtype=amp_dtype):
                     for batch_metrics in evaluator.evaluate(model, val_loader, device):
                         if batch_metrics.get("_evaluation_end", False):
                             val_metrics = batch_metrics
                             break
+            else:
+                for batch_metrics in evaluator.evaluate(model, val_loader, device):
+                    if batch_metrics.get("_evaluation_end", False):
+                        val_metrics = batch_metrics
+                        break
 
-            if val_metrics is None:
-                raise RuntimeError("Evaluator did not yield evaluation summary")
+        if val_metrics is None:
+            raise RuntimeError("Evaluator did not yield evaluation summary")
 
-            val_metrics.pop("_evaluation_end", None)
-            val_loss = val_metrics.get("loss", 0.0)
-            current_metric = val_metrics.get(monitor_metric, 0.0)
+        val_metrics.pop("_evaluation_end", None)
+        val_loss = val_metrics.get("loss", 0.0)
+        current_metric = val_metrics.get(monitor_metric, 0.0)
 
-            # Compute epoch time
-            epoch_time = (datetime.now() - epoch_start_time).total_seconds()
+        # Compute epoch time
+        epoch_time = (datetime.now() - epoch_start_time).total_seconds()
 
-            # Log raw validation results
-            if is_main_process():
-                logging.info(
-                    f"Epoch {epoch}: avg_loss={train_metrics['loss']:.6f}, "
-                    f"lr={train_metrics['lr']:.2e}"
-                )
-                logging.info(
-                    f"Validation: loss={val_loss:.6f}, "
-                    f"{primary}={val_metrics.get(primary, 0.0):.6f}, "
-                    f"{secondary}={val_metrics.get(secondary, 0.0):.6f}"
-                )
+        # Log validation results
+        if is_main_process():
+            logging.info(
+                f"Epoch {epoch}: avg_loss={train_metrics['loss']:.6f}, "
+                f"lr={train_metrics['lr']:.2e}"
+            )
+            logging.info(
+                f"Validation: loss={val_loss:.6f}, "
+                f"{primary}={val_metrics.get(primary, 0.0):.6f}, "
+                f"{secondary}={val_metrics.get(secondary, 0.0):.6f}"
+            )
 
-            # Append to CSV (standard columns, aligned with pretrain)
-            row = {
-                "Epoch": epoch,
-                "Epoch Time": epoch_time,
-                "Train Loss": train_metrics["loss"],
-                "Val Loss": val_loss,
-                f"Val {primary}": val_metrics.get(primary, 0.0),
-                f"Val {secondary}": val_metrics.get(secondary, 0.0),
-                "Learning Rate": train_metrics["lr"],
-            }
-
-            # No DA payload for raw validation
-            extra_payload = {}
+        # Append to CSV (standard columns, aligned with pretrain)
+        row = {
+            "Epoch": epoch,
+            "Epoch Time": epoch_time,
+            "Train Loss": train_metrics["loss"],
+            "Val Loss": val_loss,
+            f"Val {primary}": val_metrics.get(primary, 0.0),
+            f"Val {secondary}": val_metrics.get(secondary, 0.0),
+            "Learning Rate": train_metrics["lr"],
+        }
 
         model.train()
 

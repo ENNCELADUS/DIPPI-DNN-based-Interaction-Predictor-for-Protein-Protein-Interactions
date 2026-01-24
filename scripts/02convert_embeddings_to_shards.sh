@@ -19,7 +19,7 @@ MAX_LEN=${2:-768}
 DTYPE=${3:-fp16}
 SHARD_SIZE=${4:-5000}
 
-python scripts/convert_embeddings_to_shards.py \
+python src/data_preprocess/convert_embeddings_to_shards.py \
   --input "$INPUT" \
   --inplace \
   --max-len "$MAX_LEN" \
