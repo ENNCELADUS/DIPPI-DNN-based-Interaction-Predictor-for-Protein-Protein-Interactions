@@ -14,15 +14,15 @@
 
 set -euo pipefail
 
-# cd /public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions
-# source ~/.bashrc
-# conda activate esm
+cd /public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions
+source ~/.bashrc
+conda activate esm
 
-# # Automatically detect number of GPUs from SLURM allocation
-# NGPUS=$(nvidia-smi -L | wc -l)
-# echo "Detected $NGPUS GPUs"
+# Automatically detect number of GPUs from SLURM allocation
+NGPUS=$(nvidia-smi -L | wc -l)
+echo "Detected $NGPUS GPUs"
 
-# export PYTHONPATH="$PWD:${PYTHONPATH:-}"
-# export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
+export PYTHONPATH="$PWD:${PYTHONPATH:-}"
+export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 
 torchrun --standalone --nproc_per_node=$NGPUS -m src.run tests/e2e/config/test.yaml

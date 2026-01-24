@@ -35,7 +35,7 @@ data_config:
     sampling:
       strategy: "staged_hard"
       pos_neg_ratio: 16.0
-      warmup_epochs: 2
+      warmup_epochs: 1
       hard_ratio: 0.7
       hard_score_col: "hard_score"
       online_mining: true
@@ -51,18 +51,14 @@ data_config:
     test_balanced: "data/TMP/processed/test.csv"
 
 model_config:
-  model: "v5"
+  model: "v4"
   input_dim: 1536
   d_model: 32
   encoder_layers: 1
   cross_attn_layers: 1
   n_heads: 2
 
-  # Contact map modeling parameters
-  pair_dim: 16
-  cnn_dim: 16
-
-  # MLP head configuration (input is cnn_dim after global max pool)
+  # MLP head configuration (input_dim = 2*d_model after product|diff)
   mlp_head:
     hidden_dims: [16]
     dropout: 0.25
@@ -160,12 +156,8 @@ finetune_config:
         pattern: "output_head."
         lr: 0.000020
         weight_decay: 0.01
-      - name: "contact_cnn"
-        pattern: "contact_cnn."
-        lr: 0.000010
-        weight_decay: 0.02
-      - name: "map_builder"
-        pattern: "map_builder."
+      - name: "pool"
+        pattern: "pool_"
         lr: 0.000010
         weight_decay: 0.02
       - name: "cross_attention"
