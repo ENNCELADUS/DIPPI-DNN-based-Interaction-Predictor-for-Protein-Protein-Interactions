@@ -1,9 +1,8 @@
 # V6 Config - ESM3 backbone + LoRA + cross-attention head
 
 run_config:
-  mode: "full_pipeline"  # full_pipeline | finetune_from_pretrain | eval_only
+  mode: "train_and_eval"  # train_and_eval | eval_only
   seed: 47
-  pretrain_run_id: null   # Auto-timestamp if null
   finetune_run_id: null   # Auto-timestamp if null
   eval_run_id: null       # Auto-timestamp if null
   load_checkpoint_path: null
@@ -29,16 +28,13 @@ data_config:
     pin_memory: false
     drop_last: false
 
-  pretrain:
-    train_csv: "data/TMP/processed/pretrain_train_balanced.csv"
-    valid_csv: "data/TMP/processed/pretrain_val_balanced.csv"
   finetune:
     train_csv: "data/TMP/processed/finetune_train.csv"
     valid_csv: "data/TMP/processed/finetune_val.csv"
     sampling:
       strategy: "staged_hard"
       pos_neg_ratio: 10.0
-      warmup_epochs: 2
+      warmup_epochs: 5
       hard_ratio: 0.5
   evaluate:
     test_balanced: "data/TMP/processed/test.csv"
@@ -69,43 +65,6 @@ model_config:
     dropout: 0.10
     cross_attention_dropout: 0.10
     projection_dropout: 0.05
-
-pretrain_config:
-  epochs: 40
-  batch_size: 16
-
-  log_every_n_batches: 50
-  logging_metrics:
-    primary: auprc
-    secondary: auroc
-
-  use_mixed_precision: true
-
-  early_stopping_patience: 5
-  monitor_metric: "loss"
-
-  scheduler:
-    type: "onecycle"
-    max_lr: 0.00005
-    pct_start: 0.20
-    div_factor: 25
-    final_div_factor: 10000
-    anneal_strategy: "cos"
-
-  optimizer:
-    type: "adamw"
-    lr: 0.00005
-    beta1: 0.9
-    beta2: 0.999
-    eps: 1.0e-8
-    weight_decay: 0.015
-
-  loss:
-    type: "bce_with_logits"
-    pos_weight: 1.0
-    label_smoothing: 0.02
-    use_class_weights: true
-    l1_lambda: 0.0
 
 finetune_config:
   strategy:

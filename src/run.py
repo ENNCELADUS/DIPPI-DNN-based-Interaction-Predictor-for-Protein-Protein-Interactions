@@ -303,10 +303,10 @@ def main(config_path: str) -> None:
     _run_pretrain_stage = mode in ["pretrain_only", "full_pipeline"]
     _run_finetune_stage = mode in [
         "finetune_from_pretrain",
-        "test_model",
+        "train_and_eval",
         "full_pipeline",
     ]
-    _run_eval_stage = mode in ["test_model", "eval_only"]
+    _run_eval_stage = mode in ["train_and_eval", "eval_only"]
 
     # ============================================================
     # 3. Device & DDP setup
@@ -454,12 +454,12 @@ def main(config_path: str) -> None:
             load_checkpoint_path=checkpoint_path,
         )
 
-    elif mode == "test_model":
+    elif mode == "train_and_eval":
         # Finetune from scratch, then evaluate using best finetune checkpoint.
         checkpoint_path = run_cfg.get("load_checkpoint_path")
         if checkpoint_path:
             logging.info(
-                "test_model mode ignores load_checkpoint_path; training from scratch"
+                "train_and_eval mode ignores load_checkpoint_path; training from scratch"
             )
 
         log_dir, checkpoint_dir = create_run_directories(
@@ -483,7 +483,7 @@ def main(config_path: str) -> None:
 
         finetune_best_checkpoint = checkpoint_dir / "best_model.pth"
         logging.info(
-            "test_model: will load %s for evaluation",
+            "train_and_eval: will load %s for evaluation",
             finetune_best_checkpoint,
         )
 
