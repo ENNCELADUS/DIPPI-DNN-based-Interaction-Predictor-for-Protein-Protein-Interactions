@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from src.utils.samplers import ImbalancedBatchSampler
+from src.utils.samplers import ImbalancedBatchSampler, OnlineHardNegativeBatchSampler
 
 
 class TestImbalancedBatchSampler:
@@ -103,3 +103,50 @@ class TestImbalancedBatchSampler:
 
         with pytest.raises(ValueError, match="requires at least one negative"):
             ImbalancedBatchSampler(labels=[1, 1, 1], batch_size=8)
+
+
+class TestOnlineHardNegativeBatchSampler:
+    """Tests for OnlineHardNegativeBatchSampler."""
+
+    def test_ohem_roles_and_counts(self):
+        labels = [1] * 10 + [0] * 50
+        sampler = OnlineHardNegativeBatchSampler(
+            labels=labels,
+            batch_size=8,
+            pos_neg_ratio=3.0,
+            warmup_epochs=0,
+            hard_ratio=0.5,
+            shuffle=False,
+            seed=123,
+        )
+
+        batch = next(iter(sampler))
+        assert all(isinstance(item, tuple) for item in batch)
+
+        roles = [item[1] for item in batch]
+        hard_counts = {item[2] for item in batch}
+        assert len(hard_counts) == 1
+
+        pos_count = roles.count("pos")
+        cand_count = roles.count("neg_candidate")
+        def_count = roles.count("neg_default")
+
+        assert pos_count == sampler.pos_per_batch
+        assert cand_count == 3 * int(round(sampler.neg_per_batch * 0.5))
+        expected_hard = int(round(sampler.neg_per_batch * 0.5))
+        assert def_count == sampler.neg_per_batch - expected_hard
+
+    def test_warmup_uses_standard_indices(self):
+        labels = [1] * 6 + [0] * 24
+        sampler = OnlineHardNegativeBatchSampler(
+            labels=labels,
+            batch_size=8,
+            pos_neg_ratio=3.0,
+            warmup_epochs=1,
+            hard_ratio=0.7,
+            shuffle=False,
+            seed=1,
+        )
+
+        batch = next(iter(sampler))
+        assert all(isinstance(item, int) for item in batch)

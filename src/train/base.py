@@ -12,6 +12,7 @@ Those are owned by the stage runners in src/stages/.
 
 from __future__ import annotations
 
+import contextlib
 import copy
 import logging
 import math
@@ -19,6 +20,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.cuda.amp import GradScaler
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import (
@@ -65,13 +67,20 @@ class Trainer:
             if self.amp_dtype_str in {"fp16", "float16", "half"}
             else torch.bfloat16
         )
-        # Disable AMP on non-CUDA devices
+        # On non-CUDA devices, keep AMP enabled but prefer bf16 over fp16.
         if self.use_amp and device.type != "cuda":
-            logger.warning("AMP requested on non-CUDA device; disabling AMP.")
-            self.use_amp = False
-        self.scaler: Optional[GradScaler] = (
-            GradScaler() if self.use_amp and self.amp_dtype == torch.float16 else None
-        )
+            if self.amp_dtype == torch.float16:
+                logger.warning(
+                    "AMP fp16 requested on non-CUDA device; switching to bf16."
+                )
+                self.amp_dtype = torch.bfloat16
+        if self.use_amp:
+            if hasattr(torch, "amp") and hasattr(torch.amp, "GradScaler"):
+                self.scaler = torch.amp.GradScaler(self.device.type)
+            else:
+                self.scaler = GradScaler()
+        else:
+            self.scaler = None
 
         self.optimizer = self._build_optimizer()
         self.scheduler, self._scheduler_step_per_batch = self._build_scheduler()
@@ -274,21 +283,43 @@ class Trainer:
     # ------------------------------------------------------------------ #
     def train_one_epoch(self, loader: Iterable[Dict[str, Any]]) -> Dict[str, float]:
         """
+        Train for one epoch and return aggregated metrics.
+
+        Returns:
+            Dict with keys: loss (avg), lr
+        """
+        final_metrics = None
+        for batch_metrics in self.train_one_epoch_iter(loader):
+            if batch_metrics.get("_epoch_end", False):
+                final_metrics = batch_metrics
+                break
+
+        if final_metrics is None:
+            raise RuntimeError("Trainer did not yield epoch summary")
+
+        final_metrics = dict(final_metrics)
+        final_metrics.pop("_epoch_end", None)
+        return final_metrics
+
+    def train_one_epoch_iter(
+        self, loader: Iterable[Dict[str, Any]]
+    ) -> Iterable[Dict[str, Any]]:
+        """
         Train for one epoch, yielding per-batch metrics.
 
         Yields:
             Per-batch dict with keys: batch_idx, loss, lr, batch_size
             Final dict with keys: loss (avg), lr, _epoch_end=True
-
-        Returns:
-            Dict with aggregated metrics (for backward compatibility if not consumed as generator)
         """
         self.model.train()
         total_loss = 0.0
         total_batches = 0
 
         for batch_idx, batch in enumerate(loader):
-            batch = self._move_batch_to_device(batch)
+            if self._is_ohem_batch(batch):
+                batch = self._prepare_ohem_batch(batch)
+            else:
+                batch = self._move_batch_to_device(batch)
 
             if self.use_amp:
                 with self._autocast():
@@ -346,7 +377,6 @@ class Trainer:
         # Yield final aggregated metrics with sentinel
         final_metrics = {"loss": avg_loss, "lr": current_lr, "_epoch_end": True}
         yield final_metrics
-        return final_metrics
 
     # ------------------------------------------------------------------ #
     # Helpers
@@ -385,24 +415,7 @@ class Trainer:
 
         logits = outputs["logits"]
         labels = batch["label"].float()
-        logits = self._normalize_logits(logits)
-        labels = (
-            labels.squeeze(-1) if labels.dim() > 1 and labels.size(-1) == 1 else labels
-        )
-
-        # Optional label smoothing for BCE
-        smoothing = float(self.loss_cfg.get("label_smoothing", 0.0))
-        if smoothing > 0:
-            labels = labels * (1.0 - smoothing) + 0.5 * smoothing
-
-        pos_weight = self.loss_cfg.get("pos_weight")
-        pos_weight_tensor = None
-        if pos_weight is not None:
-            pos_weight_tensor = torch.tensor([float(pos_weight)], device=logits.device)
-
-        loss = torch.nn.functional.binary_cross_entropy_with_logits(
-            logits, labels, pos_weight=pos_weight_tensor
-        )
+        loss = self._compute_bce_loss(logits, labels, reduction="mean")
 
         l1_lambda = float(self.loss_cfg.get("l1_lambda", 0.0))
         if l1_lambda > 0:
@@ -411,6 +424,33 @@ class Trainer:
 
         return loss
 
+    def _compute_bce_loss(
+        self,
+        logits: torch.Tensor,
+        labels: torch.Tensor,
+        reduction: str = "mean",
+    ) -> torch.Tensor:
+        labels = self._normalize_labels(labels)
+        logits = self._normalize_logits(logits)
+
+        smoothing = (
+            float(self.loss_cfg.get("label_smoothing", 0.0)) if self.loss_cfg else 0.0
+        )
+        if smoothing > 0:
+            labels = labels * (1.0 - smoothing) + 0.5 * smoothing
+
+        pos_weight = self.loss_cfg.get("pos_weight") if self.loss_cfg else None
+        pos_weight_tensor = None
+        if pos_weight is not None:
+            pos_weight_tensor = torch.tensor([float(pos_weight)], device=logits.device)
+
+        return F.binary_cross_entropy_with_logits(
+            logits,
+            labels,
+            pos_weight=pos_weight_tensor,
+            reduction=reduction,
+        )
+
     def _normalize_logits(self, logits: torch.Tensor) -> torch.Tensor:
         if logits.dim() == 2:
             if logits.size(1) == 2:
@@ -418,6 +458,85 @@ class Trainer:
             if logits.size(1) == 1:
                 return logits.squeeze(1)
         return logits
+
+    def _normalize_labels(self, labels: torch.Tensor) -> torch.Tensor:
+        labels = labels.float()
+        if labels.dim() > 1 and labels.size(-1) == 1:
+            return labels.squeeze(-1)
+        return labels
+
+    def _is_ohem_batch(self, batch: Any) -> bool:
+        return isinstance(batch, dict) and bool(batch.get("_ohem", False))
+
+    def _prepare_ohem_batch(self, batch: Dict[str, Any]) -> Dict[str, Any]:
+        pos_batch = batch.get("pos")
+        neg_candidates = batch.get("neg_candidates")
+        neg_default = batch.get("neg_default")
+        hard_count = int(batch.get("hard_count", 0))
+
+        hard_neg_batch = None
+        if neg_candidates is not None and hard_count > 0:
+            was_training = self.model.training
+            self.model.eval()
+            neg_candidates = self._move_batch_to_device(neg_candidates)
+
+            with torch.no_grad():
+                with self._amp_context():
+                    outputs = self.model(neg_candidates)
+                    if not isinstance(outputs, dict) or "logits" not in outputs:
+                        raise ValueError(
+                            "OHEM mining requires model outputs to include 'logits'."
+                        )
+                    logits = outputs["logits"]
+                    labels = neg_candidates["label"]
+                    losses = self._compute_bce_loss(
+                        logits, labels, reduction="none"
+                    ).view(-1)
+
+            if was_training:
+                self.model.train()
+
+            k = min(hard_count, int(losses.numel()))
+            if k > 0:
+                _, topk_idx = torch.topk(losses, k=k, largest=True)
+                hard_neg_batch = self._index_batch(neg_candidates, topk_idx)
+
+        batches = []
+        if pos_batch is not None:
+            batches.append(self._move_batch_to_device(pos_batch))
+        if hard_neg_batch is not None:
+            batches.append(hard_neg_batch)
+        if neg_default is not None:
+            batches.append(self._move_batch_to_device(neg_default))
+
+        if not batches:
+            raise RuntimeError("OHEM batch produced no samples for training.")
+
+        return self._concat_batches(batches)
+
+    def _index_batch(
+        self, batch: Dict[str, Any], indices: torch.Tensor
+    ) -> Dict[str, Any]:
+        if indices.numel() == 0:
+            return {}
+        return {
+            k: v.index_select(0, indices) if isinstance(v, torch.Tensor) else v
+            for k, v in batch.items()
+        }
+
+    def _concat_batches(self, batches: List[Dict[str, Any]]) -> Dict[str, Any]:
+        if not batches:
+            return {}
+        keys = [k for k in batches[0].keys() if isinstance(batches[0][k], torch.Tensor)]
+        merged: Dict[str, Any] = {}
+        for key in keys:
+            merged[key] = torch.cat([b[key] for b in batches if key in b], dim=0)
+        return merged
+
+    def _amp_context(self):
+        if self.use_amp:
+            return self._autocast()
+        return contextlib.nullcontext()
 
     def _move_batch_to_device(self, batch: Dict[str, Any]) -> Dict[str, Any]:
         return {

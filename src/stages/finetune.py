@@ -33,6 +33,8 @@ from src.utils.distributed import is_main_process
 
 
 def _set_sampler_epoch(loader: DataLoader, epoch: int) -> None:
+    if hasattr(loader, "set_epoch"):
+        loader.set_epoch(epoch)
     batch_sampler = getattr(loader, "batch_sampler", None)
     if batch_sampler is not None and hasattr(batch_sampler, "set_epoch"):
         batch_sampler.set_epoch(epoch)
@@ -233,7 +235,7 @@ def run_finetune(
 
         # Train one epoch - consume generator for batch-level logging
         train_metrics = None
-        for batch_metrics in trainer.train_one_epoch(train_loader):
+        for batch_metrics in trainer.train_one_epoch_iter(train_loader):
             # Check if this is the final epoch summary
             if batch_metrics.get("_epoch_end", False):
                 train_metrics = batch_metrics

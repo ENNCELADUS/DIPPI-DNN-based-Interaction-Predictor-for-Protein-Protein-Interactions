@@ -166,7 +166,7 @@ def run_pretrain(
 
         # Train one epoch - consume generator for batch-level logging
         train_metrics = None
-        for batch_metrics in trainer.train_one_epoch(train_loader):
+        for batch_metrics in trainer.train_one_epoch_iter(train_loader):
             # Check if this is the final epoch summary
             if batch_metrics.get("_epoch_end", False):
                 train_metrics = batch_metrics

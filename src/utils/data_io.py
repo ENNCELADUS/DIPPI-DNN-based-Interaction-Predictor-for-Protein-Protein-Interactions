@@ -27,7 +27,7 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader, DistributedSampler
-from src.utils.samplers import ImbalancedBatchSampler, StagedHardNegativeBatchSampler
+from src.utils.samplers import ImbalancedBatchSampler, OnlineHardNegativeBatchSampler
 from src.utils.distributed import get_rank, get_world_size, is_main_process
 
 
@@ -168,7 +168,7 @@ def _load_embeddings(embeddings_path: str) -> Dict[str, Any]:
     return embeddings_dict
 
 
-def _collate_protein_pairs(batch: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
+def _stack_protein_pairs(batch: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
     """
     Collate function to batch protein pair samples.
 
@@ -195,6 +195,54 @@ def _collate_protein_pairs(batch: List[Dict[str, Any]]) -> Dict[str, torch.Tenso
         "len_a": len_a,
         "len_b": len_b,
         "label": labels,
+    }
+
+
+def _collate_protein_pairs(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Collate function to batch protein pair samples.
+
+    Supports standard batches and OHEM batches containing "role" metadata.
+    """
+    if not batch:
+        return {}
+
+    has_roles = any("role" in item for item in batch)
+    if not has_roles:
+        return _stack_protein_pairs(batch)
+
+    role_buckets: Dict[str, List[Dict[str, Any]]] = {
+        "pos": [],
+        "neg_candidate": [],
+        "neg_default": [],
+    }
+    hard_counts = set()
+
+    for item in batch:
+        role = item.get("role")
+        if role not in role_buckets:
+            raise ValueError(f"Unknown sampling role: {role}")
+        role_buckets[role].append(item)
+        hard_count = item.get("hard_count")
+        if hard_count is not None:
+            hard_counts.add(int(hard_count))
+
+    if len(hard_counts) > 1:
+        raise ValueError(
+            f"Inconsistent hard_count values within OHEM batch: {sorted(hard_counts)}"
+        )
+
+    hard_count_value = int(next(iter(hard_counts))) if hard_counts else 0
+
+    def _maybe_stack(items: List[Dict[str, Any]]) -> Optional[Dict[str, torch.Tensor]]:
+        return _stack_protein_pairs(items) if items else None
+
+    return {
+        "_ohem": True,
+        "hard_count": hard_count_value,
+        "pos": _maybe_stack(role_buckets["pos"]),
+        "neg_candidates": _maybe_stack(role_buckets["neg_candidate"]),
+        "neg_default": _maybe_stack(role_buckets["neg_default"]),
     }
 
 
@@ -415,7 +463,7 @@ class ProteinPairDataset(Dataset):
             "Expected sharded embeddings with _fixed_len metadata."
         )
 
-    def __getitem__(self, idx: int) -> Dict[str, Any]:
+    def __getitem__(self, idx: int | tuple[int, str] | tuple[int, str, int]):
         """
         Get a single protein pair sample.
 
@@ -429,8 +477,23 @@ class ProteinPairDataset(Dataset):
                 - len_a: int (actual sequence length)
                 - len_b: int (actual sequence length)
                 - label: float (0.0 or 1.0)
+                - role: Optional[str] (for OHEM batches)
+                - hard_count: Optional[int] (for OHEM batches)
         """
-        row = self.df.iloc[idx]
+        role = None
+        hard_count = None
+        if isinstance(idx, tuple):
+            if len(idx) == 2:
+                idx, role = idx
+            elif len(idx) == 3:
+                idx, role, hard_count = idx
+            else:
+                raise ValueError("Index tuple must be (idx, role[, hard_count])")
+
+        if not isinstance(idx, (int, np.integer)):
+            raise TypeError(f"Index must be int, got {type(idx)}")
+
+        row = self.df.iloc[int(idx)]
 
         protein_a = str(row["uniprotID_A"])
         protein_b = str(row["uniprotID_B"])
@@ -440,13 +503,18 @@ class ProteinPairDataset(Dataset):
         emb_a, len_a = self._process_embedding(protein_a)
         emb_b, len_b = self._process_embedding(protein_b)
 
-        return {
+        sample = {
             "emb_a": emb_a,
             "emb_b": emb_b,
             "len_a": len_a,
             "len_b": len_b,
             "label": label,
         }
+        if role is not None:
+            sample["role"] = role
+        if hard_count is not None:
+            sample["hard_count"] = int(hard_count)
+        return sample
 
 
 def build_loader(
@@ -563,28 +631,12 @@ def build_loader(
         warmup_epochs = int(sampling_cfg.get("warmup_epochs", 2))
         if "hard_start_epoch" in sampling_cfg:
             warmup_epochs = int(sampling_cfg["hard_start_epoch"])
-        hard_score_top_fraction = sampling_cfg.get("hard_score_top_fraction")
-        if hard_score_top_fraction is not None:
-            hard_score_top_fraction = float(hard_score_top_fraction)
-        hard_score_quantile_low = sampling_cfg.get("hard_score_quantile_low")
-        hard_score_quantile_high = sampling_cfg.get("hard_score_quantile_high")
-        if hard_score_quantile_low is not None:
-            hard_score_quantile_low = float(hard_score_quantile_low)
-        if hard_score_quantile_high is not None:
-            hard_score_quantile_high = float(hard_score_quantile_high)
-
-        hard_scores = None
-
-        base_sampler = StagedHardNegativeBatchSampler(
+        base_sampler = OnlineHardNegativeBatchSampler(
             labels=list(dataset.df["isInteraction"].astype(int)),
-            hard_scores=hard_scores,
             batch_size=batch_size,
             pos_neg_ratio=ratio,
             warmup_epochs=warmup_epochs,
             hard_ratio=hard_ratio,
-            hard_score_top_fraction=hard_score_top_fraction,
-            hard_score_quantile_low=hard_score_quantile_low,
-            hard_score_quantile_high=hard_score_quantile_high,
             shuffle=shuffle,
             drop_last=drop_last,
             seed=None,
