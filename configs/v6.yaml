@@ -68,10 +68,12 @@ model_config:
 
 finetune_config:
   strategy:
-    type: "head_only"
+    type: "staged_unfreeze"
     schedule:
       - at_epoch: 0
         freeze: ["esm3."]
+      - at_epoch: 2
+        unfreeze: ["esm3."]
 
   epochs: 30
   batch_size: 16
@@ -89,12 +91,13 @@ finetune_config:
   scheduler:
     type: "warmup_cosine"
     warmup_epochs: 2
-    max_lr: 0.00005
-    min_lr: 0.000005
 
   optimizer:
     type: "adamw"
-    lr: 0.00002
+    lr: 0.0002
+    param_groups:
+      - pattern: "esm3."
+        lr: 0.00002
     beta1: 0.9
     beta2: 0.999
     eps: 1.0e-8
