@@ -1,0 +1,117 @@
+\documentclass[tikz,border=10pt]{standalone}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric, calc, fit, backgrounds}
+
+\begin{document}
+%\pagecolor{white}
+\newcommand{\vlabel}[1]{\rotatebox{90}{\begin{tabular}{c}#1\end{tabular}}}
+
+\begin{tikzpicture}[
+    >=Latex,
+    node distance=1.0cm and 1.4cm,
+    font=\small,
+    % Style definitions
+    input/.style={draw, rounded corners=3pt, minimum width=1.0cm, minimum height=0.9cm, text width=1.0cm, fill=gray!10, align=center},
+    esm/.style={draw, rounded corners=3pt, minimum width=1.0cm, minimum height=5.6cm, text width=1.0cm, fill=white, align=center},
+    embedA/.style={draw, rounded corners=3pt, minimum width=1.0cm, minimum height=0.9cm, text width=1.0cm, fill=red!20, align=center},
+    embedB/.style={draw, rounded corners=3pt, minimum width=1.0cm, minimum height=0.9cm, text width=1.0cm, fill=green!20, align=center},
+    linear/.style={draw, rounded corners=3pt, minimum width=1.0cm, minimum height=0.9cm, text width=1.0cm, fill=gray!20, align=center},
+    mhsa/.style={draw, rounded corners=3pt, minimum width=1.0cm, minimum height=0.9cm, text width=1.0cm, fill=orange!30, align=center},
+    addnorm/.style={draw, rounded corners=3pt, minimum width=1.0cm, minimum height=0.9cm, text width=1.0cm, fill=yellow!35, align=center},
+    ffn/.style={draw, rounded corners=3pt, minimum width=1.0cm, minimum height=0.9cm, text width=1.0cm, fill=blue!20, align=center},
+    transformer/.style={draw, rounded corners=3pt, minimum width=1.0cm, minimum height=0.9cm, text width=1.0cm, fill=orange!30, align=center},
+    crossattn/.style={draw, rounded corners=3pt, minimum width=1.0cm, minimum height=0.9cm, text width=1.0cm, fill=orange!30, align=center},
+    concat/.style={
+        draw, rounded corners=2pt, minimum width=1.0cm, minimum height=1.8cm, align=center,
+        path picture={
+            \fill[red!30] (path picture bounding box.north west) rectangle (path picture bounding box.east);
+            \fill[green!35] (path picture bounding box.south west) rectangle (path picture bounding box.east);
+        }
+    },
+    cls/.style={draw, rounded corners=3pt, minimum width=1.0cm, minimum height=0.9cm, text width=1.0cm, fill=cyan!20, align=center},
+    head/.style={draw, rounded corners=3pt, minimum width=1.0cm, minimum height=0.9cm, text width=1.0cm, fill=gray!15, align=center},
+    output/.style={draw, rounded corners=3pt, minimum width=1.0cm, minimum height=0.9cm, text width=1.0cm, fill=white, align=center},
+    dashedbox/.style={draw, dashed, rounded corners=5pt, inner sep=8pt, gray},
+    arrow/.style={->, thick, >=Latex, black},
+]
+
+% Inputs
+\coordinate (inputmid) at (0,0);
+\node[input, yshift=1.8cm] (protA) at (inputmid) {\vlabel{Protein A Input\\$m$}};
+\node[input, yshift=-1.8cm] (protB) at (inputmid) {\vlabel{Protein B Input\\$n$}};
+
+% ESM backbone
+\node[esm, right=1.6cm of inputmid] (esm) {\vlabel{ESM-3}};
+
+% Embeddings
+\node[embedA, right=1.0cm of esm, yshift=1.8cm] (embA) {\vlabel{A Embedding\\$m \times 1536$}};
+\node[embedB, right=1.0cm of esm, yshift=-1.8cm] (embB) {\vlabel{B Embedding\\$n \times 1536$}};
+
+% Siamese encoder (shared weights)
+\node[transformer, right=1.0cm of embA] (trA) {\vlabel{MHSA Transformer\\$1536 \rightarrow 512$}};
+\node[transformer, right=1.0cm of embB] (trB) {\vlabel{MHSA Transformer\\$1536 \rightarrow 512$}};
+
+\node[embedA, right=1.0cm of trA] (encA) {\vlabel{A Encoded\\$m \times 512$}};
+\node[embedB, right=1.0cm of trB] (encB) {\vlabel{B Encoded\\$n \times 512$}};
+
+% Cross-attention and concat
+\node[crossattn, right=1.0cm of encA] (xattA) {\vlabel{Cross-Attention\\(A attends to B)}};
+\node[crossattn, right=1.0cm of encB] (xattB) {\vlabel{Cross-Attention\\(B attends to A)}};
+
+\coordinate (xattmid) at ($(xattA)!0.5!(xattB)$);
+\node[concat, right=1.5cm of xattmid] (concat) {\vlabel{A concat B\\$(m+n) \times 512$}};
+
+% CLS cross-attention
+\node[cls, above=1.0cm of concat] (initcls) {\vlabel{Init CLS\\$1 \times 512$}};
+\node[crossattn, right=1.0cm of concat] (clsattn) {\vlabel{Cross-Attention\\(CLS attends to concat)}};
+\node[ffn, right=1.0cm of clsattn] (clsffn) {\vlabel{CLS FFN\\(Linear-GELU-Linear)}};
+\node[cls, right=1.0cm of clsffn] (clsout) {\vlabel{CLS\\$1 \times 512$}};
+
+% MLP head and output
+\node[head, right=1.0cm of clsout] (mlp1) {\vlabel{Linear + LN + GELU\\Dropout 0.2\\$512 \rightarrow 256$}};
+\node[head, right=1.0cm of mlp1] (mlp2) {\vlabel{Linear + LN + GELU\\Dropout 0.2\\$256 \rightarrow 128$}};
+\node[head, right=1.0cm of mlp2] (mlp3) {\vlabel{Linear\\$128 \rightarrow 1$}};
+\node[output, right=1.0cm of mlp3] (score) {\vlabel{Score\\$1$}};
+
+% Arrows
+\draw[arrow] (protA.east) -- (esm.west |- protA.east);
+\draw[arrow] (protB.east) -- (esm.west |- protB.east);
+\draw[arrow] (esm.east |- embA.west) -- (embA.west);
+\draw[arrow] (esm.east |- embB.west) -- (embB.west);
+
+\draw[arrow] (embA) -- (trA);
+\draw[arrow] (trA) -- (encA);
+\draw[arrow] (encA) -- (xattA);
+
+\draw[arrow] (embB) -- (trB);
+\draw[arrow] (trB) -- (encB);
+\draw[arrow] (encB) -- (xattB);
+
+% Merge A/B cross-attn outputs before concat
+\coordinate (xatt_join_x) at ($(xattmid)+(1.0cm,0)$);
+\coordinate (xattA_join) at (xatt_join_x |- xattA);
+\coordinate (xattB_join) at (xatt_join_x |- xattB);
+\coordinate (xatt_join) at (xatt_join_x |- xattmid);
+\coordinate (concat_in) at ($(concat.west)+(-0.3cm,0)$);
+\draw[thick] (xattA_join) -- (xattB_join);
+\draw[thick] (xattA.east) -- (xattA_join);
+\draw[thick] (xattB.east) -- (xattB_join);
+\draw[arrow] (xatt_join) -- (concat.west);
+\draw[arrow] (concat) -- (clsattn);
+\draw[arrow] (initcls) -| (clsattn);
+\draw[arrow] (clsattn) -- (clsffn);
+\draw[arrow] (clsffn) -- (clsout);
+\draw[arrow] (clsout) -- (mlp1);
+\draw[arrow] (mlp1) -- (mlp2);
+\draw[arrow] (mlp2) -- (mlp3);
+\draw[arrow] (mlp3) -- (score);
+
+% Grouping boxes
+\node[dashedbox, fit=(trA) (trB), label=above:{\textbf{2$\times$ Transformer (Shared Weights)}}] {};
+\node[dashedbox, fit=(xattA) (xattB) (concat) (initcls) (clsattn) (clsffn) (clsout), label=above:{\textbf{2$\times$ Cross-Attention}}] {};
+\node[dashedbox, fit=(mlp1) (mlp3), label=above:{MLPHead}] {};
+
+\end{tikzpicture}
+
+\end{document}
