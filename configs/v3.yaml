@@ -41,7 +41,6 @@ data_config:
       pos_neg_ratio: 16.0
       warmup_epochs: 2
       hard_ratio: 0.7
-      hard_score_col: "hard_score"
   evaluate:
     test_balanced: "data/TMP/processed/test.csv"
 

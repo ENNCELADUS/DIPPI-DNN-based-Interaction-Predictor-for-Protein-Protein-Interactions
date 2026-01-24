@@ -563,7 +563,6 @@ def build_loader(
         warmup_epochs = int(sampling_cfg.get("warmup_epochs", 2))
         if "hard_start_epoch" in sampling_cfg:
             warmup_epochs = int(sampling_cfg["hard_start_epoch"])
-        hard_score_col = str(sampling_cfg.get("hard_score_col", "hard_score"))
         hard_score_top_fraction = sampling_cfg.get("hard_score_top_fraction")
         if hard_score_top_fraction is not None:
             hard_score_top_fraction = float(hard_score_top_fraction)
@@ -575,22 +574,6 @@ def build_loader(
             hard_score_quantile_high = float(hard_score_quantile_high)
 
         hard_scores = None
-        if hard_score_col in dataset.df.columns:
-            raw_scores = pd.to_numeric(dataset.df[hard_score_col], errors="coerce")
-            if raw_scores.notna().any():
-                hard_scores = raw_scores.tolist()
-            elif is_main_process():
-                logging.warning(
-                    "sampling.strategy=staged_hard: column '%s' has no valid scores; "
-                    "falling back to random negatives.",
-                    hard_score_col,
-                )
-        elif is_main_process():
-            logging.warning(
-                "sampling.strategy=staged_hard: column '%s' not found; "
-                "falling back to random negatives.",
-                hard_score_col,
-            )
 
         base_sampler = StagedHardNegativeBatchSampler(
             labels=list(dataset.df["isInteraction"].astype(int)),

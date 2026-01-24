@@ -39,16 +39,6 @@ data_config:
       pos_neg_ratio: 16.0
       warmup_epochs: 2
       hard_ratio: 0.7
-      hard_score_col: "hard_score"
-      online_mining: true
-      candidate_multiplier: 8
-      ema_alpha: 0.2
-      hard_score_sync: "file"
-      hard_score_quantile_low: 0.9
-      hard_score_quantile_high: 0.995
-      score_batch_size: 256
-      max_candidates_per_epoch: 2000000
-      clear_cuda_cache_every: 200
   evaluate:
     test_balanced: "data/TMP/processed/test.csv"
 
