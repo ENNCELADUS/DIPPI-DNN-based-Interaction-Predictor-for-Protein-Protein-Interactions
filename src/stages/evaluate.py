@@ -21,6 +21,7 @@ import torch.nn as nn
 from src.evaluate.base import Evaluator
 from src.utils.checkpoint import load_checkpoint
 from src.utils.data_io import build_loader
+from src.utils.sequence_data_io import build_sequence_loader
 from src.utils.logging import append_row
 
 
@@ -91,6 +92,8 @@ def run_evaluation(
         "test_realistic": eval_data_cfg.get("test_realistic"),
     }
 
+    model_name = cfg["model_config"]["model"]
+
     for split_name, csv_path in split_paths.items():
         if not csv_path:
             if split_name == "test_realistic":
@@ -98,16 +101,27 @@ def run_evaluation(
                 continue
             raise ValueError(f"Missing CSV path for required split: {split_name}")
 
-        loader = build_loader(
-            csv_path=csv_path,
-            embeddings_path=data_cfg["embeddings_path"],
-            batch_size=32,  # Fixed for eval
-            max_len=data_cfg["max_sequence_length"],
-            dtype=data_cfg["embedding_dtype"],
-            ddp=False,  # No DDP for eval
-            shuffle=False,
-            dataloader_cfg=dataloader_cfg,
-        )
+        if model_name == "v6":
+            loader = build_sequence_loader(
+                csv_path=csv_path,
+                sequence_path=data_cfg["sequence_path"],
+                batch_size=32,
+                max_len=data_cfg["max_sequence_length"],
+                ddp=False,
+                shuffle=False,
+                dataloader_cfg=dataloader_cfg,
+            )
+        else:
+            loader = build_loader(
+                csv_path=csv_path,
+                embeddings_path=data_cfg["embeddings_path"],
+                batch_size=32,  # Fixed for eval
+                max_len=data_cfg["max_sequence_length"],
+                dtype=data_cfg["embedding_dtype"],
+                ddp=False,  # No DDP for eval
+                shuffle=False,
+                dataloader_cfg=dataloader_cfg,
+            )
         test_loaders.append((split_name, loader))
 
     if not test_loaders:
@@ -129,7 +143,7 @@ def run_evaluation(
     batch_log_path = log_dir / "evaluate_batches.log"
 
     amp_dtype = None
-    if device.type == "cuda":
+    if device.type == "cuda" and model_name != "v6":
         dtype_str = str(data_cfg.get("embedding_dtype", "fp32")).lower()
         if dtype_str == "bf16":
             amp_dtype = torch.bfloat16

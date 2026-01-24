@@ -35,6 +35,7 @@ from torch.utils.data import DataLoader
 
 from src.utils.config import load_config, extract_keys
 from src.utils.data_io import build_loader
+from src.utils.sequence_data_io import build_sequence_loader
 from src.utils.device import get_device
 from src.utils.distributed import (
     init_if_enabled,
@@ -214,28 +215,51 @@ def build_loaders(
     dataloader_cfg = data_cfg.get("dataloader", {})
     sampling_cfg = data_cfg.get(stage, {}).get("sampling", {})
 
-    train_loader = build_loader(
-        csv_path=data_cfg[stage]["train_csv"],
-        embeddings_path=data_cfg["embeddings_path"],
-        batch_size=stage_cfg["batch_size"],
-        max_len=data_cfg["max_sequence_length"],
-        dtype=data_cfg["embedding_dtype"],
-        ddp=cfg["top_level_config"]["ddp"]["enabled"],
-        shuffle=True,
-        sampling_cfg=sampling_cfg,
-        dataloader_cfg=dataloader_cfg,
-    )
+    model_name = cfg["model_config"]["model"]
+    if model_name == "v6":
+        train_loader = build_sequence_loader(
+            csv_path=data_cfg[stage]["train_csv"],
+            sequence_path=data_cfg["sequence_path"],
+            batch_size=stage_cfg["batch_size"],
+            max_len=data_cfg["max_sequence_length"],
+            ddp=cfg["top_level_config"]["ddp"]["enabled"],
+            shuffle=True,
+            sampling_cfg=sampling_cfg,
+            dataloader_cfg=dataloader_cfg,
+        )
 
-    val_loader = build_loader(
-        csv_path=data_cfg[stage]["valid_csv"],
-        embeddings_path=data_cfg["embeddings_path"],
-        batch_size=stage_cfg["batch_size"],
-        max_len=data_cfg["max_sequence_length"],
-        dtype=data_cfg["embedding_dtype"],
-        ddp=cfg["top_level_config"]["ddp"]["enabled"],
-        shuffle=False,  # No shuffle for validation
-        dataloader_cfg=dataloader_cfg,
-    )
+        val_loader = build_sequence_loader(
+            csv_path=data_cfg[stage]["valid_csv"],
+            sequence_path=data_cfg["sequence_path"],
+            batch_size=stage_cfg["batch_size"],
+            max_len=data_cfg["max_sequence_length"],
+            ddp=cfg["top_level_config"]["ddp"]["enabled"],
+            shuffle=False,
+            dataloader_cfg=dataloader_cfg,
+        )
+    else:
+        train_loader = build_loader(
+            csv_path=data_cfg[stage]["train_csv"],
+            embeddings_path=data_cfg["embeddings_path"],
+            batch_size=stage_cfg["batch_size"],
+            max_len=data_cfg["max_sequence_length"],
+            dtype=data_cfg["embedding_dtype"],
+            ddp=cfg["top_level_config"]["ddp"]["enabled"],
+            shuffle=True,
+            sampling_cfg=sampling_cfg,
+            dataloader_cfg=dataloader_cfg,
+        )
+
+        val_loader = build_loader(
+            csv_path=data_cfg[stage]["valid_csv"],
+            embeddings_path=data_cfg["embeddings_path"],
+            batch_size=stage_cfg["batch_size"],
+            max_len=data_cfg["max_sequence_length"],
+            dtype=data_cfg["embedding_dtype"],
+            ddp=cfg["top_level_config"]["ddp"]["enabled"],
+            shuffle=False,  # No shuffle for validation
+            dataloader_cfg=dataloader_cfg,
+        )
 
     return train_loader, val_loader
 

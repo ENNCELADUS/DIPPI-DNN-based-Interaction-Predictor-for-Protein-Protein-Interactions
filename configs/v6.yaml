@@ -20,9 +20,8 @@ top_level_config:
 data_config:
   # NOTE: V6 expects raw sequences in the batch (seq_a/seq_b).
   # Update the data pipeline accordingly if using this config.
-  embeddings_path: "data/TMP/processed/TMP_embeddings.npz"
-  embedding_dtype: "bf16"
-  max_sequence_length: 768
+  sequence_path: "data/TMP/processed/unique_proteins.csv"
+  max_sequence_length: 1024
   dataloader:
     num_workers: 0
     prefetch_factor: null
