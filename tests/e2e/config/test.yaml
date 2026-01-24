@@ -1,5 +1,5 @@
 run_config:
-  mode: "finetune_eval"  # full_pipeline | finetune_from_pretrain | finetune_eval | eval_only
+  mode: "test_model"  # full_pipeline | finetune_from_pretrain | test_model | eval_only
   seed: 47
   pretrain_run_id: "e2e_test"
   finetune_run_id: "e2e_test"
