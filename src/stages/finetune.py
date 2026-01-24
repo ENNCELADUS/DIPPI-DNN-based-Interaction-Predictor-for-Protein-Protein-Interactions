@@ -291,7 +291,7 @@ def run_finetune(
     load_checkpoint_path: Optional[str] = None,
 ) -> None:
     """
-    Execute finetune stage: load checkpoint, apply strategy, train with staged unfreeze.
+    Execute finetune stage: optionally load checkpoint, apply strategy, train.
 
     Args:
         cfg: Full parsed config
@@ -302,7 +302,7 @@ def run_finetune(
         finetune_run_id: Run identifier
         log_dir: Directory for logs
         checkpoint_dir: Directory for checkpoints
-        load_checkpoint_path: Path to pretrain checkpoint (required)
+        load_checkpoint_path: Optional checkpoint path to initialize weights.
     """
     finetune_cfg = cfg["finetune_config"]
     strategy_cfg = finetune_cfg["strategy"]
@@ -336,23 +336,23 @@ def run_finetune(
         logging.info(f"Strategy: {strategy_cfg['type']}")
         logging.info(f"Monitor metric: {monitor_metric}, Patience: {patience}")
 
-    # Load checkpoint
-    if load_checkpoint_path is None:
-        raise ValueError("finetune requires load_checkpoint_path")
-
-    # Load checkpoint (weights only, no optimizer state for fresh finetune)
-    ckpt_metadata = load_checkpoint(
-        model=model,
-        ckpt_path=load_checkpoint_path,
-        map_location=device,
-        strict=True,
-        load_optim=False,
-    )
-    if is_main_process():
-        logging.info(
-            f"Loaded checkpoint from: {load_checkpoint_path} "
-            f"(pretrain epoch {ckpt_metadata.get('epoch', 'unknown')})"
+    # Load checkpoint if provided
+    if load_checkpoint_path:
+        ckpt_metadata = load_checkpoint(
+            model=model,
+            ckpt_path=load_checkpoint_path,
+            map_location=device,
+            strict=True,
+            load_optim=False,
         )
+        if is_main_process():
+            logging.info(
+                f"Loaded checkpoint from: {load_checkpoint_path} "
+                f"(pretrain epoch {ckpt_metadata.get('epoch', 'unknown')})"
+            )
+    else:
+        if is_main_process():
+            logging.info("No checkpoint provided; finetuning from scratch")
 
     # Instantiate strategy from config
     strategy = None

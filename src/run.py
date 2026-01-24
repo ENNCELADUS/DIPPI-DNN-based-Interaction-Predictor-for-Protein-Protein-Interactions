@@ -274,8 +274,12 @@ def main(config_path: str) -> None:
 
     # Determine which stages to run based on mode (for future orchestration logic)
     _run_pretrain_stage = mode in ["pretrain_only", "full_pipeline"]
-    _run_finetune_stage = mode in ["finetune_from_pretrain", "full_pipeline"]
-    _run_eval_stage = mode == "eval_only"
+    _run_finetune_stage = mode in [
+        "finetune_from_pretrain",
+        "finetune_eval",
+        "full_pipeline",
+    ]
+    _run_eval_stage = mode in ["finetune_eval", "eval_only"]
 
     # ============================================================
     # 3. Device & DDP setup
@@ -421,6 +425,53 @@ def main(config_path: str) -> None:
             log_dir,
             checkpoint_dir,
             load_checkpoint_path=checkpoint_path,
+        )
+
+    elif mode == "finetune_eval":
+        # Finetune from scratch, then evaluate using best finetune checkpoint.
+        checkpoint_path = run_cfg.get("load_checkpoint_path")
+        if checkpoint_path:
+            logging.info(
+                "finetune_eval mode ignores load_checkpoint_path; training from scratch"
+            )
+
+        log_dir, checkpoint_dir = create_run_directories(
+            model_name, "finetune", finetune_run_id
+        )
+        setup_logging(finetune_run_id, "finetune", model_name, log_dir)
+        logging.info("Trainable parameters: %s", f"{trainable_parameter_count:,}")
+
+        train_loader, val_loader = build_loaders(cfg, "finetune", device)
+        run_finetune(
+            cfg,
+            model,
+            train_loader,
+            val_loader,
+            device,
+            finetune_run_id,
+            log_dir,
+            checkpoint_dir,
+            load_checkpoint_path=None,
+        )
+
+        finetune_best_checkpoint = checkpoint_dir / "best_model.pth"
+        logging.info(
+            "finetune_eval: will load %s for evaluation",
+            finetune_best_checkpoint,
+        )
+
+        log_dir_evaluate, _ = create_run_directories(
+            model_name, "evaluate", eval_run_id
+        )
+        setup_logging(eval_run_id, "evaluate", model_name, log_dir_evaluate)
+
+        run_evaluation(
+            cfg,
+            model,
+            device,
+            eval_run_id,
+            log_dir_evaluate,
+            load_checkpoint_path=str(finetune_best_checkpoint),
         )
 
     elif mode == "full_pipeline":
