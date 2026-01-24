@@ -154,14 +154,14 @@ def _refresh_hard_scores_epoch(
     if collate_fn is None:
         raise ValueError("train_loader must define a collate_fn for mining")
 
-    candidate_multiplier = float(sampling_cfg.get("candidate_multiplier", 8.0))
+    candidate_multiplier = float(sampling_cfg.get("candidate_multiplier", 4.0))
     ema_alpha = float(sampling_cfg.get("ema_alpha", 0.2))
     score_batch_size = int(sampling_cfg.get("score_batch_size", 256))
     if score_batch_size <= 0:
         score_batch_size = 256
-    max_candidates_per_epoch = sampling_cfg.get("max_candidates_per_epoch", 2_000_000)
+    max_candidates_per_epoch = sampling_cfg.get("max_candidates_per_epoch", 500_000)
     max_candidates_per_epoch = int(max_candidates_per_epoch)
-    clear_cuda_cache_every = sampling_cfg.get("clear_cuda_cache_every", 200)
+    clear_cuda_cache_every = sampling_cfg.get("clear_cuda_cache_every", 100)
     clear_cuda_cache_every = int(clear_cuda_cache_every)
 
     pos_indices = sampler.get_pos_indices()
@@ -519,33 +519,25 @@ def run_finetune(
                     else:
                         scores = [math.nan for _ in range(score_len)]
 
-                    try:
-                        if hard_score_sync == "broadcast":
-                            scores = _broadcast_hard_scores(scores, device)
-                        elif hard_score_sync == "file":
-                            scores = _sync_hard_scores_via_file(
-                                scores=scores,
-                                log_dir=log_dir,
-                                epoch=epoch,
-                                timeout_sec=hard_score_sync_timeout,
-                            )
-                        else:
-                            raise ValueError(
-                                f"Unknown hard_score_sync method: {hard_score_sync}"
-                            )
-                    except TimeoutError:
-                        if is_main_process():
-                            logging.warning(
-                                "Hard-score sync timed out; using local scores for this epoch."
-                            )
+                    if hard_score_sync == "broadcast":
+                        scores = _broadcast_hard_scores(scores, device)
+                    elif hard_score_sync == "file":
+                        scores = _sync_hard_scores_via_file(
+                            scores=scores,
+                            log_dir=log_dir,
+                            epoch=epoch,
+                            timeout_sec=hard_score_sync_timeout,
+                        )
+                    else:
+                        raise ValueError(
+                            f"Unknown hard_score_sync method: {hard_score_sync}"
+                        )
                     base_sampler.set_hard_scores(scores)
 
                 pool_stats = base_sampler.refresh_hard_pool(
                     quantile_low=hard_score_quantile_low,
                     quantile_high=hard_score_quantile_high,
                 )
-                barrier()
-
                 if is_main_process():
                     logging.info(
                         "Hard-score refresh: candidates_scored=%d, scored_negatives=%d, "
