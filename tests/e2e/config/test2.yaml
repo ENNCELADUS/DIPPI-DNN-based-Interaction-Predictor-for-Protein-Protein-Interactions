@@ -1,0 +1,114 @@
+# V6 Config - ESM3 backbone + LoRA + cross-attention head
+
+run_config:
+  mode: "train_and_eval"  # train_and_eval | eval_only
+  seed: 47
+  finetune_run_id: "e2e_test"   # Auto-timestamp if null
+  eval_run_id: "e2e_test"       # Auto-timestamp if null
+  load_checkpoint_path: null
+  save_best_only: true
+
+top_level_config:
+  device: "cuda"
+  ddp:
+    enabled: true
+    backend: "nccl"
+    init_method: "env://"
+    find_unused_parameters: false
+
+data_config:
+  # NOTE: V6 expects raw sequences in the batch (seq_a/seq_b).
+  # Update the data pipeline accordingly if using this config.
+  sequence_path: "data/TMP/processed/unique_proteins.csv"
+  max_sequence_length: 1024
+  dataloader:
+    num_workers: 0
+    prefetch_factor: null
+    persistent_workers: false
+    pin_memory: false
+    drop_last: false
+
+  finetune:
+    train_csv: "data/TMP/processed/finetune_train.csv"
+    valid_csv: "data/TMP/processed/finetune_val.csv"
+    sampling:
+      strategy: "staged_hard"
+      pos_neg_ratio: 2.0
+      warmup_epochs: 2
+      hard_ratio: 0.5
+  evaluate:
+    test_balanced: "data/TMP/processed/test.csv"
+
+model_config:
+  model: "v6"
+  input_dim: 1536
+  d_model: 32
+  cross_attn_layers: 1
+  n_heads: 2
+
+  esm3:
+    model_name: "esm3-open"
+    checkpoint_path: "models/esm3/esm3_sm_open_v1_full.pth"
+    strip_cls_eos: true
+
+  lora:
+    last_n_layers: 1
+    target_modules: ["layernorm_qkv", "out_proj", "ffn"]
+    r: 8
+    alpha: 16
+    dropout: 0.05
+
+  mlp_head:
+    dropout: 0.10
+
+  regularization:
+    dropout: 0.10
+    cross_attention_dropout: 0.10
+    projection_dropout: 0.05
+
+
+finetune_config:
+  strategy:
+    type: "staged_unfreeze"
+    schedule:
+      - at_epoch: 0
+        freeze: ["esm3."]
+      - at_epoch: 2
+        unfreeze: ["esm3."]
+
+  epochs: 30
+  batch_size: 128
+
+  log_every_n_batches: 50
+  logging_metrics:
+    primary: auprc
+    secondary: auroc
+
+  use_mixed_precision: true
+
+  early_stopping_patience: 5
+  monitor_metric: "loss"
+
+  scheduler:
+    type: "warmup_cosine"
+    warmup_epochs: 2
+    max_lr: 0.0002
+    min_lr: 0.00002
+
+  optimizer:
+    type: "adamw"
+    lr: 0.0002
+    param_groups:
+      - pattern: "esm3."
+        lr: 0.00002
+    beta1: 0.9
+    beta2: 0.999
+    eps: 1.0e-8
+    weight_decay: 0.01
+
+  loss:
+    type: "bce_with_logits"
+    pos_weight: 2.0
+    label_smoothing: 0.02
+    use_class_weights: true
+    l1_lambda: 0.0
