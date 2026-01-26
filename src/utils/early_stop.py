@@ -38,7 +38,7 @@ def check_early_stop(
                  Assumed to be sanitized (finite floats) by the orchestrator.
         patience: Number of consecutive non-improvements before stopping.
                   patience=0 stops on first non-improvement.
-        monitor: Name of the metric being monitored (for clarity; not used internally).
+        monitor: Name of the metric being monitored (for clarity; used in error messages).
         mode: "min" for metrics where lower is better (e.g., loss),
               "max" for metrics where higher is better (e.g., accuracy, AUROC).
         min_delta: Minimum absolute change to qualify as an improvement.
@@ -65,7 +65,9 @@ def check_early_stop(
     """
     # Validate mode
     if mode not in {"min", "max"}:
-        raise ValueError(f"mode must be 'min' or 'max', got '{mode}'")
+        raise ValueError(
+            f"mode must be 'min' or 'max' for monitor '{monitor}', got '{mode}'"
+        )
 
     # Edge case: empty metrics
     if not metrics:

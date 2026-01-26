@@ -20,7 +20,7 @@ import sys
 import numpy as np
 import torch
 from pathlib import Path
-from typing import List, Tuple, Any
+from typing import Any
 
 try:
     from esm.models.esm3 import ESM3
