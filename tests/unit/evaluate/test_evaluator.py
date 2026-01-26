@@ -13,6 +13,8 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 
+torchmetrics = pytest.importorskip("torchmetrics")
+
 from src.evaluate.base import Evaluator
 
 
@@ -32,7 +34,7 @@ class MockDataset(Dataset):
         return {
             "embeddings_a": self.emb_a[idx],
             "embeddings_b": self.emb_b[idx],
-            "labels": self.labels[idx],
+            "label": self.labels[idx],
         }
 
 
@@ -133,7 +135,7 @@ class TestEvaluatorEvaluate:
 
         model.eval()
         with torch.no_grad():
-            results = evaluator.evaluate(model, loader, device)
+            results = list(evaluator.evaluate(model, loader, device))[-1]
 
         assert "loss" in results
         assert isinstance(results["loss"], float)
@@ -150,7 +152,7 @@ class TestEvaluatorEvaluate:
 
         model.eval()
         with torch.no_grad():
-            results = evaluator.evaluate(model, loader, device)
+            results = list(evaluator.evaluate(model, loader, device))[-1]
 
         assert "loss" in results
         assert "auroc" in results
@@ -169,7 +171,7 @@ class TestEvaluatorEvaluate:
 
         model.eval()
         with torch.no_grad():
-            results = evaluator.evaluate(model, loader, device)
+            results = list(evaluator.evaluate(model, loader, device))[-1]
 
         assert "loss" in results
         assert "accuracy" in results
@@ -203,7 +205,7 @@ class TestEvaluatorEvaluate:
 
         model.eval()
         with torch.no_grad():
-            results = evaluator.evaluate(model, loader, device)
+            results = list(evaluator.evaluate(model, loader, device))[-1]
 
         # All metrics should be present
         for metric in metrics_list:
@@ -226,7 +228,7 @@ class TestEvaluatorEvaluate:
 
         model.eval()
         with torch.no_grad():
-            results = evaluator.evaluate(model, loader, device)
+            results = list(evaluator.evaluate(model, loader, device))[-1]
 
         assert "loss" in results
         assert "auroc" in results
@@ -246,8 +248,8 @@ class TestEvaluatorEvaluate:
 
         model.eval()
         with torch.no_grad():
-            results_05 = evaluator_05.evaluate(model, loader, device)
-            results_07 = evaluator_07.evaluate(model, loader, device)
+            results_05 = list(evaluator_05.evaluate(model, loader, device))[-1]
+            results_07 = list(evaluator_07.evaluate(model, loader, device))[-1]
 
         # Results should be different due to different thresholds
         # (may be the same by chance, but that's okay for a unit test)
@@ -265,7 +267,7 @@ class TestEvaluatorEvaluate:
 
         model.eval()
         with torch.no_grad():
-            results = evaluator.evaluate(model, loader, device)
+            results = list(evaluator.evaluate(model, loader, device))[-1]
 
         # Should process all 100 samples
         assert "loss" in results
@@ -282,7 +284,7 @@ class TestEvaluatorEvaluate:
 
         model.eval()
         with torch.no_grad():
-            results = evaluator.evaluate(model, loader, device)
+            results = list(evaluator.evaluate(model, loader, device))[-1]
 
         assert "sensitivity" in results
         assert "specificity" in results
@@ -307,12 +309,12 @@ class TestEvaluatorEvaluate:
 
         model.eval()
         with torch.no_grad():
-            results1 = evaluator.evaluate(model, loader1, device)
-            results2 = evaluator.evaluate(model, loader2, device)
+            results1 = list(evaluator.evaluate(model, loader1, device))[-1]
+            results2 = list(evaluator.evaluate(model, loader2, device))[-1]
 
         # Both evaluations should succeed and have all metrics
-        assert set(results1.keys()) == {"loss", "auroc", "accuracy"}
-        assert set(results2.keys()) == {"loss", "auroc", "accuracy"}
+        assert {"loss", "auroc", "accuracy"}.issubset(results1.keys())
+        assert {"loss", "auroc", "accuracy"}.issubset(results2.keys())
 
 
 class TestEvaluatorEdgeCases:
@@ -329,7 +331,7 @@ class TestEvaluatorEdgeCases:
 
         model.eval()
         with torch.no_grad():
-            results = evaluator.evaluate(model, loader, device)
+            results = list(evaluator.evaluate(model, loader, device))[-1]
 
         assert "loss" in results
         assert "accuracy" in results
@@ -345,9 +347,9 @@ class TestEvaluatorEdgeCases:
 
         model.eval()
         with torch.no_grad():
-            results = evaluator.evaluate(model, loader, device)
+            results = list(evaluator.evaluate(model, loader, device))[-1]
 
-        assert len(results) == 3
+        assert len(results) == 4  # 3 metrics + _evaluation_end
 
 
 if __name__ == "__main__":

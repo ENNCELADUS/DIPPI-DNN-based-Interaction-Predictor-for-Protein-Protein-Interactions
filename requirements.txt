@@ -63,6 +63,8 @@ pytest
 pytest-cov
 coverage
 ruff
+vulture
+deptry
 
 # ============================================================================
 # Development Tools

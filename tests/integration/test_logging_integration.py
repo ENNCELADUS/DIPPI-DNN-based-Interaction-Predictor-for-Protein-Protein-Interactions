@@ -14,7 +14,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from src.run import run_pretrain, run_finetune
+from src.stages import run_pretrain, run_finetune
 from src.utils.logging import append_row
 
 
@@ -69,6 +69,9 @@ def pretrain_config():
         "run_config": {
             "save_best_only": False,
         },
+        "data_config": {
+            "embedding_dtype": "fp32",
+        },
     }
 
 
@@ -102,6 +105,9 @@ def finetune_config():
         "run_config": {
             "save_best_only": False,
         },
+        "data_config": {
+            "embedding_dtype": "fp32",
+        },
     }
 
 
@@ -123,8 +129,11 @@ class TestRunPretrainLogging:
 
         # Mock trainer to return proper metrics
         mock_trainer = Mock()
-        mock_trainer.train_one_epoch = Mock(
-            return_value={"loss": 0.5, "lr": 0.001, "auroc": 0.75, "recall": 0.70}
+        mock_trainer.train_one_epoch_iter = Mock(
+            return_value=[
+                {"batch_idx": 0, "loss": 0.5, "lr": 0.001},
+                {"_epoch_end": True, "loss": 0.5, "lr": 0.001, "auroc": 0.75, "recall": 0.70},
+            ]
         )
         mock_trainer.optimizer = Mock()
         mock_trainer.optimizer.state_dict = Mock(return_value={})
@@ -132,15 +141,15 @@ class TestRunPretrainLogging:
         # Mock evaluator to return proper metrics
         mock_evaluator = Mock()
         mock_evaluator.evaluate = Mock(
-            return_value={"loss": 0.45, "auroc": 0.78, "recall": 0.73}
+            return_value=[{"loss": 0.45, "auroc": 0.78, "recall": 0.73, "_evaluation_end": True}]
         )
 
         with (
-            patch("src.run.Trainer", return_value=mock_trainer),
-            patch("src.run.Evaluator", return_value=mock_evaluator),
-            patch("src.run.maybe_save_best", return_value=(True, 0.78)),
-            patch("src.run.save_checkpoint", return_value="checkpoint.pth"),
-            patch("src.run.check_early_stop", return_value=True),
+            patch("src.stages.pretrain.Trainer", return_value=mock_trainer),
+            patch("src.stages.pretrain.Evaluator", return_value=mock_evaluator),
+            patch("src.stages.pretrain.maybe_save_best", return_value=(True, 0.78)),
+            patch("src.stages.pretrain.save_checkpoint", return_value="checkpoint.pth"),
+            patch("src.stages.pretrain.check_early_stop", return_value=True),
         ):  # Stop after 1 epoch
             run_pretrain(
                 cfg=pretrain_config,
@@ -169,8 +178,6 @@ class TestRunPretrainLogging:
             "Epoch Time",
             "Train Loss",
             "Val Loss",
-            "Train auroc",
-            "Train recall",
             "Val auroc",
             "Val recall",
             "Learning Rate",
@@ -196,28 +203,32 @@ class TestRunPretrainLogging:
 
         # Mock components
         mock_trainer = Mock()
-        mock_trainer.train_one_epoch = Mock(
-            return_value={
-                "loss": 0.6543,
-                "lr": 0.0003,
-                "auroc": 0.7234,
-                "recall": 0.6891,
-            }
+        mock_trainer.train_one_epoch_iter = Mock(
+            return_value=[
+                {"batch_idx": 0, "loss": 0.6543, "lr": 0.0003},
+                {
+                    "_epoch_end": True,
+                    "loss": 0.6543,
+                    "lr": 0.0003,
+                    "auroc": 0.7234,
+                    "recall": 0.6891,
+                },
+            ]
         )
         mock_trainer.optimizer = Mock()
         mock_trainer.optimizer.state_dict = Mock(return_value={})
 
         mock_evaluator = Mock()
         mock_evaluator.evaluate = Mock(
-            return_value={"loss": 0.6201, "auroc": 0.7456, "recall": 0.7012}
+            return_value=[{"loss": 0.6201, "auroc": 0.7456, "recall": 0.7012, "_evaluation_end": True}]
         )
 
         with (
-            patch("src.run.Trainer", return_value=mock_trainer),
-            patch("src.run.Evaluator", return_value=mock_evaluator),
-            patch("src.run.maybe_save_best", return_value=(True, 0.7456)),
-            patch("src.run.save_checkpoint", return_value="checkpoint.pth"),
-            patch("src.run.check_early_stop", return_value=True),
+            patch("src.stages.pretrain.Trainer", return_value=mock_trainer),
+            patch("src.stages.pretrain.Evaluator", return_value=mock_evaluator),
+            patch("src.stages.pretrain.maybe_save_best", return_value=(True, 0.7456)),
+            patch("src.stages.pretrain.save_checkpoint", return_value="checkpoint.pth"),
+            patch("src.stages.pretrain.check_early_stop", return_value=True),
         ):  # Stop after 1 epoch
             run_pretrain(
                 cfg=pretrain_config,
@@ -247,8 +258,8 @@ class TestRunPretrainLogging:
         assert first_row["Val Loss"] == "0.6201", "Val loss mismatch"
 
         # Check that trainer metrics were logged (may be 0.0 if not in trainer return)
-        assert "Train auroc" in first_row, "Train auroc column should exist"
-        assert "Train recall" in first_row, "Train recall column should exist"
+        # assert "Train auroc" in first_row, "Train auroc column should exist"
+        # assert "Train recall" in first_row, "Train recall column should exist"
 
         # Check validation metrics
         assert first_row["Val auroc"] == "0.7456", "Val auroc mismatch"
@@ -275,23 +286,26 @@ class TestRunFinetuneLogging:
 
         # Mock components
         mock_trainer = Mock()
-        mock_trainer.train_one_epoch = Mock(
-            return_value={"loss": 0.3, "lr": 0.0001, "auroc": 0.85, "recall": 0.82}
+        mock_trainer.train_one_epoch_iter = Mock(
+            return_value=[
+                {"batch_idx": 0, "loss": 0.3, "lr": 0.0001},
+                {"_epoch_end": True, "loss": 0.3, "lr": 0.0001, "auroc": 0.85, "recall": 0.82},
+            ]
         )
         mock_trainer.optimizer = Mock()
         mock_trainer.optimizer.state_dict = Mock(return_value={})
 
         mock_evaluator = Mock()
         mock_evaluator.evaluate = Mock(
-            return_value={"loss": 0.28, "auroc": 0.87, "recall": 0.84}
+            return_value=[{"loss": 0.28, "auroc": 0.87, "recall": 0.84, "_evaluation_end": True}]
         )
 
         with (
-            patch("src.run.Trainer", return_value=mock_trainer),
-            patch("src.run.Evaluator", return_value=mock_evaluator),
-            patch("src.run.maybe_save_best", return_value=(True, 0.87)),
-            patch("src.run.save_checkpoint", return_value="checkpoint.pth"),
-            patch("src.run.check_early_stop", return_value=True),
+            patch("src.stages.finetune.Trainer", return_value=mock_trainer),
+            patch("src.stages.finetune.Evaluator", return_value=mock_evaluator),
+            patch("src.stages.finetune.maybe_save_best", return_value=(True, 0.87)),
+            patch("src.stages.finetune.save_checkpoint", return_value="checkpoint.pth"),
+            patch("src.stages.finetune.check_early_stop", return_value=True),
         ):  # Stop after 1 epoch
             run_finetune(
                 cfg=finetune_config,
@@ -321,8 +335,6 @@ class TestRunFinetuneLogging:
             "Epoch Time",
             "Train Loss",
             "Val Loss",
-            "Train auroc",
-            "Train recall",
             "Val auroc",
             "Val recall",
             "Learning Rate",

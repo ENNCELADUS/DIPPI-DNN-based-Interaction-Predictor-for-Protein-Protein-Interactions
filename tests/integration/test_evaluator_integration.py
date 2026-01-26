@@ -41,7 +41,7 @@ class IntegrationDataset(Dataset):
         return {
             "emb_a": self.emb_a[idx],  # (seq_len, emb_dim)
             "emb_b": self.emb_b[idx],  # (seq_len, emb_dim)
-            "labels": self.labels[idx],
+            "label": self.labels[idx],
         }
 
 
@@ -88,7 +88,8 @@ class TestEvaluatorWithV3:
         evaluator = Evaluator(metrics_list=metrics_list, threshold=0.5)
 
         with torch.no_grad():
-            results = evaluator.evaluate(v3_model, dataloader, device)
+            # evaluator.evaluate is a generator
+            results = list(evaluator.evaluate(v3_model, dataloader, device))[-1]
 
         # All metrics should be present
         for metric in metrics_list:
@@ -109,7 +110,7 @@ class TestEvaluatorWithV3:
         evaluator = Evaluator(metrics_list=["auroc"], threshold=0.5)
 
         with torch.no_grad():
-            results = evaluator.evaluate(v3_model, dataloader, device)
+            results = list(evaluator.evaluate(v3_model, dataloader, device))[-1]
 
         assert "auroc" in results
         assert 0 <= results["auroc"] <= 1
@@ -128,8 +129,8 @@ class TestEvaluatorWithV3:
         evaluator = Evaluator(metrics_list=["loss", "auroc", "accuracy"], threshold=0.5)
 
         with torch.no_grad():
-            results1 = evaluator.evaluate(v3_model, loader1, device)
-            results2 = evaluator.evaluate(v3_model, loader2, device)
+            results1 = list(evaluator.evaluate(v3_model, loader1, device))[-1]
+            results2 = list(evaluator.evaluate(v3_model, loader2, device))[-1]
 
         # Both should succeed
         assert "auroc" in results1
@@ -178,7 +179,7 @@ class TestEvaluatorWithTUnA:
         evaluator = Evaluator(metrics_list=metrics_list, threshold=0.5)
 
         with torch.no_grad():
-            results = evaluator.evaluate(tuna_model, dataloader, device)
+            results = list(evaluator.evaluate(tuna_model, dataloader, device))[-1]
 
         # All metrics should be present
         for metric in metrics_list:
@@ -199,7 +200,7 @@ class TestEvaluatorWithTUnA:
         )
 
         with torch.no_grad():
-            results = evaluator.evaluate(tuna_model, dataloader, device)
+            results = list(evaluator.evaluate(tuna_model, dataloader, device))[-1]
 
         assert "accuracy" in results
         assert "precision" in results
@@ -232,7 +233,7 @@ class TestEvaluatorCrossPlatform:
             loader = DataLoader(dataset, batch_size=batch_size)
 
             with torch.no_grad():
-                results = evaluator.evaluate(model, loader, device)
+                results = list(evaluator.evaluate(model, loader, device))[-1]
 
             assert "loss" in results
             assert "auroc" in results
@@ -263,7 +264,7 @@ class TestEvaluatorCrossPlatform:
         # Evaluate (should be done in eval mode by orchestrator)
         model.eval()
         with torch.no_grad():
-            _ = evaluator.evaluate(model, loader, device)
+            _ = list(evaluator.evaluate(model, loader, device))[-1]
         model.train()  # Restore training mode
 
         # Model should be back in training mode
@@ -290,7 +291,7 @@ class TestEvaluatorCrossPlatform:
         evaluator = Evaluator(metrics_list=["recall", "sensitivity"], threshold=0.5)
 
         with torch.no_grad():
-            results = evaluator.evaluate(model, loader, device)
+            results = list(evaluator.evaluate(model, loader, device))[-1]
 
         # Sensitivity and recall should be identical
         assert results["recall"] == results["sensitivity"]
