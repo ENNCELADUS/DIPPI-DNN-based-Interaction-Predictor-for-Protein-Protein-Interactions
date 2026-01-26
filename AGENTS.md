@@ -1,71 +1,61 @@
-# AGENTS.md — DIPPI Project Guide
+# Repository Guidelines
 
-> Instructions for contributors (humans and agents) working in this repo: how the system is structured, how to code, test, and open PRs safely.
-
----
-
-## 1. Quick Context
-
-- **What**: DIPPI predicts protein–protein interactions using ESM-3 embeddings + deep neural architectures (V3, TUnA).
+## Quick Context
+- **What**: This project predicts protein–protein interactions using ESM-3 + downstream neural network classifiers.
 - **Goal**: Reproducible, config-driven pipelines for Pretraining, Finetuning, and Evaluation.
 - **Role**: Act as a careful junior engineer. Follow **Plan → Confirm → Code**.
 
----
+## Code Style
+Act as a careful junior engineer with strong tooling.
+- **Core**: Write clean, efficient Python 3.10+. Prefer composition. Be concise.
+- **Structure**: Target 200-400 line files (max 600). Keep functions <50 lines. Organize by feature.
+- **Naming**: `snake_case` (files/funcs), `PascalCase` (classes), `UPPER_SNAKE` (constants).
+- **Quality**:
+  - No `print` statements (use logging).
+  - No hardcoded values (use config).
+  - Max nesting level: 4.
+  - Strict type hints (avoid `Any`).
+- **Best Practices**:
+  - Absolute imports only (`from src.x import y`).
+  - Google-style docstrings.
+  - Handle specific exceptions (no bare `except`).
 
-## 2. Environment & Tools
+## Project Structure & Module Organization
+Standard Deep Learning project layout:
+- `src/model/`: Neural network architectures (`nn.Module` subclasses).
+- `src/train/`: Training logic, including `Trainer` classes and strategies.
+- `src/evaluate/`: Evaluation scripts and logic.
+- `src/utils/`: Shared utilities (logging, config parsing, device management).
+- `configs/`: YAML configuration files for experiments.
+- `scripts/`: Shell scripts for orchestration (e.g., `run_pipeline.sh`).
+- `tests/`: Project tests (Unit, Integration, E2E).
 
-- **Environment**: Conda is required.
-  ```bash
-  conda activate esm
-  ```
-- **Language**: Python 3.10+
-- **Core Stack**: PyTorch, Pandas, NumPy, Ruff (lint/format), Pytest.
+## Build, Test, and Development Commands
+- **Environment**: `conda activate esm`
+- **Linting**: `ruff check --fix .` (Fixes lint errors)
+- **Formatting**: `ruff format .` (Formats code)
+- **Testing**: `python -m pytest` (Runs all tests)
+- **Orchestration**: Use shell scripts in `scripts/` to run pipelines (e.g., `./scripts/train.sh`). Avoid running `python src/run.py` directly.
 
----
+## Testing Guidelines
+- **Framework**: `pytest`.
+- **Coverage**: Aim for ≥80% coverage on touched modules.
+- **Workflow**: Test-Driven Development (TDD) — Write failing tests -> Implement -> Refactor.
+- **Types**:
+  - **Unit**: Fast, isolated tests for functions/classes.
+  - **Integration**: Database/API interactions.
+  - **E2E**: Critical user flows.
 
-## 3. Repository Structure
+## Commit & Pull Request Guidelines
+- **Commits**: Conventional Commits format `<type>: <description>`
+  - Types: `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `chore`, `ci`.
+- **Branches**: `short-description` (e.g., `new-scheduler`, `fix-nans`). Rebase on `main` before merging.
+- **Pull Requests**:
+  - Summarize changes and context.
+  - Include a test plan and verification results.
+  - Address all critical review feedback.
 
-| Path | Purpose |
-| :--- | :--- |
-| `src/model/` | Architectures as `nn.Module` (e.g., `v3.py`, `tuna.py`). |
-| `src/train/` | Generic `Trainer` (`base.py`) and strategies (`strategies.py`). |
-| `src/evaluate/` | Evaluator logic (`base.py`). |
-| `src/utils/` | Shared helpers: `config`, `logging`, `device`, `early_stop`. |
-| `src/run.py` | Central orchestrator for all stages. |
-| `configs/` | YAML experiment configurations. |
-| `logs/` | Training logs and CSV metrics (git-ignored). |
-| `models/` | Model checkpoints (git-ignored). |
-
----
-
-## 4. Development Workflow
-
-1.  **Plan**: Describe your approach. List files to touch.
-2.  **Code**:
-    *   **Style**: PEP 8 via Ruff. Strict type hints for public APIs.
-    *   **Docs**: Google-style docstrings.
-    *   **Imports**: Absolute imports only (e.g., `from src.utils import config`).
-3.  **Test**:
-    *   `ruff check .` (Lint)
-    *   `python -m pytest` (Test)
-4.  **Commit**: Concise messages. Link issues.
-
----
-
-## 5. Design Patterns
-
-Refer to `docs/design_patterns/` for detailed architecture specs:
-
-*   [**Pipeline**](docs/design_patterns/pipeline.md): Pretrain → Finetune → Evaluate orchestration.
-*   [**Trainer**](docs/design_patterns/trainer.md): Generic training loop + Strategy pattern.
-*   [**Model**](docs/design_patterns/model.md): `nn.Module` standards and config injection.
-*   [**Evaluator**](docs/design_patterns/evaluator.md): Stateless metric computation.
-
----
-
-## 6. Rules & Guardrails
-
-*   **Secrets**: Never commit credentials. Use env vars.
-*   **Data**: Do not commit large datasets or checkpoints.
-*   **Config**: Do not hardcode hyperparameters. Use YAML.
-*   **Safety**: Validate paths and tensor shapes at boundaries.
+## Security & Best Practices
+- **Secrets**: Never commit API keys or `.env` files. Use environment variables.
+- **Validation**: Sanitize all user inputs.
+- **Dependencies**: Periodically review and update dependencies.
