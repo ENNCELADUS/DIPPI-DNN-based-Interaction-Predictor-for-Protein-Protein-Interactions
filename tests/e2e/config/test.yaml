@@ -65,7 +65,7 @@ model_config:
 
 pretrain_config:
   epochs: 40
-  batch_size: 256
+  batch_size: 64
   
   # Logging configuration
   log_every_n_batches: 100   # More frequent logging to see progress
@@ -111,7 +111,7 @@ finetune_config:
     type: "full"  # head_only | full | staged_unfreeze
 
   epochs: 30
-  batch_size: 256
+  batch_size: 64
 
   # Logging configuration
   log_every_n_batches: 50

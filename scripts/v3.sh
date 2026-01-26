@@ -12,6 +12,8 @@
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=2162352828@qq.com
 
+set -euo pipefail
+
 cd /public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions
 source ~/.bashrc
 conda activate esm
