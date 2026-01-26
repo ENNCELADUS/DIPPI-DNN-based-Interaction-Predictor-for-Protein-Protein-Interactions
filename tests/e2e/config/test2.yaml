@@ -34,7 +34,7 @@ data_config:
     sampling:
       strategy: "staged_hard"
       warmup_pos_neg_ratio: 7.0
-      warmup_epochs: 2
+      warmup_epochs: 1
       pool_multiplier: 16
       cap_protein: 6
   evaluate:

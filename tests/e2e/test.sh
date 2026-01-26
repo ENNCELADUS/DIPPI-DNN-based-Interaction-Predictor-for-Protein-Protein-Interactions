@@ -6,8 +6,8 @@
 #SBATCH -t 4-00:00:00
 #SBATCH --mem=300G
 #SBATCH --cpus-per-task=32
-#SBATCH --gres=gpu:NVIDIATITANRTX:3
-#SBATCH --exclude=ai_gpu28
+#SBATCH --gres=gpu:NVIDIATITANRTX:4
+#SBATCH --exclude=ai_gpu28,ai_gpu29
 #SBATCH --output=tests/e2e/artifacts/slurm_%j.out
 #SBATCH --error=tests/e2e/artifacts/slurm_%j.err
 #SBATCH --mail-type=ALL
@@ -26,4 +26,4 @@ echo "Detected $NGPUS GPUs"
 export PYTHONPATH="$PWD:${PYTHONPATH:-}"
 export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 
-torchrun --standalone --nproc_per_node=$NGPUS -m src.run tests/e2e/config/test2.yaml
+torchrun --standalone --nproc_per_node=$NGPUS -m src.run tests/e2e/config/test.yaml
