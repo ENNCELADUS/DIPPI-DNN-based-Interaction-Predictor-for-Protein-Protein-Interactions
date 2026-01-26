@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from src.utils.samplers import ImbalancedBatchSampler, OnlineHardNegativeBatchSampler
+from src.utils.samplers import ImbalancedBatchSampler, StagedOHEMBatchSampler
 
 
 class TestImbalancedBatchSampler:
@@ -105,48 +105,53 @@ class TestImbalancedBatchSampler:
             ImbalancedBatchSampler(labels=[1, 1, 1], batch_size=8)
 
 
-class TestOnlineHardNegativeBatchSampler:
-    """Tests for OnlineHardNegativeBatchSampler."""
+class TestStagedOHEMBatchSampler:
+    """Tests for StagedOHEMBatchSampler."""
 
-    def test_ohem_roles_and_counts(self):
-        labels = [1] * 10 + [0] * 50
-        sampler = OnlineHardNegativeBatchSampler(
+    def test_warmup_uses_standard_indices(self):
+        labels = [1] * 6 + [0] * 24
+        sampler = StagedOHEMBatchSampler(
             labels=labels,
             batch_size=8,
-            pos_neg_ratio=3.0,
+            warmup_pos_neg_ratio=3.0,
+            warmup_epochs=1,
+            pool_multiplier=4,
+            cap_protein=2,
+            shuffle=False,
+            seed=1,
+        )
+
+        sampler.set_epoch(0)
+        batch = next(iter(sampler))
+        assert all(isinstance(item, int) for item in batch)
+        assert len(batch) == sampler.pos_per_batch + sampler.neg_per_batch
+
+    def test_mining_pool_roles_and_counts(self):
+        labels = [1] * 10 + [0] * 30
+        sampler = StagedOHEMBatchSampler(
+            labels=labels,
+            batch_size=8,
+            warmup_pos_neg_ratio=3.0,
             warmup_epochs=0,
-            hard_ratio=0.5,
+            pool_multiplier=4,
+            cap_protein=2,
             shuffle=False,
             seed=123,
         )
 
         batch = next(iter(sampler))
         assert all(isinstance(item, tuple) for item in batch)
+        assert len(batch) == sampler.mining_batch_size
 
-        roles = [item[1] for item in batch]
-        hard_counts = {item[2] for item in batch}
-        assert len(hard_counts) == 1
+        roles = {item[1] for item in batch}
+        assert roles == {"ohem_pool"}
 
-        pos_count = roles.count("pos")
-        cand_count = roles.count("neg_candidate")
-        def_count = roles.count("neg_default")
+        batch_sizes = {item[2] for item in batch}
+        cap_values = {item[3] for item in batch}
+        assert batch_sizes == {sampler.batch_size}
+        assert cap_values == {sampler.cap_protein}
 
-        assert pos_count == sampler.pos_per_batch
-        assert cand_count == 3 * int(round(sampler.neg_per_batch * 0.5))
-        expected_hard = int(round(sampler.neg_per_batch * 0.5))
-        assert def_count == sampler.neg_per_batch - expected_hard
-
-    def test_warmup_uses_standard_indices(self):
-        labels = [1] * 6 + [0] * 24
-        sampler = OnlineHardNegativeBatchSampler(
-            labels=labels,
-            batch_size=8,
-            pos_neg_ratio=3.0,
-            warmup_epochs=1,
-            hard_ratio=0.7,
-            shuffle=False,
-            seed=1,
-        )
-
-        batch = next(iter(sampler))
-        assert all(isinstance(item, int) for item in batch)
+        pos_count = sum(1 for idx, *_ in batch if idx < 10)
+        neg_count = len(batch) - pos_count
+        assert pos_count == 8
+        assert neg_count == 24

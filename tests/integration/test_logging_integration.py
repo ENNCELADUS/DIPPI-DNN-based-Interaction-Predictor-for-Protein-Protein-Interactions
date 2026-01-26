@@ -132,7 +132,13 @@ class TestRunPretrainLogging:
         mock_trainer.train_one_epoch_iter = Mock(
             return_value=[
                 {"batch_idx": 0, "loss": 0.5, "lr": 0.001},
-                {"_epoch_end": True, "loss": 0.5, "lr": 0.001, "auroc": 0.75, "recall": 0.70},
+                {
+                    "_epoch_end": True,
+                    "loss": 0.5,
+                    "lr": 0.001,
+                    "auroc": 0.75,
+                    "recall": 0.70,
+                },
             ]
         )
         mock_trainer.optimizer = Mock()
@@ -141,7 +147,9 @@ class TestRunPretrainLogging:
         # Mock evaluator to return proper metrics
         mock_evaluator = Mock()
         mock_evaluator.evaluate = Mock(
-            return_value=[{"loss": 0.45, "auroc": 0.78, "recall": 0.73, "_evaluation_end": True}]
+            return_value=[
+                {"loss": 0.45, "auroc": 0.78, "recall": 0.73, "_evaluation_end": True}
+            ]
         )
 
         with (
@@ -220,7 +228,14 @@ class TestRunPretrainLogging:
 
         mock_evaluator = Mock()
         mock_evaluator.evaluate = Mock(
-            return_value=[{"loss": 0.6201, "auroc": 0.7456, "recall": 0.7012, "_evaluation_end": True}]
+            return_value=[
+                {
+                    "loss": 0.6201,
+                    "auroc": 0.7456,
+                    "recall": 0.7012,
+                    "_evaluation_end": True,
+                }
+            ]
         )
 
         with (
@@ -289,7 +304,13 @@ class TestRunFinetuneLogging:
         mock_trainer.train_one_epoch_iter = Mock(
             return_value=[
                 {"batch_idx": 0, "loss": 0.3, "lr": 0.0001},
-                {"_epoch_end": True, "loss": 0.3, "lr": 0.0001, "auroc": 0.85, "recall": 0.82},
+                {
+                    "_epoch_end": True,
+                    "loss": 0.3,
+                    "lr": 0.0001,
+                    "auroc": 0.85,
+                    "recall": 0.82,
+                },
             ]
         )
         mock_trainer.optimizer = Mock()
@@ -297,7 +318,9 @@ class TestRunFinetuneLogging:
 
         mock_evaluator = Mock()
         mock_evaluator.evaluate = Mock(
-            return_value=[{"loss": 0.28, "auroc": 0.87, "recall": 0.84, "_evaluation_end": True}]
+            return_value=[
+                {"loss": 0.28, "auroc": 0.87, "recall": 0.84, "_evaluation_end": True}
+            ]
         )
 
         with (

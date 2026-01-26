@@ -19,6 +19,7 @@ import math
 from typing import Any, Dict, Iterable, List, Optional
 
 import torch
+import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.cuda.amp import GradScaler
@@ -392,10 +393,13 @@ class Trainer:
     def _compute_loss(
         self, outputs: Any, batch: Dict[str, Any]
     ) -> Optional[torch.Tensor]:
-        if isinstance(outputs, dict) and "loss" in outputs:
+        if self.loss_cfg:
+            disable_pos_weight = bool(batch.get("_ohem_unweighted", False))
+            loss = self._compute_loss_from_cfg(
+                outputs, batch, disable_pos_weight=disable_pos_weight
+            )
+        elif isinstance(outputs, dict) and "loss" in outputs:
             loss = outputs["loss"]
-        elif self.loss_cfg:
-            loss = self._compute_loss_from_cfg(outputs, batch)
         else:
             loss = None
 
@@ -404,7 +408,7 @@ class Trainer:
         return loss
 
     def _compute_loss_from_cfg(
-        self, outputs: Any, batch: Dict[str, Any]
+        self, outputs: Any, batch: Dict[str, Any], disable_pos_weight: bool = False
     ) -> torch.Tensor:
         if not isinstance(outputs, dict) or "logits" not in outputs:
             raise ValueError(
@@ -415,7 +419,9 @@ class Trainer:
 
         logits = outputs["logits"]
         labels = batch["label"].float()
-        loss = self._compute_bce_loss(logits, labels, reduction="mean")
+        loss = self._compute_bce_loss(
+            logits, labels, reduction="mean", disable_pos_weight=disable_pos_weight
+        )
 
         l1_lambda = float(self.loss_cfg.get("l1_lambda", 0.0))
         if l1_lambda > 0:
@@ -429,6 +435,7 @@ class Trainer:
         logits: torch.Tensor,
         labels: torch.Tensor,
         reduction: str = "mean",
+        disable_pos_weight: bool = False,
     ) -> torch.Tensor:
         labels = self._normalize_labels(labels)
         logits = self._normalize_logits(logits)
@@ -439,7 +446,9 @@ class Trainer:
         if smoothing > 0:
             labels = labels * (1.0 - smoothing) + 0.5 * smoothing
 
-        pos_weight = self.loss_cfg.get("pos_weight") if self.loss_cfg else None
+        pos_weight = None
+        if self.loss_cfg and not disable_pos_weight:
+            pos_weight = self.loss_cfg.get("pos_weight")
         pos_weight_tensor = None
         if pos_weight is not None:
             pos_weight_tensor = torch.tensor([float(pos_weight)], device=logits.device)
@@ -469,60 +478,110 @@ class Trainer:
         return isinstance(batch, dict) and bool(batch.get("_ohem", False))
 
     def _prepare_ohem_batch(self, batch: Dict[str, Any]) -> Dict[str, Any]:
-        pos_batch = batch.get("pos")
-        neg_candidates = batch.get("neg_candidates")
-        neg_default = batch.get("neg_default")
-        hard_count = int(batch.get("hard_count", 0))
+        pool = batch.get("pool")
+        if pool is None:
+            raise RuntimeError("OHEM batch is missing the candidate pool.")
 
-        hard_neg_batch = None
-        if neg_candidates is not None and hard_count > 0:
-            was_training = self.model.training
-            self.model.eval()
-            neg_candidates = self._move_batch_to_device(neg_candidates)
+        target_batch_size = int(batch.get("ohem_batch_size", 0)) or int(
+            batch.get("batch_size", 0)
+        )
+        if target_batch_size <= 0:
+            target_batch_size = int(pool.get("label", torch.empty(0)).size(0))
 
-            with torch.no_grad():
-                with self._amp_context():
-                    outputs = self.model(neg_candidates)
-                    if not isinstance(outputs, dict) or "logits" not in outputs:
-                        raise ValueError(
-                            "OHEM mining requires model outputs to include 'logits'."
-                        )
-                    logits = outputs["logits"]
-                    labels = neg_candidates["label"]
-                    losses = self._compute_bce_loss(
-                        logits, labels, reduction="none"
-                    ).view(-1)
+        cap_protein = int(batch.get("cap_protein", 0))
+        protein_a = pool.get("protein_a")
+        protein_b = pool.get("protein_b")
+        if protein_a is None or protein_b is None:
+            raise ValueError("OHEM mining requires protein IDs in the pool batch.")
 
-            if was_training:
-                self.model.train()
+        was_training = self.model.training
+        self.model.eval()
+        pool_device = self._move_batch_to_device(pool)
 
-            k = min(hard_count, int(losses.numel()))
-            if k > 0:
-                _, topk_idx = torch.topk(losses, k=k, largest=True)
-                hard_neg_batch = self._index_batch(neg_candidates, topk_idx)
+        with torch.no_grad():
+            with self._amp_context():
+                outputs = self.model(pool_device)
+                if not isinstance(outputs, dict) or "logits" not in outputs:
+                    raise ValueError(
+                        "OHEM mining requires model outputs to include 'logits'."
+                    )
+                logits = outputs["logits"]
+                labels = pool_device["label"]
+                scores = self._compute_mining_scores(logits, labels)
 
-        batches = []
-        if pos_batch is not None:
-            batches.append(self._move_batch_to_device(pos_batch))
-        if hard_neg_batch is not None:
-            batches.append(hard_neg_batch)
-        if neg_default is not None:
-            batches.append(self._move_batch_to_device(neg_default))
+        if was_training:
+            self.model.train()
 
-        if not batches:
-            raise RuntimeError("OHEM batch produced no samples for training.")
+        if scores.numel() == 0:
+            raise RuntimeError("OHEM mining produced no candidate scores.")
 
-        return self._concat_batches(batches)
+        sorted_idx = torch.argsort(scores, descending=True).tolist()
+
+        selected: List[int] = []
+        if cap_protein > 0:
+            counts: Dict[str, int] = {}
+            for idx in sorted_idx:
+                protein_left = protein_a[idx]
+                protein_right = protein_b[idx]
+                if counts.get(protein_left, 0) >= cap_protein:
+                    continue
+                if counts.get(protein_right, 0) >= cap_protein:
+                    continue
+                selected.append(idx)
+                counts[protein_left] = counts.get(protein_left, 0) + 1
+                counts[protein_right] = counts.get(protein_right, 0) + 1
+                if len(selected) >= target_batch_size:
+                    break
+
+        if len(selected) < target_batch_size:
+            selected_set = set(selected)
+            for idx in sorted_idx:
+                if idx in selected_set:
+                    continue
+                selected.append(idx)
+                selected_set.add(idx)
+                if len(selected) >= target_batch_size:
+                    break
+
+        if not selected:
+            raise RuntimeError("OHEM selection produced an empty training batch.")
+
+        selected_tensor = torch.tensor(
+            selected, device=pool_device["label"].device, dtype=torch.long
+        )
+        train_batch = self._index_batch(pool_device, selected_tensor)
+        train_batch["_ohem_unweighted"] = True
+        return train_batch
+
+    def _compute_mining_scores(
+        self, logits: torch.Tensor, labels: torch.Tensor
+    ) -> torch.Tensor:
+        logits = self._normalize_logits(logits)
+        labels = self._normalize_labels(labels)
+        scores = F.binary_cross_entropy_with_logits(
+            logits, labels, reduction="none"
+        ).view(-1)
+        return scores
 
     def _index_batch(
         self, batch: Dict[str, Any], indices: torch.Tensor
     ) -> Dict[str, Any]:
         if indices.numel() == 0:
             return {}
-        return {
-            k: v.index_select(0, indices) if isinstance(v, torch.Tensor) else v
-            for k, v in batch.items()
-        }
+        index_list = indices.detach().cpu().tolist()
+        sliced: Dict[str, Any] = {}
+        for key, value in batch.items():
+            if isinstance(value, torch.Tensor):
+                sliced[key] = value.index_select(0, indices)
+            elif isinstance(value, list):
+                sliced[key] = [value[i] for i in index_list]
+            elif isinstance(value, tuple):
+                sliced[key] = tuple(value[i] for i in index_list)
+            elif isinstance(value, np.ndarray):
+                sliced[key] = value[index_list]
+            else:
+                sliced[key] = value
+        return sliced
 
     def _concat_batches(self, batches: List[Dict[str, Any]]) -> Dict[str, Any]:
         if not batches:

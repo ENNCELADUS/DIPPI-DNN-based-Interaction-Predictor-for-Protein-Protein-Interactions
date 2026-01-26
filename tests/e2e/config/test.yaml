@@ -34,9 +34,10 @@ data_config:
     valid_csv: "data/TMP/processed/finetune_val.csv"
     sampling:
       strategy: "staged_hard"
-      pos_neg_ratio: 10.0
-      warmup_epochs: 0
-      hard_ratio: 0.5
+      warmup_pos_neg_ratio: 7.0
+      warmup_epochs: 2
+      pool_multiplier: 16
+      cap_protein: 13
   evaluate:
     test_balanced: "data/TMP/processed/test.csv"
 
@@ -161,7 +162,7 @@ finetune_config:
   # Loss
   loss:
     type: "bce_with_logits"
-    pos_weight: 16.0
+    pos_weight: 7.0
     label_smoothing: 0.005
     use_class_weights: true
     l1_lambda: 0.0

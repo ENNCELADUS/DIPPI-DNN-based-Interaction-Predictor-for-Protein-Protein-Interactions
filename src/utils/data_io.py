@@ -27,7 +27,7 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader, DistributedSampler
-from src.utils.samplers import ImbalancedBatchSampler, OnlineHardNegativeBatchSampler
+from src.utils.samplers import ImbalancedBatchSampler, StagedOHEMBatchSampler
 from src.utils.distributed import get_rank, get_world_size, is_main_process
 
 
@@ -202,7 +202,7 @@ def _collate_protein_pairs(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Collate function to batch protein pair samples.
 
-    Supports standard batches and OHEM batches containing "role" metadata.
+    Supports standard batches and OHEM pool batches containing "role" metadata.
     """
     if not batch:
         return {}
@@ -211,38 +211,38 @@ def _collate_protein_pairs(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     if not has_roles:
         return _stack_protein_pairs(batch)
 
-    role_buckets: Dict[str, List[Dict[str, Any]]] = {
-        "pos": [],
-        "neg_candidate": [],
-        "neg_default": [],
-    }
-    hard_counts = set()
+    pool_items: List[Dict[str, Any]] = []
+    batch_sizes = set()
+    cap_values = set()
 
     for item in batch:
         role = item.get("role")
-        if role not in role_buckets:
+        if role != "ohem_pool":
             raise ValueError(f"Unknown sampling role: {role}")
-        role_buckets[role].append(item)
-        hard_count = item.get("hard_count")
-        if hard_count is not None:
-            hard_counts.add(int(hard_count))
+        pool_items.append(item)
+        if item.get("ohem_batch_size") is not None:
+            batch_sizes.add(int(item["ohem_batch_size"]))
+        if item.get("cap_protein") is not None:
+            cap_values.add(int(item["cap_protein"]))
 
-    if len(hard_counts) > 1:
+    if len(batch_sizes) > 1:
         raise ValueError(
-            f"Inconsistent hard_count values within OHEM batch: {sorted(hard_counts)}"
+            f"Inconsistent ohem_batch_size values within pool: {sorted(batch_sizes)}"
+        )
+    if len(cap_values) > 1:
+        raise ValueError(
+            f"Inconsistent cap_protein values within pool: {sorted(cap_values)}"
         )
 
-    hard_count_value = int(next(iter(hard_counts))) if hard_counts else 0
-
-    def _maybe_stack(items: List[Dict[str, Any]]) -> Optional[Dict[str, torch.Tensor]]:
-        return _stack_protein_pairs(items) if items else None
+    pool = _stack_protein_pairs(pool_items)
+    pool["protein_a"] = [item["protein_a"] for item in pool_items]
+    pool["protein_b"] = [item["protein_b"] for item in pool_items]
 
     return {
         "_ohem": True,
-        "hard_count": hard_count_value,
-        "pos": _maybe_stack(role_buckets["pos"]),
-        "neg_candidates": _maybe_stack(role_buckets["neg_candidate"]),
-        "neg_default": _maybe_stack(role_buckets["neg_default"]),
+        "pool": pool,
+        "ohem_batch_size": int(next(iter(batch_sizes))) if batch_sizes else 0,
+        "cap_protein": int(next(iter(cap_values))) if cap_values else 0,
     }
 
 
@@ -310,6 +310,12 @@ class DistributedBatchSampler:
         """Forward epoch to the wrapped sampler if supported."""
         if hasattr(self.batch_sampler, "set_epoch"):
             self.batch_sampler.set_epoch(epoch)
+        self._total_batches = len(self.batch_sampler)
+        self._max_per_rank = (
+            math.ceil(self._total_batches / self.num_replicas)
+            if self.num_replicas > 0
+            else 0
+        )
 
 
 class ProteinPairDataset(Dataset):
@@ -463,7 +469,10 @@ class ProteinPairDataset(Dataset):
             "Expected sharded embeddings with _fixed_len metadata."
         )
 
-    def __getitem__(self, idx: int | tuple[int, str] | tuple[int, str, int]):
+    def __getitem__(
+        self,
+        idx: int | tuple[int, str] | tuple[int, str, int] | tuple[int, str, int, int],
+    ):
         """
         Get a single protein pair sample.
 
@@ -478,17 +487,23 @@ class ProteinPairDataset(Dataset):
                 - len_b: int (actual sequence length)
                 - label: float (0.0 or 1.0)
                 - role: Optional[str] (for OHEM batches)
-                - hard_count: Optional[int] (for OHEM batches)
+                - ohem_batch_size: Optional[int] (for OHEM pool batches)
+                - cap_protein: Optional[int] (for OHEM pool batches)
         """
         role = None
-        hard_count = None
+        ohem_batch_size = None
+        cap_protein = None
         if isinstance(idx, tuple):
             if len(idx) == 2:
                 idx, role = idx
             elif len(idx) == 3:
-                idx, role, hard_count = idx
+                idx, role, ohem_batch_size = idx
+            elif len(idx) == 4:
+                idx, role, ohem_batch_size, cap_protein = idx
             else:
-                raise ValueError("Index tuple must be (idx, role[, hard_count])")
+                raise ValueError(
+                    "Index tuple must be (idx, role[, ohem_batch_size[, cap_protein]])"
+                )
 
         if not isinstance(idx, (int, np.integer)):
             raise TypeError(f"Index must be int, got {type(idx)}")
@@ -512,8 +527,12 @@ class ProteinPairDataset(Dataset):
         }
         if role is not None:
             sample["role"] = role
-        if hard_count is not None:
-            sample["hard_count"] = int(hard_count)
+            sample["protein_a"] = protein_a
+            sample["protein_b"] = protein_b
+            if ohem_batch_size is not None:
+                sample["ohem_batch_size"] = int(ohem_batch_size)
+            if cap_protein is not None:
+                sample["cap_protein"] = int(cap_protein)
         return sample
 
 
@@ -626,17 +645,23 @@ def build_loader(
             batch_sampler = base_sampler
         shuffle = False  # Batch sampler controls ordering
     elif sampling_strategy == "staged_hard":
-        ratio = float(sampling_cfg.get("pos_neg_ratio", 16.0))
-        hard_ratio = float(sampling_cfg.get("hard_ratio", 0.7))
+        warmup_ratio = float(sampling_cfg.get("warmup_pos_neg_ratio", 7.0))
         warmup_epochs = int(sampling_cfg.get("warmup_epochs", 2))
         if "hard_start_epoch" in sampling_cfg:
             warmup_epochs = int(sampling_cfg["hard_start_epoch"])
-        base_sampler = OnlineHardNegativeBatchSampler(
+        pool_multiplier = int(sampling_cfg.get("pool_multiplier", 16))
+        cap_protein = int(
+            sampling_cfg.get(
+                "cap_protein", max(2, int(round(0.05 * float(batch_size))))
+            )
+        )
+        base_sampler = StagedOHEMBatchSampler(
             labels=list(dataset.df["isInteraction"].astype(int)),
             batch_size=batch_size,
-            pos_neg_ratio=ratio,
+            warmup_pos_neg_ratio=warmup_ratio,
             warmup_epochs=warmup_epochs,
-            hard_ratio=hard_ratio,
+            pool_multiplier=pool_multiplier,
+            cap_protein=cap_protein,
             shuffle=shuffle,
             drop_last=drop_last,
             seed=None,

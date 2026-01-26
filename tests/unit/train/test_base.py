@@ -367,6 +367,98 @@ class TestTrainerTraining:
         assert trainer.scaler is not None
 
 
+class TestTrainerOHEM:
+    """Tests for OHEM selection and loss behavior."""
+
+    def test_ohem_cap_selects_diverse_pairs(self, device):
+        from src.train.base import Trainer
+
+        class LogitEchoModel(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.dummy = nn.Parameter(torch.zeros(1))
+
+            def forward(self, batch):
+                logits = batch["logits"] + 0.0 * self.dummy
+                return {"logits": logits}
+
+        trainer = Trainer(
+            model=LogitEchoModel(),
+            device=device,
+            optimizer_cfg={"type": "adamw", "lr": 1e-3},
+            loss_cfg={"type": "bce_with_logits", "pos_weight": 5.0},
+        )
+
+        logits = torch.tensor([[0.1], [4.0], [-3.0], [2.0]])
+        labels = torch.tensor([[1.0], [0.0], [1.0], [0.0]])
+        pool = {
+            "logits": logits,
+            "label": labels,
+            "protein_a": ["P6", "P1", "P1", "P4"],
+            "protein_b": ["P7", "P2", "P3", "P5"],
+        }
+        batch = {"_ohem": True, "pool": pool, "ohem_batch_size": 2, "cap_protein": 1}
+
+        selected = trainer._prepare_ohem_batch(batch)
+        selected_logits = selected["logits"].view(-1).tolist()
+
+        assert 4.0 in selected_logits
+        assert 2.0 in selected_logits
+        assert -3.0 not in selected_logits
+
+    def test_ohem_fallback_fills_when_cap_too_strict(self, device):
+        from src.train.base import Trainer
+
+        class LogitEchoModel(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.dummy = nn.Parameter(torch.zeros(1))
+
+            def forward(self, batch):
+                logits = batch["logits"] + 0.0 * self.dummy
+                return {"logits": logits}
+
+        trainer = Trainer(
+            model=LogitEchoModel(),
+            device=device,
+            optimizer_cfg={"type": "adamw", "lr": 1e-3},
+        )
+
+        logits = torch.tensor([[4.0], [3.0], [2.0]])
+        labels = torch.tensor([[0.0], [0.0], [0.0]])
+        pool = {
+            "logits": logits,
+            "label": labels,
+            "protein_a": ["P1", "P1", "P1"],
+            "protein_b": ["P2", "P3", "P4"],
+        }
+        batch = {"_ohem": True, "pool": pool, "ohem_batch_size": 2, "cap_protein": 1}
+
+        selected = trainer._prepare_ohem_batch(batch)
+        selected_logits = sorted(selected["logits"].view(-1).tolist(), reverse=True)
+
+        assert selected_logits == [4.0, 3.0]
+
+    def test_ohem_unweighted_disables_pos_weight(self, simple_model, device):
+        from src.train.base import Trainer
+
+        trainer = Trainer(
+            model=simple_model,
+            device=device,
+            optimizer_cfg={"type": "adamw", "lr": 1e-3},
+            loss_cfg={"type": "bce_with_logits", "pos_weight": 5.0},
+        )
+
+        outputs = {"logits": torch.tensor([0.0])}
+        batch = {"label": torch.tensor([1.0])}
+
+        weighted_loss = trainer._compute_loss(outputs, batch)
+        batch["_ohem_unweighted"] = True
+        unweighted_loss = trainer._compute_loss(outputs, batch)
+
+        assert unweighted_loss < weighted_loss
+
+
 class TestTrainerEdgeCases:
     """Test edge cases and error handling."""
 
