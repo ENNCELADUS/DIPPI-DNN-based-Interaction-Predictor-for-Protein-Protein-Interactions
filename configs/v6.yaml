@@ -76,7 +76,7 @@ finetune_config:
         unfreeze: ["esm3."]
 
   epochs: 30
-  batch_size: 16
+  batch_size: 32
 
   log_every_n_batches: 50
   logging_metrics:
