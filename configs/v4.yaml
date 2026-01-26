@@ -1,12 +1,12 @@
 # V4 Config
 
 run_config:
-  mode: "finetune_from_pretrain"  # full_pipeline | finetune_from_pretrain | eval_only
+  mode: "train_and_eval"  # full_pipeline | train_and_eval | finetune_from_pretrain | eval_only
   seed: 47
   pretrain_run_id: null   # Auto-timestamp if null
   finetune_run_id: null   # Auto-timestamp if null
   eval_run_id: null       # Auto-timestamp if null
-  load_checkpoint_path: "models/v4/pretrain/20251216_151235/best_model.pth"  # Start fresh with new architecture
+  load_checkpoint_path: null  # Start fresh with new architecture
   save_best_only: true     # If true, only save the best checkpoint.
 
 top_level_config:
@@ -20,7 +20,7 @@ top_level_config:
 data_config:
   embeddings_path: "data/TMP/processed/TMP_embeddings.npz"
   embedding_dtype: "bf16"
-  max_sequence_length: 768
+  max_sequence_length: 1024
   dataloader:
     num_workers: 0
     prefetch_factor: null
@@ -47,23 +47,23 @@ model_config:
   model: "v4"
   input_dim: 1536
   d_model: 256
-  encoder_layers: 1
-  cross_attn_layers: 1
+  encoder_layers: 2
+  cross_attn_layers: 2
   n_heads: 8
 
-  # MLP head configuration (input_dim = 2*d_model = 768 after product|diff)
+  # MLP head configuration (input_dim = 2*d_model = 512 after product|diff)
   mlp_head:
-    hidden_dims: [256, 64]
-    dropout: 0.25
+    hidden_dims: [512, 256, 64]
+    dropout: 0.20
     activation: "gelu"
     norm: "layernorm"
 
   # Architecture related regularization
   regularization:
     dropout: 0.20
-    token_dropout: 0.20
+    token_dropout: 0.10
     cross_attention_dropout: 0.15
-    stochastic_depth: 0.15
+    stochastic_depth: 0.10
 
 pretrain_config:
   epochs: 40

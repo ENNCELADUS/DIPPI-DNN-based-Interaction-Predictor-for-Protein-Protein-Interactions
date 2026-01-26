@@ -52,22 +52,32 @@ model_config:
   n_heads: 12
 
   # Contact map modeling parameters
-  pair_dim: 128
-  cnn_dim: 64
+  pair_dim: 192
+  cnn_dim: 128
+  cnn_blocks: 2
 
-  # MLP head configuration (input is cnn_dim after global max pool)
+  interaction_map:
+    include_pair_features: true
+    similarity: "cosine"
+    eps: 1.0e-8
+
+  pooling:
+    mode: "max_mean"
+
+  # MLP head configuration (input is 2*cnn_dim after max+mean pool)
   mlp_head:
-    hidden_dims: [64]
-    dropout: 0.25
+    hidden_dims: [128, 64]
+    dropout: 0.20
     activation: "gelu"
     norm: "layernorm"
 
   # Architecture related regularization
   regularization:
-    dropout: 0.20
-    token_dropout: 0.20
+    dropout: 0.15
+    token_dropout: 0.10
     cross_attention_dropout: 0.15
-    stochastic_depth: 0.15
+    stochastic_depth: 0.10
+    cnn_dropout: 0.10
 
 pretrain_config:
   epochs: 40

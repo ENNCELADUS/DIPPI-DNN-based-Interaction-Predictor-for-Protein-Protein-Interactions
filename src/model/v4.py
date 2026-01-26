@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 import torch
 import torch.nn as nn
 
-from .v3 import SiameseEncoder, MLPHead, _build_padding_mask
+from .v3 import SiameseEncoder, _build_padding_mask
 
 
 class AttentionPooling(nn.Module):
@@ -46,32 +46,60 @@ class AttentionPooling(nn.Module):
         return out.squeeze(1)
 
 
+def _build_activation(name: str) -> nn.Module:
+    name_norm = str(name).lower()
+    if name_norm == "gelu":
+        return nn.GELU()
+    if name_norm == "relu":
+        return nn.ReLU()
+    if name_norm in {"silu", "swish"}:
+        return nn.SiLU()
+    raise ValueError(f"Unsupported activation: {name}")
+
+
 class CrossAttentionLayer(nn.Module):
     """
-    Bidirectional cross-attention layer without CLS token.
+    Shared-weight bidirectional cross-attention block with FFN.
 
-    Performs A→B and B→A cross-attention to exchange information
-    between two protein sequences.
+    Each direction applies:
+      x = x + Dropout(CrossAttn(LN(x)))
+      x = x + Dropout(FFN(LN(x)))
     """
 
     def __init__(self, d_model: int, n_heads: int, dropout: float) -> None:
         super().__init__()
-        self.norm_a = nn.LayerNorm(d_model)
-        self.norm_b = nn.LayerNorm(d_model)
-        self.attn_a_to_b = nn.MultiheadAttention(
+        self.norm_attn = nn.LayerNorm(d_model)
+        self.norm_ffn = nn.LayerNorm(d_model)
+        self.attn = nn.MultiheadAttention(
             embed_dim=d_model,
             num_heads=n_heads,
             dropout=dropout,
             batch_first=True,
         )
-        self.attn_b_to_a = nn.MultiheadAttention(
-            embed_dim=d_model,
-            num_heads=n_heads,
-            dropout=dropout,
-            batch_first=True,
+        self.ffn = nn.Sequential(
+            nn.Linear(d_model, 4 * d_model),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(4 * d_model, d_model),
+            nn.Dropout(dropout),
         )
-        self.drop_a = nn.Dropout(dropout)
-        self.drop_b = nn.Dropout(dropout)
+        self.drop_attn = nn.Dropout(dropout)
+        self.drop_ffn = nn.Dropout(dropout)
+
+    def _attend(
+        self,
+        query: torch.Tensor,
+        key_value: torch.Tensor,
+        key_padding_mask: Optional[torch.Tensor],
+    ) -> torch.Tensor:
+        query_norm = self.norm_attn(query)
+        attn_out, _ = self.attn(
+            query_norm, key_value, key_value, key_padding_mask=key_padding_mask
+        )
+        return query + self.drop_attn(attn_out)
+
+    def _ffn(self, x: torch.Tensor) -> torch.Tensor:
+        return x + self.drop_ffn(self.ffn(self.norm_ffn(x)))
 
     def forward(
         self,
@@ -90,25 +118,21 @@ class CrossAttentionLayer(nn.Module):
         Returns:
             Updated (h_a, h_b) after cross-attention
         """
-        # A attends to B
-        a_norm = self.norm_a(h_a)
-        attn_a, _ = self.attn_a_to_b(a_norm, h_b, h_b, key_padding_mask=mask_b)
-        h_a = h_a + self.drop_a(attn_a)
+        h_a = self._attend(h_a, h_b, mask_b)
+        h_a = self._ffn(h_a)
 
-        # B attends to A
-        b_norm = self.norm_b(h_b)
-        attn_b, _ = self.attn_b_to_a(b_norm, h_a, h_a, key_padding_mask=mask_a)
-        h_b = h_b + self.drop_b(attn_b)
+        h_b = self._attend(h_b, h_a, mask_a)
+        h_b = self._ffn(h_b)
 
         return h_a, h_b
 
 
 class InteractionCrossAttention(nn.Module):
     """
-    Stacked bidirectional cross-attention without CLS token.
+    Stacked shared-weight bidirectional cross-attention with FFN.
 
     Exchanges information between two protein sequences through
-    multiple layers of bidirectional cross-attention.
+    multiple shared-weight cross-attention blocks.
     """
 
     def __init__(
@@ -126,7 +150,7 @@ class InteractionCrossAttention(nn.Module):
         h_b: torch.Tensor,
         lengths_a: torch.Tensor,
         lengths_b: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
             h_a: Protein A representations (batch, seq_a, d_model)
@@ -155,16 +179,78 @@ class InteractionCrossAttention(nn.Module):
         return h_a, h_b, mask_a, mask_b
 
 
+class ResidualMLPBlock(nn.Module):
+    """Residual MLP block with LayerNorm, activation, and dropout."""
+
+    def __init__(
+        self, input_dim: int, hidden_dim: int, dropout: float, activation: str
+    ) -> None:
+        super().__init__()
+        self.norm = nn.LayerNorm(input_dim)
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, input_dim)
+        self.act = _build_activation(activation)
+        self.drop = nn.Dropout(dropout)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        h = self.fc1(self.norm(x))
+        h = self.act(h)
+        h = self.drop(h)
+        h = self.fc2(h)
+        h = self.drop(h)
+        return x + h
+
+
+class ResidualMLPHead(nn.Module):
+    """Residual MLP head with configurable hidden dims and dropout."""
+
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_dims: list[int],
+        dropout: float,
+        activation: str,
+    ) -> None:
+        super().__init__()
+        if not hidden_dims:
+            raise ValueError("mlp_head.hidden_dims must be non-empty for V4")
+        self.blocks = nn.ModuleList(
+            [
+                ResidualMLPBlock(
+                    input_dim=input_dim,
+                    hidden_dim=int(hidden_dim),
+                    dropout=dropout,
+                    activation=activation,
+                )
+                for hidden_dim in hidden_dims
+            ]
+        )
+        self.output = nn.Linear(input_dim, 1)
+        self._initialize_weights()
+
+    def _initialize_weights(self) -> None:
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        for block in self.blocks:
+            x = block(x)
+        return self.output(x)
+
+
 class V4(nn.Module):
     """
     V4 PPI Classifier - Ablation model for V3.
 
     Architecture:
     1. SiameseEncoder (V2-style): Linear projection + dropout + norm (no self-attention)
-    2. Bidirectional cross-attention (A→B, B→A) WITHOUT CLS token
+    2. Shared-weight bidirectional cross-attention with FFN
     3. Attention pooling with learned query to get v_a, v_b
-    4. Combine: product = v_a * v_b, diff = |v_a - v_b|, concat → [batch, 2*d_model]
-    5. MLP classification head
+    4. Combine: [v_a, v_b, |v_a - v_b|, v_a * v_b] → LayerNorm
+    5. Residual MLP head with dropout
     """
 
     name: str = "v4"
@@ -199,6 +285,8 @@ class V4(nn.Module):
         self.mlp_dropout = float(mlp_cfg["dropout"])
         self.mlp_activation = mlp_cfg.get("activation", "gelu")
         self.mlp_norm = mlp_cfg.get("norm", "layernorm")
+        if str(self.mlp_norm).lower() not in {"layernorm", "ln"}:
+            raise ValueError("mlp_head.norm must be 'layernorm' for V4")
 
         reg_cfg: Dict[str, Any] = model_config.get("regularization", {})
         if "dropout" not in reg_cfg:
@@ -241,14 +329,13 @@ class V4(nn.Module):
             dropout=self.cross_attention_dropout,
         )
 
-        # MLP head takes 2*d_model input (product + diff concatenation)
-        self.output_head = MLPHead(
-            input_dim=2 * self.d_model,
+        pair_dim = 4 * self.d_model
+        self.pair_norm = nn.LayerNorm(pair_dim)
+        self.output_head = ResidualMLPHead(
+            input_dim=pair_dim,
             hidden_dims=self.mlp_hidden_dims,
-            output_dim=1,
             dropout=self.mlp_dropout,
             activation=self.mlp_activation,
-            norm=self.mlp_norm,
         )
 
     def forward(self, batch: Dict[str, Any]) -> Dict[str, torch.Tensor]:
@@ -286,7 +373,7 @@ class V4(nn.Module):
         encoded_a = self.encoder(emb_a, lengths_a)
         encoded_b = self.encoder(emb_b, lengths_b)
 
-        # Cross-attention (bidirectional, no CLS)
+        # Cross-attention (bidirectional, shared weights, with FFN)
         h_a, h_b, mask_a, mask_b = self.cross_attention(
             encoded_a, encoded_b, lengths_a, lengths_b
         )
@@ -295,10 +382,11 @@ class V4(nn.Module):
         v_a = self.pool_a(h_a, mask_a)  # [batch, d_model]
         v_b = self.pool_b(h_b, mask_b)  # [batch, d_model]
 
-        # Combine with product and absolute difference
+        # Combine with full pair features
         product = v_a * v_b
         diff = torch.abs(v_a - v_b)
-        combined = torch.cat([product, diff], dim=-1)  # [batch, 2*d_model]
+        combined = torch.cat([v_a, v_b, diff, product], dim=-1)  # [batch, 4*d_model]
+        combined = self.pair_norm(combined)
 
         # Classification
         logits = self.output_head(combined)

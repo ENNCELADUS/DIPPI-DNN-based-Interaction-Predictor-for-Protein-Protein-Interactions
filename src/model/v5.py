@@ -4,9 +4,9 @@ V5 PPI Classifier - Contact Map Modeling Ablation
 This model tests contact map-based interaction modeling:
 1. SiameseEncoder: Linear projection + norm (no transformer layers, same as V2)
 2. BidirectionalCrossAttention: Residue-level info exchange between proteins
-3. InteractionMapBuilder: Projects to pair space and builds 2D grid [B, 2*D_p, L_A, L_B]
-4. ContactMapCNN: ResNet-style CNN for local pattern extraction
-5. Aggregation: Global max pool on CNN features → MLP head
+3. InteractionMapBuilder: Projects to pair space and builds enriched 2D grid [B, C, L_A, L_B]
+4. ContactMapCNN: ResNet-style CNN for local pattern extraction (multiple blocks)
+5. Aggregation: Global max/mean pool on CNN features → MLP head
 """
 
 from __future__ import annotations
@@ -23,33 +23,48 @@ class BidirectionalCrossAttentionLayer(nn.Module):
     """
     Single layer of bidirectional cross-attention between two protein sequences.
 
-    Pre-LN architecture with residual connections:
-    - A attends to B, updates H_A
-    - B attends to A, updates H_B
+    Pre-LN architecture with residual connections and FFN:
+    - A attends to B, updates H_A (shared weights)
+    - B attends to A, updates H_B (shared weights)
     """
 
     def __init__(self, d_model: int, n_heads: int, dropout: float) -> None:
         super().__init__()
-        self.norm_a = nn.LayerNorm(d_model)
-        self.norm_b = nn.LayerNorm(d_model)
+        self.norm_attn = nn.LayerNorm(d_model)
+        self.norm_ffn = nn.LayerNorm(d_model)
 
-        # Cross-attention: A to B (Q from A, K/V from B)
-        self.attn_a_to_b = nn.MultiheadAttention(
+        # Shared cross-attention: used for both A->B and B->A
+        self.attn = nn.MultiheadAttention(
             embed_dim=d_model,
             num_heads=n_heads,
             dropout=dropout,
             batch_first=True,
         )
-        # Cross-attention: B to A (Q from B, K/V from A)
-        self.attn_b_to_a = nn.MultiheadAttention(
-            embed_dim=d_model,
-            num_heads=n_heads,
-            dropout=dropout,
-            batch_first=True,
+        self.ffn = nn.Sequential(
+            nn.Linear(d_model, 4 * d_model),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(4 * d_model, d_model),
+            nn.Dropout(dropout),
         )
 
-        self.drop_a = nn.Dropout(dropout)
-        self.drop_b = nn.Dropout(dropout)
+        self.drop_attn = nn.Dropout(dropout)
+        self.drop_ffn = nn.Dropout(dropout)
+
+    def _attend(
+        self,
+        query: torch.Tensor,
+        key_value: torch.Tensor,
+        key_padding_mask: Optional[torch.Tensor],
+    ) -> torch.Tensor:
+        query_norm = self.norm_attn(query)
+        attn_out, _ = self.attn(
+            query_norm, key_value, key_value, key_padding_mask=key_padding_mask
+        )
+        return query + self.drop_attn(attn_out)
+
+    def _ffn(self, x: torch.Tensor) -> torch.Tensor:
+        return x + self.drop_ffn(self.ffn(self.norm_ffn(x)))
 
     def forward(
         self,
@@ -68,15 +83,11 @@ class BidirectionalCrossAttentionLayer(nn.Module):
         Returns:
             Updated (h_a, h_b) with same shapes
         """
-        # A attends to B: Q=A, K=V=B
-        a_norm = self.norm_a(h_a)
-        attn_a, _ = self.attn_a_to_b(a_norm, h_b, h_b, key_padding_mask=mask_b)
-        h_a = h_a + self.drop_a(attn_a)
+        h_a = self._attend(h_a, h_b, mask_b)
+        h_a = self._ffn(h_a)
 
-        # B attends to A: Q=B, K=V=A (use updated h_a)
-        b_norm = self.norm_b(h_b)
-        attn_b, _ = self.attn_b_to_a(b_norm, h_a, h_a, key_padding_mask=mask_a)
-        h_b = h_b + self.drop_b(attn_b)
+        h_b = self._attend(h_b, h_a, mask_a)
+        h_b = self._ffn(h_b)
 
         return h_a, h_b
 
@@ -141,14 +152,28 @@ class InteractionMapBuilder(nn.Module):
 
     Steps:
     1. Project H_A, H_B from D_h to D_p (pair dimension)
-    2. Broadcast and concatenate to form [B, 2*D_p, L_A, L_B] grid
+    2. Broadcast and combine to form [B, C, L_A, L_B] grid
     """
 
-    def __init__(self, d_model: int, pair_dim: int) -> None:
+    def __init__(
+        self,
+        d_model: int,
+        pair_dim: int,
+        include_pair_features: bool,
+        similarity: str,
+        eps: float,
+    ) -> None:
         super().__init__()
         self.proj_a = nn.Linear(d_model, pair_dim)
         self.proj_b = nn.Linear(d_model, pair_dim)
         self.activation = nn.GELU()
+        self.include_pair_features = include_pair_features
+        self.similarity = str(similarity).lower()
+        self.eps = float(eps)
+        if self.similarity not in {"none", "cosine", "dot"}:
+            raise ValueError(
+                "interaction_map.similarity must be one of: 'none', 'cosine', 'dot'"
+            )
 
     def forward(
         self,
@@ -165,7 +190,7 @@ class InteractionMapBuilder(nn.Module):
             mask_b: Optional padding mask for B
 
         Returns:
-            M_in: [B, 2*D_p, L_A, L_B] - Channel-first format for CNN
+            M_in: [B, C, L_A, L_B] - Channel-first format for CNN
         """
         # Project to pair dimension: [B, L, D_h] -> [B, L, D_p]
         z_a = self.activation(self.proj_a(h_a))  # [B, L_A, D_p]
@@ -180,8 +205,32 @@ class InteractionMapBuilder(nn.Module):
         z_a_exp = z_a.unsqueeze(2).expand(-1, -1, L_B, -1)  # [B, L_A, L_B, D_p]
         z_b_exp = z_b.unsqueeze(1).expand(-1, L_A, -1, -1)  # [B, L_A, L_B, D_p]
 
+        features = [z_a_exp, z_b_exp]
+        if self.include_pair_features:
+            diff = torch.abs(z_a_exp - z_b_exp)
+            prod = z_a_exp * z_b_exp
+            features.extend([diff, prod])
+
+        if self.similarity != "none":
+            if self.similarity == "cosine":
+                norm_a = torch.sqrt(
+                    torch.sum(z_a_exp * z_a_exp, dim=-1, keepdim=True) + self.eps
+                )
+                norm_b = torch.sqrt(
+                    torch.sum(z_b_exp * z_b_exp, dim=-1, keepdim=True) + self.eps
+                )
+                sim = torch.sum(z_a_exp * z_b_exp, dim=-1, keepdim=True) / (
+                    norm_a * norm_b
+                )
+            else:
+                scale = float(z_a_exp.size(-1)) ** 0.5
+                sim = torch.sum(z_a_exp * z_b_exp, dim=-1, keepdim=True) / (
+                    scale + self.eps
+                )
+            features.append(sim)
+
         # Concatenate along feature dimension
-        M_raw = torch.cat([z_a_exp, z_b_exp], dim=-1)  # [B, L_A, L_B, 2*D_p]
+        M_raw = torch.cat(features, dim=-1)  # [B, L_A, L_B, C]
 
         # Permute to channel-first for CNN: [B, 2*D_p, L_A, L_B]
         M_in = M_raw.permute(0, 3, 1, 2).contiguous()
@@ -227,16 +276,18 @@ class ContactMapCNN(nn.Module):
     ResNet-style CNN for contact map feature extraction.
 
     Architecture:
-    1. Feature Fusion: 1x1 Conv (2*D_p -> D_c) + BN + ReLU
-    2. Spatial Residual Block: 3x3 Conv residual block
+    1. Feature Fusion: 1x1 Conv (C -> D_c) + BN + ReLU
+    2. Spatial Residual Blocks: 3x3 Conv residual blocks
     3. Output kept at D_c channels for downstream pooling
     """
 
-    def __init__(self, in_channels: int, cnn_dim: int) -> None:
+    def __init__(self, in_channels: int, cnn_dim: int, num_blocks: int, dropout: float):
         """
         Args:
-            in_channels: Input channels (2 * pair_dim)
+            in_channels: Input channels (C)
             cnn_dim: CNN channel dimension (D_c)
+            num_blocks: Number of residual blocks
+            dropout: Dropout rate after each residual block
         """
         super().__init__()
 
@@ -247,8 +298,12 @@ class ContactMapCNN(nn.Module):
             nn.ReLU(inplace=True),
         )
 
-        # Step 3.2: Spatial Residual Block
-        self.res_block = ResidualBlock(cnn_dim)
+        if num_blocks <= 0:
+            raise ValueError("cnn_blocks must be >= 1")
+        self.res_blocks = nn.ModuleList(
+            [ResidualBlock(cnn_dim) for _ in range(int(num_blocks))]
+        )
+        self.drop = nn.Dropout2d(float(dropout)) if dropout > 0 else nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -259,7 +314,9 @@ class ContactMapCNN(nn.Module):
             F_res: [B, D_c, L_A, L_B]
         """
         x = self.fusion(x)
-        x = self.res_block(x)
+        for block in self.res_blocks:
+            x = block(x)
+            x = self.drop(x)
         return x
 
 
@@ -268,11 +325,11 @@ class V5(nn.Module):
     V5 PPI Classifier - Contact Map Modeling Ablation.
 
     Architecture:
-    1. Siamese encoder: Linear projection + dropout + norm (no transformers, same as V2)
+    1. Siamese encoder: Linear projection + transformer + dropout
     2. Bidirectional cross-attention: Residue-level info exchange
-    3. Interaction map builder: 2D grid construction [B, 2*D_p, L_A, L_B]
-    4. Contact map CNN: ResNet-style feature extraction
-    5. Global max pooling + MLP head for classification
+    3. Interaction map builder: 2D grid with enriched pair features
+    4. Contact map CNN: ResNet-style feature extraction (multiple blocks)
+    5. Global pooling (max/mean) + MLP head for classification
     """
 
     name: str = "v5"
@@ -323,6 +380,21 @@ class V5(nn.Module):
         )
         self.token_dropout = float(reg_cfg.get("token_dropout", 0.0))
         self.stochastic_depth = float(reg_cfg.get("stochastic_depth", 0.0))
+        self.cnn_dropout = float(reg_cfg.get("cnn_dropout", 0.0))
+
+        map_cfg: Dict[str, Any] = model_config.get("interaction_map", {})
+        self.map_include_pair_features = bool(
+            map_cfg.get("include_pair_features", True)
+        )
+        self.map_similarity = str(map_cfg.get("similarity", "cosine")).lower()
+        self.map_eps = float(map_cfg.get("eps", 1.0e-8))
+
+        cnn_blocks = int(model_config.get("cnn_blocks", 2))
+
+        pool_cfg: Dict[str, Any] = model_config.get("pooling", {})
+        self.pooling = str(pool_cfg.get("mode", "max_mean")).lower()
+        if self.pooling not in {"max", "mean", "max_mean"}:
+            raise ValueError("pooling.mode must be one of: 'max', 'mean', 'max_mean'")
 
         # Build modules - V5: Use v3-style encoder with transformer layers
         self.encoder = SiameseEncoder(
@@ -342,22 +414,34 @@ class V5(nn.Module):
             dropout=self.cross_attention_dropout,
         )
 
+        map_channels = 2 * self.pair_dim
+        if self.map_include_pair_features:
+            map_channels += 2 * self.pair_dim
+        if self.map_similarity != "none":
+            map_channels += 1
+
         self.map_builder = InteractionMapBuilder(
             d_model=self.d_model,
             pair_dim=self.pair_dim,
+            include_pair_features=self.map_include_pair_features,
+            similarity=self.map_similarity,
+            eps=self.map_eps,
         )
 
         self.contact_cnn = ContactMapCNN(
-            in_channels=2 * self.pair_dim,
+            in_channels=map_channels,
             cnn_dim=self.cnn_dim,
+            num_blocks=cnn_blocks,
+            dropout=self.cnn_dropout,
         )
 
-        # Global max pooling
-        self.global_pool = nn.AdaptiveMaxPool2d((1, 1))
+        self.global_max_pool = nn.AdaptiveMaxPool2d((1, 1))
+        self.global_mean_pool = nn.AdaptiveAvgPool2d((1, 1))
+        head_input_dim = self.cnn_dim * (2 if self.pooling == "max_mean" else 1)
 
-        # MLP head: input is cnn_dim (after pooling)
+        # MLP head: input is pooled_dim (after pooling)
         self.output_head = MLPHead(
-            input_dim=self.cnn_dim,
+            input_dim=head_input_dim,
             hidden_dims=self.mlp_hidden_dims,
             output_dim=1,
             dropout=self.mlp_dropout,
@@ -409,9 +493,16 @@ class V5(nn.Module):
         # 4. Contact map CNN
         features = self.contact_cnn(interaction_map)  # [B, D_c, L_A, L_B]
 
-        # 5. Global max pooling
-        pooled = self.global_pool(features)  # [B, D_c, 1, 1]
-        pooled = pooled.flatten(1)  # [B, D_c]
+        # 5. Global pooling
+        if self.pooling == "max_mean":
+            pooled_max = self.global_max_pool(features)
+            pooled_mean = self.global_mean_pool(features)
+            pooled = torch.cat([pooled_max, pooled_mean], dim=1)
+        elif self.pooling == "mean":
+            pooled = self.global_mean_pool(features)
+        else:
+            pooled = self.global_max_pool(features)
+        pooled = pooled.flatten(1)
 
         # 6. MLP head
         logits = self.output_head(pooled)  # [B, 1]

@@ -55,24 +55,24 @@ model_config:
 
   # MLP head configuration
   mlp_head:
-    hidden_dims: [384, 192, 64]
+    hidden_dims: [256, 128, 64]
     dropout: 0.20
     activation: "gelu"
     norm: "layernorm"
 
   # Architecture related regularization (MVP)
   regularization:
-    dropout: 0.10                   # Required: transformer block dropout
+    dropout: 0.15                   # Required: transformer block dropout
     token_dropout: 0.10             # Optional: dropout on embeddings before encoder (0.0 = disabled)
-    cross_attention_dropout: 0.05   # Optional: dropout for cross-attention
-    stochastic_depth: 0.05          # Max drop-path rate across encoder depth (linear schedule)
+    cross_attention_dropout: 0.15   # Optional: dropout for cross-attention
+    stochastic_depth: 0.10          # Max drop-path rate across encoder depth (linear schedule)
 
 pretrain_config:
   epochs: 40
   batch_size: 32
 
   # Logging configuration
-  log_every_n_batches: 50
+  log_every_n_batches: 100
   logging_metrics:               # Two metrics to log to the training_step.csv file
     primary: auprc
     secondary: auroc
@@ -125,7 +125,7 @@ finetune_config:
   batch_size: 32
 
   # Logging configuration
-  log_every_n_batches: 50
+  log_every_n_batches: 100
   logging_metrics:               # Two metrics to log to the training_step.csv file
     primary: auprc
     secondary: auroc

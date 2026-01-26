@@ -93,23 +93,26 @@ class SiameseEncoder(nn.Module):
 
 
 class CrossAttentionLayer(nn.Module):
+    """Shared-weight bidirectional cross-attention with FFN and CLS pooling."""
+
     def __init__(self, d_model: int, n_heads: int, dropout: float) -> None:
         super().__init__()
-        self.norm_a = nn.LayerNorm(d_model)
-        self.norm_b = nn.LayerNorm(d_model)
+        self.norm_attn = nn.LayerNorm(d_model)
+        self.norm_ffn = nn.LayerNorm(d_model)
         self.norm_cls_attn = nn.LayerNorm(d_model)
         self.norm_cls_ffn = nn.LayerNorm(d_model)
-        self.attn_a_to_b = nn.MultiheadAttention(
+        self.attn = nn.MultiheadAttention(
             embed_dim=d_model,
             num_heads=n_heads,
             dropout=dropout,
             batch_first=True,
         )
-        self.attn_b_to_a = nn.MultiheadAttention(
-            embed_dim=d_model,
-            num_heads=n_heads,
-            dropout=dropout,
-            batch_first=True,
+        self.ffn = nn.Sequential(
+            nn.Linear(d_model, 4 * d_model),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(4 * d_model, d_model),
+            nn.Dropout(dropout),
         )
         self.attn_cls = nn.MultiheadAttention(
             embed_dim=d_model,
@@ -124,10 +127,25 @@ class CrossAttentionLayer(nn.Module):
             nn.Linear(2 * d_model, d_model),
             nn.Dropout(dropout),
         )
-        self.drop_a = nn.Dropout(dropout)
-        self.drop_b = nn.Dropout(dropout)
+        self.drop_attn = nn.Dropout(dropout)
+        self.drop_ffn = nn.Dropout(dropout)
         self.drop_cls_attn = nn.Dropout(dropout)
         self.drop_cls_ffn = nn.Dropout(dropout)
+
+    def _attend(
+        self,
+        query: torch.Tensor,
+        key_value: torch.Tensor,
+        key_padding_mask: Optional[torch.Tensor],
+    ) -> torch.Tensor:
+        query_norm = self.norm_attn(query)
+        attn_out, _ = self.attn(
+            query_norm, key_value, key_value, key_padding_mask=key_padding_mask
+        )
+        return query + self.drop_attn(attn_out)
+
+    def _ffn(self, x: torch.Tensor) -> torch.Tensor:
+        return x + self.drop_ffn(self.ffn(self.norm_ffn(x)))
 
     def forward(
         self,
@@ -137,13 +155,11 @@ class CrossAttentionLayer(nn.Module):
         mask_a: Optional[torch.Tensor],
         mask_b: Optional[torch.Tensor],
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        a_norm = self.norm_a(h_a)
-        attn_a, _ = self.attn_a_to_b(a_norm, h_b, h_b, key_padding_mask=mask_b)
-        h_a = h_a + self.drop_a(attn_a)
+        h_a = self._attend(h_a, h_b, mask_b)
+        h_a = self._ffn(h_a)
 
-        b_norm = self.norm_b(h_b)
-        attn_b, _ = self.attn_b_to_a(b_norm, h_a, h_a, key_padding_mask=mask_a)
-        h_b = h_b + self.drop_b(attn_b)
+        h_b = self._attend(h_b, h_a, mask_a)
+        h_b = self._ffn(h_b)
 
         combined = torch.cat([h_a, h_b], dim=1)
         if mask_a is not None and mask_b is not None:
