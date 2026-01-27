@@ -88,7 +88,7 @@ finetune_config:
   use_mixed_precision: true
 
   early_stopping_patience: 5
-  monitor_metric: "loss"
+  monitor_metric: "auprc"
 
   scheduler:
     type: "warmup_cosine"

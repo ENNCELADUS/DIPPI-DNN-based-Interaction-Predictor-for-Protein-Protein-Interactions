@@ -136,7 +136,7 @@ finetune_config:
   
   # Early stopping
   early_stopping_patience: 5
-  monitor_metric: "auprc"     # Which metric to use for early stopping (lower is better)
+  monitor_metric: "auprc"     # Which metric to use for early stopping
   max_grad_norm: 1.0
   
   scheduler:
