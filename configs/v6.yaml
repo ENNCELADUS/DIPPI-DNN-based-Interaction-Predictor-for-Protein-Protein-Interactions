@@ -51,6 +51,8 @@ model_config:
     model_name: "esm3-open"
     checkpoint_path: "models/esm3/esm3_sm_open_v1_full.pth"
     strip_cls_eos: true
+    embed_batch_size: 32
+    combine_pairs: true   # run one batched ESM3 forward for A+B
 
   lora:
     last_n_layers: 8

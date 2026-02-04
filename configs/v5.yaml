@@ -46,14 +46,14 @@ data_config:
 model_config:
   model: "v5"
   input_dim: 1536
-  d_model: 256
+  d_model: 192
   encoder_layers: 2
   cross_attn_layers: 2
   n_heads: 8
 
   # Contact map modeling parameters
-  pair_dim: 128
-  cnn_dim: 96
+  pair_dim: 96
+  cnn_dim: 64
   cnn_blocks: 2
 
   interaction_map:

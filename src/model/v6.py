@@ -317,6 +317,11 @@ class V6(nn.Module):
             esm_cfg.get("checkpoint_path", "models/esm3/esm3_sm_open_v1_full.pth")
         )
         self.strip_cls_eos = bool(esm_cfg.get("strip_cls_eos", True))
+        embed_batch_size = int(esm_cfg.get("embed_batch_size", 0))
+        self.esm3_embed_batch_size = (
+            embed_batch_size if embed_batch_size > 0 else None
+        )
+        self.combine_pairs = bool(esm_cfg.get("combine_pairs", True))
 
         lora_cfg: Dict[str, Any] = model_config.get("lora", {})
         self.lora_last_n_layers = int(lora_cfg.get("last_n_layers", 8))
@@ -419,35 +424,64 @@ class V6(nn.Module):
 
         return ESMProtein, LogitsConfig(sequence=True, return_embeddings=True)
 
-    def _embed_sequence(self, sequence: str) -> torch.Tensor:
-        if not isinstance(sequence, str):
+    def _embed_chunk(
+        self, sequences: Sequence[str]
+    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
+        if any(not isinstance(seq, str) for seq in sequences):
             raise TypeError("Sequences must be raw strings")
+        if not sequences:
+            raise ValueError("Sequences must be non-empty")
 
-        protein = self._esm_protein_cls(sequence=sequence)
-        protein_tensor = self.esm3.encode(protein)
+        proteins = [self._esm_protein_cls(sequence=seq) for seq in sequences]
+        protein_tensor = self.esm3.encode(proteins)
         output = self.esm3.logits(protein_tensor, self._logits_config)
         embeddings = output.embeddings
         if embeddings is None:
             raise ValueError("ESM3 logits did not return embeddings")
 
-        if embeddings.dim() == 3:
-            embeddings = embeddings.squeeze(0)
+        if embeddings.dim() == 2:
+            embeddings = embeddings.unsqueeze(0)
 
-        if self.strip_cls_eos and embeddings.size(0) > 2:
-            embeddings = embeddings[1:-1]
+        seq_lengths = torch.tensor(
+            [len(seq) for seq in sequences],
+            device=embeddings.device,
+            dtype=torch.long,
+        )
 
-        return embeddings
+        if self.strip_cls_eos:
+            stripped: List[torch.Tensor] = []
+            for idx, seq_len in enumerate(seq_lengths.tolist()):
+                if seq_len <= 0:
+                    stripped.append(embeddings[idx, :0])
+                else:
+                    stripped.append(embeddings[idx, 1 : 1 + seq_len])
+            return stripped, seq_lengths
+
+        kept: List[torch.Tensor] = []
+        for idx, seq_len in enumerate(seq_lengths.tolist()):
+            keep_len = seq_len + 2
+            kept.append(embeddings[idx, :keep_len])
+        return kept, seq_lengths + 2
 
     def _embed_batch(
         self, sequences: Sequence[str]
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        embeddings = [self._embed_sequence(seq) for seq in sequences]
-        lengths = torch.tensor(
-            [emb.size(0) for emb in embeddings],
-            device=embeddings[0].device,
-            dtype=torch.long,
-        )
-        padded = pad_sequence(embeddings, batch_first=True)
+        if not sequences:
+            raise ValueError("Sequences must be non-empty")
+        batch_size = self.esm3_embed_batch_size or len(sequences)
+        if batch_size <= 0:
+            batch_size = len(sequences)
+
+        chunk_embeddings: List[torch.Tensor] = []
+        chunk_lengths: List[torch.Tensor] = []
+        for start in range(0, len(sequences), batch_size):
+            end = start + batch_size
+            emb, lengths = self._embed_chunk(sequences[start:end])
+            chunk_embeddings.extend(emb)
+            chunk_lengths.append(lengths)
+
+        padded = pad_sequence(chunk_embeddings, batch_first=True)
+        lengths = torch.cat(chunk_lengths, dim=0)
         return padded, lengths
 
     @staticmethod
@@ -473,8 +507,17 @@ class V6(nn.Module):
         if len(seq_a) != len(seq_b):
             raise ValueError("Protein pair batches must have matching batch dimension")
 
-        emb_a, lengths_a = self._embed_batch(seq_a)
-        emb_b, lengths_b = self._embed_batch(seq_b)
+        if self.combine_pairs:
+            combined = list(seq_a) + list(seq_b)
+            combined_emb, combined_lengths = self._embed_batch(combined)
+            batch_size = len(seq_a)
+            emb_a = combined_emb[:batch_size]
+            emb_b = combined_emb[batch_size:]
+            lengths_a = combined_lengths[:batch_size]
+            lengths_b = combined_lengths[batch_size:]
+        else:
+            emb_a, lengths_a = self._embed_batch(seq_a)
+            emb_b, lengths_b = self._embed_batch(seq_b)
 
         if emb_a.size(2) != self.input_dim or emb_b.size(2) != self.input_dim:
             raise ValueError("ESM3 embedding dimension does not match input_dim")
