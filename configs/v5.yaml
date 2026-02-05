@@ -22,11 +22,10 @@ data_config:
   embedding_dtype: "bf16"
   max_sequence_length: 768
   dataloader:
-    num_workers: 0
-    prefetch_factor: null
-    persistent_workers: false
-    pin_memory: false
-    drop_last: false
+    num_workers: 4
+    prefetch_factor: 2
+    persistent_workers: true
+    pin_memory: true
 
   pretrain:
     train_csv: "data/TMP/processed/pretrain_train_balanced.csv"

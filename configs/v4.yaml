@@ -23,8 +23,8 @@ data_config:
   max_sequence_length: 768
   dataloader:
     num_workers: 4
-    prefetch_factor: null
-    persistent_workers: false
+    prefetch_factor: 2
+    persistent_workers: true
     pin_memory: true
 
   pretrain:
