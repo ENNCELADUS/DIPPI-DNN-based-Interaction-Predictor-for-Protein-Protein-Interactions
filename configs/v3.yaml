@@ -1,7 +1,7 @@
 # V3 Config
 
 run_config:
-  mode: "train_and_eval"  # full_pipeline | finetune_from_pretrain | eval_only
+  mode: "full_pipeline"  # full_pipeline | finetune_from_pretrain | eval_only
   seed: 47
   pretrain_run_id: null   # Auto-timestamp if null
   finetune_run_id: null   # Auto-timestamp if null

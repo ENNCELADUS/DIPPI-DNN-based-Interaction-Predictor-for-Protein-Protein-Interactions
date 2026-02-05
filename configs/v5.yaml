@@ -1,7 +1,7 @@
 # V5 Config - Ablation with contact map modeling
 
 run_config:
-  mode: "train_and_eval"  # full_pipeline | finetune_from_pretrain | eval_only
+  mode: "full_pipeline"  # full_pipeline | finetune_from_pretrain | eval_only
   seed: 47
   pretrain_run_id: null   # Auto-timestamp if null
   finetune_run_id: null   # Auto-timestamp if null
@@ -80,11 +80,11 @@ model_config:
     cnn_dropout: 0.10
 
 pretrain_config:
-  epochs: 40
-  batch_size: 32
+  epochs: 20
+  batch_size: 16
   
   # Logging configuration
-  log_every_n_batches: 100   # More frequent logging to see progress
+  log_every_n_batches: 100
   logging_metrics:               # Two metrics to log to the training_step.csv file
     primary: auprc
     secondary: auroc
@@ -137,10 +137,10 @@ finetune_config:
         unfreeze: ["encoder."]
 
   epochs: 30
-  batch_size: 32
+  batch_size: 16
 
   # Logging configuration
-  log_every_n_batches: 50
+  log_every_n_batches: 100
   logging_metrics:               # Two metrics to log to the training_step.csv file
     primary: auprc
     secondary: auroc

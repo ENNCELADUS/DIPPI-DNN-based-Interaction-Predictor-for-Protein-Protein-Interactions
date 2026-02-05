@@ -1,0 +1,195 @@
+W0205 12:50:34.956000 204580 site-packages/torch/distributed/run.py:774] 
+W0205 12:50:34.956000 204580 site-packages/torch/distributed/run.py:774] *****************************************
+W0205 12:50:34.956000 204580 site-packages/torch/distributed/run.py:774] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0205 12:50:34.956000 204580 site-packages/torch/distributed/run.py:774] *****************************************
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+[rank2]:     return _run_code(code, main_globals, None,
+[rank2]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/runpy.py", line 86, in _run_code
+[rank2]:     exec(code, run_globals)
+[rank2]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/run.py", line 633, in <module>
+[rank2]:     main(config_path)
+[rank2]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/run.py", line 472, in main
+[rank2]:     run_finetune(
+[rank2]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/stages/finetune.py", line 238, in run_finetune
+[rank2]:     for batch_metrics in trainer.train_one_epoch_iter(train_loader):
+[rank2]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/train/base.py", line 327, in train_one_epoch_iter
+[rank2]:     outputs = self.model(batch)
+[rank2]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1773, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1784, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/nn/parallel/distributed.py", line 1648, in forward
+[rank2]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank2]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/nn/parallel/distributed.py", line 1474, in _run_ddp_forward
+[rank2]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank2]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1773, in _wrapped_call_impl
+[rank2]:     return self._call_impl(*args, **kwargs)
+[rank2]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1784, in _call_impl
+[rank2]:     return forward_call(*args, **kwargs)
+[rank2]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/model/v6.py", line 512, in forward
+[rank2]:     combined_emb, combined_lengths = self._embed_batch(combined)
+[rank2]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/model/v6.py", line 479, in _embed_batch
+[rank2]:     emb, lengths = self._embed_chunk(sequences[start:end])
+[rank2]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/model/v6.py", line 436, in _embed_chunk
+[rank2]:     protein_tensor = self.esm3.encode(proteins)
+[rank2]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/esm/models/esm3.py", line 423, in encode
+[rank2]:     input = attr.evolve(input)  # Make a copy
+[rank2]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/attr/_make.py", line 625, in evolve
+[rank2]:     attrs = fields(cls)
+[rank2]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/attr/_make.py", line 1926, in fields
+[rank2]:     raise NotAnAttrsClassError(msg)
+[rank2]: attr.exceptions.NotAnAttrsClassError: <class 'list'> is not an attrs-decorated class.
+[rank3]: Traceback (most recent call last):
+[rank3]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+[rank3]:     return _run_code(code, main_globals, None,
+[rank3]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/runpy.py", line 86, in _run_code
+[rank3]:     exec(code, run_globals)
+[rank3]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/run.py", line 633, in <module>
+[rank3]:     main(config_path)
+[rank3]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/run.py", line 472, in main
+[rank3]:     run_finetune(
+[rank3]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/stages/finetune.py", line 238, in run_finetune
+[rank3]:     for batch_metrics in trainer.train_one_epoch_iter(train_loader):
+[rank3]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/train/base.py", line 327, in train_one_epoch_iter
+[rank3]:     outputs = self.model(batch)
+[rank3]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1773, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1784, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/nn/parallel/distributed.py", line 1648, in forward
+[rank3]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank3]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/nn/parallel/distributed.py", line 1474, in _run_ddp_forward
+[rank3]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank3]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1773, in _wrapped_call_impl
+[rank3]:     return self._call_impl(*args, **kwargs)
+[rank3]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1784, in _call_impl
+[rank3]:     return forward_call(*args, **kwargs)
+[rank3]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/model/v6.py", line 512, in forward
+[rank3]:     combined_emb, combined_lengths = self._embed_batch(combined)
+[rank3]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/model/v6.py", line 479, in _embed_batch
+[rank3]:     emb, lengths = self._embed_chunk(sequences[start:end])
+[rank3]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/model/v6.py", line 436, in _embed_chunk
+[rank3]:     protein_tensor = self.esm3.encode(proteins)
+[rank3]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/esm/models/esm3.py", line 423, in encode
+[rank3]:     input = attr.evolve(input)  # Make a copy
+[rank3]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/attr/_make.py", line 625, in evolve
+[rank3]:     attrs = fields(cls)
+[rank3]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/attr/_make.py", line 1926, in fields
+[rank3]:     raise NotAnAttrsClassError(msg)
+[rank3]: attr.exceptions.NotAnAttrsClassError: <class 'list'> is not an attrs-decorated class.
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+[rank0]:     return _run_code(code, main_globals, None,
+[rank0]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/runpy.py", line 86, in _run_code
+[rank0]:     exec(code, run_globals)
+[rank0]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/run.py", line 633, in <module>
+[rank0]:     main(config_path)
+[rank0]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/run.py", line 472, in main
+[rank0]:     run_finetune(
+[rank0]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/stages/finetune.py", line 238, in run_finetune
+[rank0]:     for batch_metrics in trainer.train_one_epoch_iter(train_loader):
+[rank0]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/train/base.py", line 327, in train_one_epoch_iter
+[rank0]:     outputs = self.model(batch)
+[rank0]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1773, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1784, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/nn/parallel/distributed.py", line 1648, in forward
+[rank0]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank0]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/nn/parallel/distributed.py", line 1474, in _run_ddp_forward
+[rank0]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank0]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1773, in _wrapped_call_impl
+[rank0]:     return self._call_impl(*args, **kwargs)
+[rank0]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1784, in _call_impl
+[rank0]:     return forward_call(*args, **kwargs)
+[rank0]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/model/v6.py", line 512, in forward
+[rank0]:     combined_emb, combined_lengths = self._embed_batch(combined)
+[rank0]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/model/v6.py", line 479, in _embed_batch
+[rank0]:     emb, lengths = self._embed_chunk(sequences[start:end])
+[rank0]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/model/v6.py", line 436, in _embed_chunk
+[rank0]:     protein_tensor = self.esm3.encode(proteins)
+[rank0]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/esm/models/esm3.py", line 423, in encode
+[rank0]:     input = attr.evolve(input)  # Make a copy
+[rank0]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/attr/_make.py", line 625, in evolve
+[rank0]:     attrs = fields(cls)
+[rank0]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/attr/_make.py", line 1926, in fields
+[rank0]:     raise NotAnAttrsClassError(msg)
+[rank0]: attr.exceptions.NotAnAttrsClassError: <class 'list'> is not an attrs-decorated class.
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+[rank1]:     return _run_code(code, main_globals, None,
+[rank1]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/runpy.py", line 86, in _run_code
+[rank1]:     exec(code, run_globals)
+[rank1]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/run.py", line 633, in <module>
+[rank1]:     main(config_path)
+[rank1]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/run.py", line 472, in main
+[rank1]:     run_finetune(
+[rank1]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/stages/finetune.py", line 238, in run_finetune
+[rank1]:     for batch_metrics in trainer.train_one_epoch_iter(train_loader):
+[rank1]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/train/base.py", line 327, in train_one_epoch_iter
+[rank1]:     outputs = self.model(batch)
+[rank1]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1773, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1784, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/nn/parallel/distributed.py", line 1648, in forward
+[rank1]:     else self._run_ddp_forward(*inputs, **kwargs)
+[rank1]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/nn/parallel/distributed.py", line 1474, in _run_ddp_forward
+[rank1]:     return self.module(*inputs, **kwargs)  # type: ignore[index]
+[rank1]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1773, in _wrapped_call_impl
+[rank1]:     return self._call_impl(*args, **kwargs)
+[rank1]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1784, in _call_impl
+[rank1]:     return forward_call(*args, **kwargs)
+[rank1]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/model/v6.py", line 512, in forward
+[rank1]:     combined_emb, combined_lengths = self._embed_batch(combined)
+[rank1]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/model/v6.py", line 479, in _embed_batch
+[rank1]:     emb, lengths = self._embed_chunk(sequences[start:end])
+[rank1]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/model/v6.py", line 436, in _embed_chunk
+[rank1]:     protein_tensor = self.esm3.encode(proteins)
+[rank1]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/esm/models/esm3.py", line 423, in encode
+[rank1]:     input = attr.evolve(input)  # Make a copy
+[rank1]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/attr/_make.py", line 625, in evolve
+[rank1]:     attrs = fields(cls)
+[rank1]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/attr/_make.py", line 1926, in fields
+[rank1]:     raise NotAnAttrsClassError(msg)
+[rank1]: attr.exceptions.NotAnAttrsClassError: <class 'list'> is not an attrs-decorated class.
+[rank0]:[W205 12:51:13.022705822 ProcessGroupNCCL.cpp:1538] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+W0205 12:51:14.168000 204580 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 204620 closing signal SIGTERM
+W0205 12:51:14.169000 204580 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 204623 closing signal SIGTERM
+E0205 12:51:14.533000 204580 site-packages/torch/distributed/elastic/multiprocessing/api.py:874] failed (exitcode: 1) local_rank: 1 (pid: 204621) of binary: /public/home/wangar2023/.conda/envs/esm/bin/python3.1
+Traceback (most recent call last):
+  File "/public/home/wangar2023/.conda/envs/esm/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+  File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+  File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/distributed/run.py", line 901, in main
+    run(args)
+  File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/distributed/run.py", line 892, in run
+    elastic_launch(
+  File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 143, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+  File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 277, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+src.run FAILED
+------------------------------------------------------------
+Failures:
+[1]:
+  time      : 2026-02-05_12:51:14
+  host      : hexm01
+  rank      : 2 (local_rank: 2)
+  exitcode  : 1 (pid: 204622)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-02-05_12:51:14
+  host      : hexm01
+  rank      : 1 (local_rank: 1)
+  exitcode  : 1 (pid: 204621)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

@@ -20,7 +20,7 @@ data_config:
   # NOTE: V6 expects raw sequences in the batch (seq_a/seq_b).
   # Update the data pipeline accordingly if using this config.
   sequence_path: "data/TMP/processed/unique_proteins.csv"
-  max_sequence_length: 1024
+  max_sequence_length: 768
   dataloader:
     num_workers: 0
     prefetch_factor: null
@@ -51,7 +51,7 @@ model_config:
     model_name: "esm3-open"
     checkpoint_path: "models/esm3/esm3_sm_open_v1_full.pth"
     strip_cls_eos: true
-    embed_batch_size: 32
+    embed_batch_size: 64
     combine_pairs: true   # run one batched ESM3 forward for A+B
 
   lora:
@@ -79,9 +79,9 @@ finetune_config:
         unfreeze: ["esm3."]
 
   epochs: 30
-  batch_size: 32
+  batch_size: 64
 
-  log_every_n_batches: 50
+  log_every_n_batches: 100
   logging_metrics:
     primary: auprc
     secondary: auroc
