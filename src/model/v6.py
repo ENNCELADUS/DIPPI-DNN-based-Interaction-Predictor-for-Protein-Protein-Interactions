@@ -349,6 +349,7 @@ class V6(nn.Module):
         self.esm3 = self._load_esm3()
         self._esm_protein_cls, self._logits_config = self._load_esm_sdk()
         self._apply_lora_to_esm3()
+        self._esm3_batch_encode_supported: Optional[bool] = None
 
         self.projection = nn.Sequential(
             nn.Linear(self.input_dim, self.d_model),
@@ -432,8 +433,32 @@ class V6(nn.Module):
         if not sequences:
             raise ValueError("Sequences must be non-empty")
 
+        if self._esm3_batch_encode_supported is False:
+            return self._embed_chunk_serial(sequences)
+
         proteins = [self._esm_protein_cls(sequence=seq) for seq in sequences]
-        protein_tensor = self.esm3.encode(proteins)
+        try:
+            protein_tensor = self.esm3.encode(proteins)
+        except Exception as exc:
+            try:
+                from attr.exceptions import NotAnAttrsClassError
+            except ImportError:
+                NotAnAttrsClassError = None  # type: ignore[assignment]
+
+            if NotAnAttrsClassError is not None and isinstance(
+                exc, NotAnAttrsClassError
+            ):
+                self._esm3_batch_encode_supported = False
+                warnings.warn(
+                    "ESM3 encode does not accept batched inputs; falling back to "
+                    "per-sequence encoding. Expect slower throughput.",
+                    RuntimeWarning,
+                )
+                return self._embed_chunk_serial(sequences)
+            raise
+        else:
+            self._esm3_batch_encode_supported = True
+
         output = self.esm3.logits(protein_tensor, self._logits_config)
         embeddings = output.embeddings
         if embeddings is None:
@@ -462,6 +487,42 @@ class V6(nn.Module):
             keep_len = seq_len + 2
             kept.append(embeddings[idx, :keep_len])
         return kept, seq_lengths + 2
+
+    def _embed_chunk_serial(
+        self, sequences: Sequence[str]
+    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
+        embeddings_list: List[torch.Tensor] = []
+        lengths_list: List[int] = []
+
+        for seq in sequences:
+            protein = self._esm_protein_cls(sequence=seq)
+            protein_tensor = self.esm3.encode(protein)
+            output = self.esm3.logits(protein_tensor, self._logits_config)
+            embeddings = output.embeddings
+            if embeddings is None:
+                raise ValueError("ESM3 logits did not return embeddings")
+
+            if embeddings.dim() == 2:
+                embeddings = embeddings.unsqueeze(0)
+
+            if embeddings.size(0) != 1:
+                raise ValueError("ESM3 serial encode returned a batch size != 1")
+
+            embedding = embeddings.squeeze(0)
+            seq_len = len(seq)
+            if self.strip_cls_eos:
+                embedding = embedding[1 : 1 + seq_len] if seq_len > 0 else embedding[:0]
+                lengths_list.append(seq_len)
+            else:
+                keep_len = seq_len + 2
+                embedding = embedding[:keep_len]
+                lengths_list.append(keep_len)
+
+            embeddings_list.append(embedding)
+
+        device = embeddings_list[0].device
+        lengths = torch.tensor(lengths_list, device=device, dtype=torch.long)
+        return embeddings_list, lengths
 
     def _embed_batch(
         self, sequences: Sequence[str]

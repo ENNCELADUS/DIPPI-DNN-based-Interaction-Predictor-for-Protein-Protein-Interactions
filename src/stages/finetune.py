@@ -358,12 +358,23 @@ def run_finetune(
 
         # Early stopping: append current metric and check
         metric_history.append(current_metric)
-        if check_early_stop(
-            metrics=metric_history,
-            patience=patience,
-            monitor=monitor_metric,
-            mode=monitor_mode,
-        ):
+        should_stop = False
+        if is_main_process():
+            should_stop = check_early_stop(
+                metrics=metric_history,
+                patience=patience,
+                monitor=monitor_metric,
+                mode=monitor_mode,
+            )
+
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            stop_tensor = torch.tensor(
+                1 if should_stop else 0, device=device, dtype=torch.int
+            )
+            torch.distributed.broadcast(stop_tensor, src=0)
+            should_stop = bool(stop_tensor.item())
+
+        if should_stop:
             if is_main_process():
                 logging.info(
                     f"Early stopping triggered at epoch {epoch} "
