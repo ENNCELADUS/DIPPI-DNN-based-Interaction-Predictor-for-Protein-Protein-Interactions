@@ -178,8 +178,12 @@ def run_finetune(
     primary = finetune_cfg["logging_metrics"]["primary"]
     secondary = finetune_cfg["logging_metrics"]["secondary"]
 
-    # Standard Evaluator (same as pretrain validation)
-    eval_metrics = list(set([monitor_metric, primary, secondary, "loss"]))
+    # Standard Evaluator (same as pretrain validation).
+    # Use a stable order to keep DDP metric synchronization deterministic.
+    eval_metrics: list[str] = []
+    for metric_name in ["loss", monitor_metric, primary, secondary]:
+        if metric_name not in eval_metrics:
+            eval_metrics.append(metric_name)
     evaluator = Evaluator(
         metrics_list=eval_metrics,
         threshold=0.5,
