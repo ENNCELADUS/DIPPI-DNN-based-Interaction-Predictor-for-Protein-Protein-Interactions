@@ -85,7 +85,7 @@ pretrain_config:
   # Scheduler settings.
   scheduler:
     type: "onecycle"
-    max_lr: 0.00005
+    max_lr: 0.00006
     pct_start: 0.20
     div_factor: 25
     final_div_factor: 10000
@@ -94,7 +94,7 @@ pretrain_config:
   # Optimizer
   optimizer:
     type: "adamw"
-    lr: 0.00005
+    lr: 0.00006
     beta1: 0.9
     beta2: 0.999
     eps: 1.0e-8
@@ -147,7 +147,7 @@ finetune_config:
   # Note: Schedulers (e.g., warmup_cosine) apply to all param_groups uniformly
   optimizer:
     type: "adamw"
-    lr: 0.000005               # Base LR for unmatched parameters
+    lr: 0.000006               # Base LR for unmatched parameters
     beta1: 0.9
     beta2: 0.999
     eps: 1.0e-8
@@ -156,19 +156,19 @@ finetune_config:
     param_groups:
       - name: "head"
         pattern: "output_head."
-        lr: 0.000020
+        lr: 0.000024
         weight_decay: 0.01
       - name: "pool"
         pattern: "pool_"
-        lr: 0.000010
+        lr: 0.000012
         weight_decay: 0.02
       - name: "cross_attention"
         pattern: "cross_attention."
-        lr: 0.000008
+        lr: 0.0000096
         weight_decay: 0.02
       - name: "encoder"
         pattern: "encoder."
-        lr: 0.000005
+        lr: 0.000006
         weight_decay: 0.03
   # Loss
   loss:
