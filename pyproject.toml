@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dippi"
+version = "0.1.0"
+description = "Deep neural network-based interaction predictor for protein-protein interactions."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+dynamic = ["dependencies"]
+keywords = [
+    "protein-protein-interaction",
+    "bioinformatics",
+    "deep-learning",
+    "esm",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*", "src_ml*"]
+exclude = ["tests*", "docs*"]
+namespaces = true
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.pytest.ini_options]
+testpaths = ["tests/unit", "tests/integration"]
+pythonpath = ["."]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = ["-q", "-ra", "--strict-markers"]
+norecursedirs = [".*", "__pycache__", "tests/e2e/artifacts"]
+markers = [
+    "unit: unit tests in tests/unit",
+    "integration: integration tests in tests/integration",
+    "slow: slow tests",
+    "gpu: GPU-required tests",
+    "e2e: end-to-end tests",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+src = ["src", "src_ml", "tests"]
