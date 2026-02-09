@@ -6,7 +6,7 @@ import pytest
 import torch
 from pathlib import Path
 
-from src.utils.data_io import build_loader
+from src.utils.data.io import build_loader
 from src.model.v3 import V3
 from src.model.tuna import TUnA
 

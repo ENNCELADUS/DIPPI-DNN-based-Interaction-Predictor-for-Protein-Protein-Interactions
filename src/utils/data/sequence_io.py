@@ -12,11 +12,15 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 import torch
-from torch.utils.data import DataLoader, Dataset, DistributedSampler
+from torch.utils.data import DataLoader, Dataset
 
-from src.utils.distributed import get_world_size, is_main_process
-from src.utils.samplers import ImbalancedBatchSampler, StagedOHEMBatchSampler
-from src.utils.data_io import DistributedBatchSampler
+from src.utils.data.dataloader import (
+    build_dataloader_from_components,
+    build_sampler_components,
+    resolve_dataloader_settings,
+    sampler_name,
+)
+from src.utils.distributed import is_main_process
 
 
 def _clean_sequence(sequence: str) -> str:
@@ -224,113 +228,42 @@ def build_sequence_loader(
         max_len=max_len,
     )
 
-    dl_cfg = dataloader_cfg.copy() if dataloader_cfg else {}
-    num_workers = int(dl_cfg.get("num_workers", 0))
-    pin_memory = bool(dl_cfg.get("pin_memory", torch.cuda.is_available()))
-    drop_last = bool(dl_cfg.get("drop_last", False))
+    settings = resolve_dataloader_settings(dataloader_cfg)
 
-    prefetch_factor = dl_cfg.get("prefetch_factor")
-    persistent_workers = dl_cfg.get("persistent_workers")
+    batch_sampler, sampler, shuffle = build_sampler_components(
+        dataset=dataset,
+        labels=list(dataset.df["isInteraction"].astype(int)),
+        batch_size=batch_size,
+        sampling_cfg=sampling_cfg,
+        ddp=ddp,
+        shuffle=shuffle,
+        drop_last=bool(settings["drop_last"]),
+    )
 
-    if num_workers <= 0:
-        prefetch_factor = None
-        persistent_workers = False
-    else:
-        if prefetch_factor is None:
-            prefetch_factor = 2
-        if persistent_workers is None:
-            persistent_workers = True
-
-    batch_sampler = None
-    sampler = None
-    sampling_cfg = sampling_cfg or {}
-    sampling_strategy = sampling_cfg.get("strategy")
-
-    if sampling_strategy == "imbalanced":
-        ratio = float(sampling_cfg.get("pos_neg_ratio", 3.0))
-        base_sampler = ImbalancedBatchSampler(
-            labels=list(dataset.df["isInteraction"].astype(int)),
-            batch_size=batch_size,
-            pos_neg_ratio=ratio,
-            shuffle=shuffle,
-            drop_last=drop_last,
-            seed=None,
-        )
-        if ddp and get_world_size() > 1:
-            batch_sampler = DistributedBatchSampler(base_sampler, pad=True)
-        else:
-            batch_sampler = base_sampler
-        shuffle = False
-    elif sampling_strategy == "staged_hard":
-        warmup_ratio = float(sampling_cfg.get("warmup_pos_neg_ratio", 7.0))
-        warmup_epochs = int(sampling_cfg.get("warmup_epochs", 2))
-        if "hard_start_epoch" in sampling_cfg:
-            warmup_epochs = int(sampling_cfg["hard_start_epoch"])
-        pool_multiplier = int(sampling_cfg.get("pool_multiplier", 16))
-        cap_protein = int(
-            sampling_cfg.get(
-                "cap_protein", max(2, int(round(0.05 * float(batch_size))))
-            )
-        )
-        base_sampler = StagedOHEMBatchSampler(
-            labels=list(dataset.df["isInteraction"].astype(int)),
-            batch_size=batch_size,
-            warmup_pos_neg_ratio=warmup_ratio,
-            warmup_epochs=warmup_epochs,
-            pool_multiplier=pool_multiplier,
-            cap_protein=cap_protein,
-            shuffle=shuffle,
-            drop_last=drop_last,
-            seed=None,
-        )
-        if ddp and get_world_size() > 1:
-            batch_sampler = DistributedBatchSampler(base_sampler, pad=True)
-        else:
-            batch_sampler = base_sampler
-        shuffle = False
-    elif ddp:
-        sampler = DistributedSampler(dataset, shuffle=shuffle)
-        shuffle = False
-
-    loader_kwargs = {
-        "num_workers": num_workers,
-        "collate_fn": _collate_sequence_pairs,
-        "pin_memory": pin_memory and torch.cuda.is_available(),
-    }
-    if prefetch_factor is not None and num_workers > 0:
-        loader_kwargs["prefetch_factor"] = int(prefetch_factor)
-    if persistent_workers:
-        loader_kwargs["persistent_workers"] = True
-
-    if batch_sampler is not None:
-        loader = DataLoader(dataset, batch_sampler=batch_sampler, **loader_kwargs)
-    else:
-        loader = DataLoader(
-            dataset,
-            batch_size=batch_size,
-            shuffle=shuffle,
-            sampler=sampler,
-            drop_last=drop_last,
-            **loader_kwargs,
-        )
+    loader = build_dataloader_from_components(
+        dataset=dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        sampler=sampler,
+        batch_sampler=batch_sampler,
+        drop_last=bool(settings["drop_last"]),
+        collate_fn=_collate_sequence_pairs,
+        settings=settings,
+    )
 
     if is_main_process():
-        sampler_name = (
-            batch_sampler.__class__.__name__
-            if batch_sampler is not None
-            else sampler.__class__.__name__
-            if sampler is not None
-            else "None"
-        )
+        active_sampler_name = sampler_name(batch_sampler, sampler)
         logging.info(
             "Sequence DataLoader built for %s: num_workers=%d, pin_memory=%s, prefetch_factor=%s, "
             "persistent_workers=%s, sampler=%s",
             Path(csv_path).name,
-            num_workers,
-            loader_kwargs["pin_memory"],
-            prefetch_factor if prefetch_factor is not None else "None",
-            bool(persistent_workers),
-            sampler_name,
+            int(settings["num_workers"]),
+            bool(settings["pin_memory"]) and torch.cuda.is_available(),
+            settings["prefetch_factor"]
+            if settings["prefetch_factor"] is not None
+            else "None",
+            bool(settings["persistent_workers"]),
+            active_sampler_name,
         )
 
     return loader

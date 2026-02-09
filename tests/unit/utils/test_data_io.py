@@ -1,20 +1,17 @@
 """
-Unit tests for src/utils/data_io.py
+Unit tests for src/utils/data/io.py.
 """
 
-import tempfile
 import pickle
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 import torch
 
-from src.utils.data_io import (
+from src.utils.data.io import (
     ProteinPairDataset,
     build_loader,
-    _collate_protein_pairs,
 )
 from unittest.mock import patch
 
@@ -179,7 +176,7 @@ class TestProteinPairDataset:
 class TestBuildLoader:
     """Tests for build_loader function."""
 
-    @patch("src.utils.data_io._load_embeddings")
+    @patch("src.utils.data.io._load_embeddings")
     def test_build_loader_basic(
         self, mock_load, mock_csv_file, mock_embeddings_file, mock_embeddings_dict
     ):
@@ -209,7 +206,7 @@ class TestBuildLoader:
         assert batch["emb_a"].shape[1] == 128  # max_len
         assert batch["emb_a"].shape[2] == 1536  # embedding_dim
 
-    @patch("src.utils.data_io._load_embeddings")
+    @patch("src.utils.data.io._load_embeddings")
     def test_build_loader_caching(
         self, mock_load, mock_csv_file, mock_embeddings_file, mock_embeddings_dict
     ):
@@ -256,7 +253,7 @@ class TestBuildLoader:
                 num_workers=0,
             )
 
-    @patch("src.utils.data_io._load_embeddings")
+    @patch("src.utils.data.io._load_embeddings")
     def test_build_loader_iteration(
         self, mock_load, mock_csv_file, mock_embeddings_file, mock_embeddings_dict
     ):

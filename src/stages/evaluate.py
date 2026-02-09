@@ -20,9 +20,10 @@ import torch.nn as nn
 
 from src.evaluate.base import Evaluator
 from src.utils.checkpoint import load_checkpoint
-from src.utils.data_io import build_loader
-from src.utils.sequence_data_io import build_sequence_loader
+from src.utils.data.io import build_loader
+from src.utils.data.sequence_io import build_sequence_loader
 from src.utils.logging import append_row
+from src.stages.stage_common import evaluate_to_summary, resolve_amp_dtype
 
 
 def run_evaluation(
@@ -141,73 +142,38 @@ def run_evaluation(
     batch_log_path = log_dir / "evaluate_batches.log"
 
     amp_dtype = None
-    if device.type == "cuda" and model_name != "v6":
-        dtype_str = str(data_cfg.get("embedding_dtype", "fp32")).lower()
-        if dtype_str == "bf16":
-            amp_dtype = torch.bfloat16
-        elif dtype_str in {"fp16", "float16", "half"}:
-            amp_dtype = torch.float16
+    if model_name != "v6":
+        amp_dtype = resolve_amp_dtype(
+            use_mixed_precision=True,
+            device=device,
+            dtype_name=data_cfg.get("embedding_dtype", "fp32"),
+        )
 
     for split_name, test_loader in test_loaders:
         logging.info(f"Evaluating on {split_name}...")
         model.eval()
 
-        metrics = None
-        with torch.no_grad():
-            if amp_dtype is not None:
-                with torch.amp.autocast(device_type=device.type, dtype=amp_dtype):
-                    for batch_metrics in evaluator.evaluate(
-                        model,
-                        test_loader,
-                        device,
-                    ):
-                        # Check if this is the final evaluation summary
-                        if batch_metrics.get("_evaluation_end", False):
-                            metrics = batch_metrics
-                            break
+        def _on_batch(batch_metrics: Dict[str, Any]) -> None:
+            batch_idx = int(batch_metrics["batch_idx"])
+            if (batch_idx + 1) % log_every_n_batches != 0:
+                return
+            total_batches = len(test_loader)
+            log_msg = (
+                f"[EVALUATE] Split: {split_name} | "
+                f"Batch {batch_idx + 1}/{total_batches} | "
+                f"Loss: {batch_metrics['loss']:.6f}\n"
+            )
+            with open(batch_log_path, "a", encoding="utf-8") as handle:
+                handle.write(log_msg)
 
-                        # Log batch progress every N batches
-                        batch_idx = batch_metrics["batch_idx"]
-                        if (batch_idx + 1) % log_every_n_batches == 0:
-                            total_batches = len(test_loader)
-                            log_msg = (
-                                f"[EVALUATE] Split: {split_name} | "
-                                f"Batch {batch_idx + 1}/{total_batches} | "
-                                f"Loss: {batch_metrics['loss']:.6f}\n"
-                            )
-                            # Append to batch log file
-                            with open(batch_log_path, "a", encoding="utf-8") as f:
-                                f.write(log_msg)
-            else:
-                for batch_metrics in evaluator.evaluate(
-                    model,
-                    test_loader,
-                    device,
-                ):
-                    # Check if this is the final evaluation summary
-                    if batch_metrics.get("_evaluation_end", False):
-                        metrics = batch_metrics
-                        break
-
-                    # Log batch progress every N batches
-                    batch_idx = batch_metrics["batch_idx"]
-                    if (batch_idx + 1) % log_every_n_batches == 0:
-                        total_batches = len(test_loader)
-                        log_msg = (
-                            f"[EVALUATE] Split: {split_name} | "
-                            f"Batch {batch_idx + 1}/{total_batches} | "
-                            f"Loss: {batch_metrics['loss']:.6f}\n"
-                        )
-                        # Append to batch log file
-                        with open(batch_log_path, "a", encoding="utf-8") as f:
-                            f.write(log_msg)
-
-        # Ensure we got the evaluation summary
-        if metrics is None:
-            raise RuntimeError("Evaluator did not yield evaluation summary")
-
-        # Remove sentinel key before logging
-        metrics.pop("_evaluation_end", None)
+        metrics = evaluate_to_summary(
+            evaluator=evaluator,
+            model=model,
+            loader=test_loader,
+            device=device,
+            amp_dtype=amp_dtype,
+            on_batch=_on_batch,
+        )
 
         logging.info(f"{split_name} results: {metrics}")
 

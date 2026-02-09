@@ -19,7 +19,6 @@ import math
 from typing import Any, Dict, Iterable, List, Optional
 
 import torch
-import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.cuda.amp import GradScaler
@@ -30,6 +29,12 @@ from torch.optim.lr_scheduler import (
     MultiStepLR,
     OneCycleLR,
     StepLR,
+)
+
+from src.train.ohem_helpers import (
+    compute_mining_scores as compute_ohem_mining_scores,
+    index_batch as index_batch_dict,
+    prepare_ohem_batch as prepare_ohem_batch_fn,
 )
 
 logger = logging.getLogger(__name__)
@@ -478,110 +483,29 @@ class Trainer:
         return isinstance(batch, dict) and bool(batch.get("_ohem", False))
 
     def _prepare_ohem_batch(self, batch: Dict[str, Any]) -> Dict[str, Any]:
-        pool = batch.get("pool")
-        if pool is None:
-            raise RuntimeError("OHEM batch is missing the candidate pool.")
-
-        target_batch_size = int(batch.get("ohem_batch_size", 0)) or int(
-            batch.get("batch_size", 0)
+        return prepare_ohem_batch_fn(
+            batch,
+            model=self.model,
+            move_batch_to_device=self._move_batch_to_device,
+            amp_context=self._amp_context,
+            compute_scores=self._compute_mining_scores,
+            index_batch_fn=self._index_batch,
         )
-        if target_batch_size <= 0:
-            target_batch_size = int(pool.get("label", torch.empty(0)).size(0))
-
-        cap_protein = int(batch.get("cap_protein", 0))
-        protein_a = pool.get("protein_a")
-        protein_b = pool.get("protein_b")
-        if protein_a is None or protein_b is None:
-            raise ValueError("OHEM mining requires protein IDs in the pool batch.")
-
-        was_training = self.model.training
-        self.model.eval()
-        pool_device = self._move_batch_to_device(pool)
-
-        with torch.no_grad():
-            with self._amp_context():
-                outputs = self.model(pool_device)
-                if not isinstance(outputs, dict) or "logits" not in outputs:
-                    raise ValueError(
-                        "OHEM mining requires model outputs to include 'logits'."
-                    )
-                logits = outputs["logits"]
-                labels = pool_device["label"]
-                scores = self._compute_mining_scores(logits, labels)
-
-        if was_training:
-            self.model.train()
-
-        if scores.numel() == 0:
-            raise RuntimeError("OHEM mining produced no candidate scores.")
-
-        sorted_idx = torch.argsort(scores, descending=True).tolist()
-
-        selected: List[int] = []
-        if cap_protein > 0:
-            counts: Dict[str, int] = {}
-            for idx in sorted_idx:
-                protein_left = protein_a[idx]
-                protein_right = protein_b[idx]
-                if counts.get(protein_left, 0) >= cap_protein:
-                    continue
-                if counts.get(protein_right, 0) >= cap_protein:
-                    continue
-                selected.append(idx)
-                counts[protein_left] = counts.get(protein_left, 0) + 1
-                counts[protein_right] = counts.get(protein_right, 0) + 1
-                if len(selected) >= target_batch_size:
-                    break
-
-        if len(selected) < target_batch_size:
-            selected_set = set(selected)
-            for idx in sorted_idx:
-                if idx in selected_set:
-                    continue
-                selected.append(idx)
-                selected_set.add(idx)
-                if len(selected) >= target_batch_size:
-                    break
-
-        if not selected:
-            raise RuntimeError("OHEM selection produced an empty training batch.")
-
-        selected_tensor = torch.tensor(
-            selected, device=pool_device["label"].device, dtype=torch.long
-        )
-        train_batch = self._index_batch(pool_device, selected_tensor)
-        train_batch["_ohem_unweighted"] = True
-        return train_batch
 
     def _compute_mining_scores(
         self, logits: torch.Tensor, labels: torch.Tensor
     ) -> torch.Tensor:
-        logits = self._normalize_logits(logits)
-        labels = self._normalize_labels(labels)
-        scores = F.binary_cross_entropy_with_logits(
-            logits, labels, reduction="none"
-        ).view(-1)
-        return scores
+        return compute_ohem_mining_scores(
+            logits,
+            labels,
+            normalize_logits=self._normalize_logits,
+            normalize_labels=self._normalize_labels,
+        )
 
     def _index_batch(
         self, batch: Dict[str, Any], indices: torch.Tensor
     ) -> Dict[str, Any]:
-        if indices.numel() == 0:
-            return {}
-        index_list = indices.detach().cpu().tolist()
-        sliced: Dict[str, Any] = {}
-        for key, value in batch.items():
-            if isinstance(value, torch.Tensor):
-                sliced[key] = value.index_select(0, indices)
-            elif isinstance(value, list):
-                sliced[key] = [value[i] for i in index_list]
-            elif isinstance(value, tuple):
-                sliced[key] = tuple(value[i] for i in index_list)
-            elif isinstance(value, np.ndarray):
-                sliced[key] = value[index_list]
-            else:
-                sliced[key] = value
-        return sliced
+        return index_batch_dict(batch, indices)
 
     def _amp_context(self):
         if self.use_amp:

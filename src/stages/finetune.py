@@ -30,6 +30,14 @@ from src.utils.checkpoint import load_checkpoint, save_checkpoint, maybe_save_be
 from src.utils.early_stop import check_early_stop
 from src.utils.logging import append_row
 from src.utils.distributed import is_main_process
+from src.stages.stage_common import (
+    broadcast_early_stop_flag,
+    evaluate_to_summary,
+    log_epoch_header,
+    prepare_scheduler_config,
+    resolve_amp_dtype,
+    train_one_epoch_with_batch_logging,
+)
 
 
 def _set_sampler_epoch(loader: DataLoader, epoch: int) -> None:
@@ -38,40 +46,6 @@ def _set_sampler_epoch(loader: DataLoader, epoch: int) -> None:
     batch_sampler = getattr(loader, "batch_sampler", None)
     if batch_sampler is not None and hasattr(batch_sampler, "set_epoch"):
         batch_sampler.set_epoch(epoch)
-
-
-def prepare_scheduler_config(
-    scheduler_cfg: Dict[str, Any], num_epochs: int, steps_per_epoch: int
-) -> Dict[str, Any]:
-    """
-    Prepare scheduler config by converting epoch-based to step-based parameters.
-
-    Args:
-        scheduler_cfg: Raw scheduler config from YAML
-        num_epochs: Total number of epochs
-        steps_per_epoch: Number of steps (batches) per epoch
-
-    Returns:
-        Prepared scheduler config with step-based parameters
-    """
-    if not scheduler_cfg:
-        return None
-
-    cfg = scheduler_cfg.copy()
-    scheduler_type = cfg.get("type", "").lower()
-    total_steps = num_epochs * steps_per_epoch
-
-    # OneCycleLR: requires total_steps
-    if scheduler_type in ["onecycle", "onecyclelr"]:
-        cfg.setdefault("total_steps", total_steps)
-
-    # warmup_cosine: convert epochs to steps
-    elif scheduler_type in ["warmup_cosine", "cosine_warmup"]:
-        if "warmup_epochs" in cfg:
-            cfg["num_warmup_steps"] = cfg.pop("warmup_epochs") * steps_per_epoch
-        cfg.setdefault("num_training_steps", total_steps)
-
-    return cfg
 
 
 def run_finetune(
@@ -208,19 +182,14 @@ def run_finetune(
     # Training loop
     best_metric = float("-inf")
 
-    dtype_str = str(data_cfg.get("embedding_dtype", "fp32")).lower()
-    amp_dtype = None
-    if finetune_cfg.get("use_mixed_precision", False) and device.type == "cuda":
-        if dtype_str == "bf16":
-            amp_dtype = torch.bfloat16
-        elif dtype_str in {"fp16", "float16", "half"}:
-            amp_dtype = torch.float16
+    amp_dtype = resolve_amp_dtype(
+        use_mixed_precision=finetune_cfg.get("use_mixed_precision", False),
+        device=device,
+        dtype_name=data_cfg.get("embedding_dtype", "fp32"),
+    )
 
     for epoch in range(num_epochs):
-        if is_main_process():
-            logging.info(f"\n{'=' * 60}")
-            logging.info(f"Finetune Epoch {epoch}/{num_epochs - 1}")
-            logging.info(f"{'=' * 60}")
+        log_epoch_header("Finetune", epoch, num_epochs)
 
         _set_sampler_epoch(train_loader, epoch)
 
@@ -235,55 +204,28 @@ def run_finetune(
         log_every_n_batches = finetune_cfg.get("log_every_n_batches", 50)
         batch_log_path = log_dir / "finetune_batches.log"
 
-        # Train one epoch - consume generator for batch-level logging
-        train_metrics = None
-        for batch_metrics in trainer.train_one_epoch_iter(train_loader):
-            # Check if this is the final epoch summary
-            if batch_metrics.get("_epoch_end", False):
-                train_metrics = batch_metrics
-                break
-
-            # Log batch progress every N batches
-            batch_idx = batch_metrics["batch_idx"]
-            if is_main_process() and (batch_idx + 1) % log_every_n_batches == 0:
-                total_batches = len(train_loader)
-                log_msg = (
-                    f"[FINETUNE] Epoch {epoch}/{num_epochs - 1} | "
-                    f"Batch {batch_idx + 1}/{total_batches} | "
-                    f"Loss: {batch_metrics['loss']:.6f} | "
-                    f"LR: {batch_metrics['lr']:.2e}\n"
-                )
-                # Append to batch log file
-                with open(batch_log_path, "a", encoding="utf-8") as f:
-                    f.write(log_msg)
-
-        # Ensure we got the epoch summary
-        if train_metrics is None:
-            raise RuntimeError("Trainer did not yield epoch summary")
+        train_metrics = train_one_epoch_with_batch_logging(
+            trainer=trainer,
+            train_loader=train_loader,
+            epoch=epoch,
+            num_epochs=num_epochs,
+            stage_tag="FINETUNE",
+            log_every_n_batches=log_every_n_batches,
+            batch_log_path=batch_log_path,
+        )
 
         # Validation
         model.eval()
-        val_metrics = None
+        val_metrics = evaluate_to_summary(
+            evaluator=evaluator,
+            model=model,
+            loader=val_loader,
+            device=device,
+            amp_dtype=amp_dtype,
+        )
         val_loss = 0.0
         current_metric = 0.0
         extra_payload = {}  # Checkpoint payload
-        with torch.no_grad():
-            if amp_dtype is not None:
-                with torch.amp.autocast(device_type=device.type, dtype=amp_dtype):
-                    for batch_metrics in evaluator.evaluate(model, val_loader, device):
-                        if batch_metrics.get("_evaluation_end", False):
-                            val_metrics = batch_metrics
-                            break
-            else:
-                for batch_metrics in evaluator.evaluate(model, val_loader, device):
-                    if batch_metrics.get("_evaluation_end", False):
-                        val_metrics = batch_metrics
-                        break
-
-        if val_metrics is None:
-            raise RuntimeError("Evaluator did not yield evaluation summary")
-
-        val_metrics.pop("_evaluation_end", None)
         val_loss = val_metrics.get("loss", 0.0)
         current_metric = val_metrics.get(monitor_metric, 0.0)
 
@@ -365,12 +307,7 @@ def run_finetune(
                 mode=monitor_mode,
             )
 
-        if torch.distributed.is_available() and torch.distributed.is_initialized():
-            stop_tensor = torch.tensor(
-                1 if should_stop else 0, device=device, dtype=torch.int
-            )
-            torch.distributed.broadcast(stop_tensor, src=0)
-            should_stop = bool(stop_tensor.item())
+        should_stop = broadcast_early_stop_flag(should_stop, device)
 
         if should_stop:
             if is_main_process():

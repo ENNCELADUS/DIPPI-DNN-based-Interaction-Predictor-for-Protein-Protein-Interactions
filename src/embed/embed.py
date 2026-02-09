@@ -11,7 +11,7 @@ Input:
 
 Output:
     .npz file with 'ids' and 'embeddings' arrays.
-    Compatible with src.utils.data_io.ProteinPairDataset.
+    Compatible with src.utils.data.io.ProteinPairDataset.
 """
 
 import argparse

@@ -16,9 +16,14 @@ class DummyESM(torch.nn.Module):
     def encode(self, protein: DummyProtein) -> DummyProtein:
         return protein
 
-    def logits(self, protein_tensor: DummyProtein, logits_config: object):
-        length = len(protein_tensor.sequence)
-        embeddings = torch.randn(1, length + 2, self.embed_dim)
+    def logits(self, protein_tensor, logits_config: object):
+        if isinstance(protein_tensor, list):
+            lengths = [len(protein.sequence) for protein in protein_tensor]
+            max_len = max(lengths) if lengths else 0
+            embeddings = torch.randn(len(lengths), max_len + 2, self.embed_dim)
+        else:
+            length = len(protein_tensor.sequence)
+            embeddings = torch.randn(1, length + 2, self.embed_dim)
 
         class Output:
             def __init__(self, embeddings: torch.Tensor) -> None:

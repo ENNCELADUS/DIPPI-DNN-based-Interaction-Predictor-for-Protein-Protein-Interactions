@@ -34,8 +34,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from src.utils.config import load_config, extract_keys
-from src.utils.data_io import build_loader
-from src.utils.sequence_data_io import build_sequence_loader
+from src.utils.data.io import build_loader
+from src.utils.data.sequence_io import build_sequence_loader
 from src.utils.device import get_device
 from src.utils.distributed import (
     init_if_enabled,
