@@ -29,7 +29,6 @@ def run_evaluation(
     cfg: Dict[str, Any],
     model: nn.Module,
     device: torch.device,
-    eval_run_id: str,
     log_dir: Path,
     load_checkpoint_path: Optional[str] = None,
 ) -> None:
@@ -40,7 +39,6 @@ def run_evaluation(
         cfg: Full parsed config
         model: Initialized model
         device: Target device
-        eval_run_id: Run identifier
         log_dir: Directory for logs
         load_checkpoint_path: Path to checkpoint (required)
     """

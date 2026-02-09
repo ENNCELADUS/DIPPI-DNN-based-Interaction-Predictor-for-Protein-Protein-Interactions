@@ -6,9 +6,7 @@ as specified in logging_overview.md.
 """
 
 import csv
-import tempfile
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 import pytest
 import torch
@@ -165,7 +163,6 @@ class TestRunPretrainLogging:
                 train_loader=mock_dataloader,
                 val_loader=mock_dataloader,
                 device=device,
-                pretrain_run_id="test_run",
                 log_dir=log_dir,
                 checkpoint_dir=checkpoint_dir,
             )
@@ -251,7 +248,6 @@ class TestRunPretrainLogging:
                 train_loader=mock_dataloader,
                 val_loader=mock_dataloader,
                 device=device,
-                pretrain_run_id="test_run",
                 log_dir=log_dir,
                 checkpoint_dir=checkpoint_dir,
             )
@@ -336,7 +332,6 @@ class TestRunFinetuneLogging:
                 train_loader=mock_dataloader,
                 val_loader=mock_dataloader,
                 device=device,
-                finetune_run_id="test_run",
                 log_dir=log_dir,
                 checkpoint_dir=checkpoint_dir,
                 load_checkpoint_path=str(checkpoint_path),

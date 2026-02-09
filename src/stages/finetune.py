@@ -80,7 +80,6 @@ def run_finetune(
     train_loader: DataLoader,
     val_loader: DataLoader,
     device: torch.device,
-    finetune_run_id: str,
     log_dir: Path,
     checkpoint_dir: Path,
     load_checkpoint_path: Optional[str] = None,
@@ -94,7 +93,6 @@ def run_finetune(
         train_loader: Training dataloader
         val_loader: Validation dataloader
         device: Target device
-        finetune_run_id: Run identifier
         log_dir: Directory for logs
         checkpoint_dir: Directory for checkpoints
         load_checkpoint_path: Optional checkpoint path to initialize weights.

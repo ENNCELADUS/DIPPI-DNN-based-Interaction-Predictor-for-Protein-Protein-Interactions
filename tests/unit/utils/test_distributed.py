@@ -16,7 +16,6 @@ from src.utils.distributed import (
     is_main_process,
     get_rank,
     get_world_size,
-    get_local_rank,
     barrier,
     cleanup,
 )
@@ -133,16 +132,6 @@ class TestRankHelpers:
         """Test get_world_size returns actual size when initialized."""
         assert get_world_size() == 4
         mock_get_world_size.assert_called_once()
-
-    @patch.dict(os.environ, {}, clear=True)
-    def test_get_local_rank_default(self):
-        """Test get_local_rank returns 0 when LOCAL_RANK not set."""
-        assert get_local_rank() == 0
-
-    @patch.dict(os.environ, {"LOCAL_RANK": "3"})
-    def test_get_local_rank_from_env(self):
-        """Test get_local_rank reads from environment."""
-        assert get_local_rank() == 3
 
 
 class TestIsMainProcess:

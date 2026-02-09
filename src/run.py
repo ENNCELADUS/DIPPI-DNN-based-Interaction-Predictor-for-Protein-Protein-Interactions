@@ -418,7 +418,6 @@ def main(config_path: str) -> None:
             train_loader,
             val_loader,
             device,
-            pretrain_run_id,
             log_dir,
             checkpoint_dir,
         )
@@ -448,7 +447,6 @@ def main(config_path: str) -> None:
             train_loader,
             val_loader,
             device,
-            finetune_run_id,
             log_dir,
             checkpoint_dir,
             load_checkpoint_path=checkpoint_path,
@@ -475,7 +473,6 @@ def main(config_path: str) -> None:
             train_loader,
             val_loader,
             device,
-            finetune_run_id,
             log_dir,
             checkpoint_dir,
             load_checkpoint_path=None,
@@ -496,7 +493,6 @@ def main(config_path: str) -> None:
             cfg,
             model,
             device,
-            eval_run_id,
             log_dir_evaluate,
             load_checkpoint_path=str(finetune_best_checkpoint),
         )
@@ -518,7 +514,6 @@ def main(config_path: str) -> None:
             train_loader_pretrain,
             val_loader_pretrain,
             device,
-            pretrain_run_id,
             log_dir_pretrain,
             checkpoint_dir_pretrain,
         )
@@ -545,7 +540,6 @@ def main(config_path: str) -> None:
             train_loader_finetune,
             val_loader_finetune,
             device,
-            finetune_run_id,
             log_dir_finetune,
             checkpoint_dir_finetune,
             load_checkpoint_path=str(pretrain_best_checkpoint),
@@ -568,7 +562,6 @@ def main(config_path: str) -> None:
             cfg,
             model,
             device,
-            eval_run_id,
             log_dir_evaluate,
             load_checkpoint_path=str(finetune_best_checkpoint),
         )
@@ -589,7 +582,6 @@ def main(config_path: str) -> None:
             cfg,
             model,
             device,
-            eval_run_id,
             log_dir,
             load_checkpoint_path=checkpoint_path,
         )

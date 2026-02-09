@@ -123,15 +123,6 @@ def get_world_size() -> int:
     return dist.get_world_size()
 
 
-def get_local_rank() -> int:
-    """
-    Get local rank (GPU index on this node) from environment.
-
-    Returns 0 when LOCAL_RANK not set (single-process mode).
-    """
-    return int(os.environ.get("LOCAL_RANK", 0))
-
-
 def barrier() -> None:
     """
     Synchronize all processes.
@@ -151,28 +142,3 @@ def cleanup() -> None:
     """
     if dist.is_available() and dist.is_initialized():
         dist.destroy_process_group()
-
-
-def ddp_reduce_mean(
-    tensor: torch.Tensor,
-    group: torch.distributed.ProcessGroup | None = None,
-) -> torch.Tensor:
-    """
-    Average a tensor across all ranks.
-
-    No-op when distributed is not initialized. Returns the input tensor
-    instance after the reduction so it can be chained in-place.
-    """
-    if not isinstance(tensor, torch.Tensor):
-        raise TypeError("ddp_reduce_mean expects a torch.Tensor input")
-
-    if not dist.is_available() or not dist.is_initialized():
-        return tensor
-
-    world_size = dist.get_world_size(group=group)
-    if world_size < 2:
-        return tensor
-
-    dist.all_reduce(tensor, op=dist.ReduceOp.SUM, group=group)
-    tensor.div_(world_size)
-    return tensor

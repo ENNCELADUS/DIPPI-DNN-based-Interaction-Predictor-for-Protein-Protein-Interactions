@@ -318,9 +318,7 @@ class V6(nn.Module):
         )
         self.strip_cls_eos = bool(esm_cfg.get("strip_cls_eos", True))
         embed_batch_size = int(esm_cfg.get("embed_batch_size", 0))
-        self.esm3_embed_batch_size = (
-            embed_batch_size if embed_batch_size > 0 else None
-        )
+        self.esm3_embed_batch_size = embed_batch_size if embed_batch_size > 0 else None
         self.combine_pairs = bool(esm_cfg.get("combine_pairs", True))
 
         lora_cfg: Dict[str, Any] = model_config.get("lora", {})

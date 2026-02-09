@@ -68,7 +68,6 @@ def run_pretrain(
     train_loader: DataLoader,
     val_loader: DataLoader,
     device: torch.device,
-    pretrain_run_id: str,
     log_dir: Path,
     checkpoint_dir: Path,
 ) -> None:
@@ -81,7 +80,6 @@ def run_pretrain(
         train_loader: Training dataloader
         val_loader: Validation dataloader
         device: Target device
-        pretrain_run_id: Run identifier
         log_dir: Directory for logs
         checkpoint_dir: Directory for checkpoints
     """

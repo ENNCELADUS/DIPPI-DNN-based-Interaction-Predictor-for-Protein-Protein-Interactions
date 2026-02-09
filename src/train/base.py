@@ -583,15 +583,6 @@ class Trainer:
                 sliced[key] = value
         return sliced
 
-    def _concat_batches(self, batches: List[Dict[str, Any]]) -> Dict[str, Any]:
-        if not batches:
-            return {}
-        keys = [k for k in batches[0].keys() if isinstance(batches[0][k], torch.Tensor)]
-        merged: Dict[str, Any] = {}
-        for key in keys:
-            merged[key] = torch.cat([b[key] for b in batches if key in b], dim=0)
-        return merged
-
     def _amp_context(self):
         if self.use_amp:
             return self._autocast()

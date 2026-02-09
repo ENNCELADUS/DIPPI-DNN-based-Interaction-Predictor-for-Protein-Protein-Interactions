@@ -60,8 +60,6 @@ class ShardedEmbeddingStore:
             raise ValueError(f"Unsupported embeddings format: {fmt}")
 
         self.max_len = int(manifest["max_len"])
-        self.embedding_dim = int(manifest["embedding_dim"])
-        self.storage_dtype = str(manifest.get("storage_dtype", "fp16"))
         self.shards = manifest.get("shards", [])
 
         index_path = self.root / manifest.get("index_file", "index.npz")
