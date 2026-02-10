@@ -331,9 +331,24 @@ class StagedOHEMBatchSampler:
     def _warmup_length(self) -> int:
         if self.pos_per_batch <= 0 or self.neg_per_batch <= 0:
             return 0
-        pos_batches = len(self.pos_indices) // self.pos_per_batch
-        neg_batches = len(self.neg_indices) // self.neg_per_batch
-        return min(pos_batches, neg_batches)
+        remaining_pos = len(self.pos_indices)
+        remaining_neg = len(self.neg_indices)
+        batches = 0
+
+        while remaining_pos > 0:
+            pos_count = min(self.pos_per_batch, remaining_pos)
+            if pos_count < self.pos_per_batch and self.drop_last:
+                break
+
+            neg_needed = self._negatives_for_batch(pos_count)
+            if remaining_neg < neg_needed:
+                break
+
+            batches += 1
+            remaining_pos -= pos_count
+            remaining_neg -= neg_needed
+
+        return batches
 
     def _mining_length(self) -> int:
         pos_in_pool, neg_in_pool = self._pool_class_counts()

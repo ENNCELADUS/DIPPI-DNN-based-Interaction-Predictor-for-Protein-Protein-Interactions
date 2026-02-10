@@ -155,3 +155,24 @@ class TestStagedOHEMBatchSampler:
         neg_count = len(batch) - pos_count
         assert pos_count == 8
         assert neg_count == 24
+
+    def test_warmup_len_matches_iteration_with_partial_tail(self):
+        labels = [1] * 5 + [0] * 40
+        sampler = StagedOHEMBatchSampler(
+            labels=labels,
+            batch_size=8,
+            warmup_pos_neg_ratio=3.0,
+            warmup_epochs=1,
+            pool_multiplier=4,
+            cap_protein=2,
+            shuffle=False,
+            drop_last=False,
+            seed=3,
+        )
+
+        sampler.set_epoch(0)
+        expected_batches = len(sampler)
+        batches = list(iter(sampler))
+
+        assert len(batches) == expected_batches
+        assert expected_batches == 3

@@ -1,0 +1,72 @@
+W0210 16:26:29.186000 51642 site-packages/torch/distributed/run.py:774] 
+W0210 16:26:29.186000 51642 site-packages/torch/distributed/run.py:774] *****************************************
+W0210 16:26:29.186000 51642 site-packages/torch/distributed/run.py:774] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0210 16:26:29.186000 51642 site-packages/torch/distributed/run.py:774] *****************************************
+/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/model/v6.py:452: RuntimeWarning: ESM3 encode does not accept batched inputs; falling back to per-sequence encoding. Expect slower throughput.
+  warnings.warn(
+/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/model/v6.py:452: RuntimeWarning: ESM3 encode does not accept batched inputs; falling back to per-sequence encoding. Expect slower throughput.
+  warnings.warn(
+/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/model/v6.py:452: RuntimeWarning: ESM3 encode does not accept batched inputs; falling back to per-sequence encoding. Expect slower throughput.
+  warnings.warn(
+/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/model/v6.py:452: RuntimeWarning: ESM3 encode does not accept batched inputs; falling back to per-sequence encoding. Expect slower throughput.
+  warnings.warn(
+/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/optim/lr_scheduler.py:192: UserWarning: Detected call of `lr_scheduler.step()` before `optimizer.step()`. In PyTorch 1.1.0 and later, you should call them in the opposite order: `optimizer.step()` before `lr_scheduler.step()`.  Failure to do this will result in PyTorch skipping the first value of the learning rate schedule. See more details at https://pytorch.org/docs/stable/optim.html#how-to-adjust-learning-rate
+  warnings.warn(
+/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/optim/lr_scheduler.py:192: UserWarning: Detected call of `lr_scheduler.step()` before `optimizer.step()`. In PyTorch 1.1.0 and later, you should call them in the opposite order: `optimizer.step()` before `lr_scheduler.step()`.  Failure to do this will result in PyTorch skipping the first value of the learning rate schedule. See more details at https://pytorch.org/docs/stable/optim.html#how-to-adjust-learning-rate
+  warnings.warn(
+/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/optim/lr_scheduler.py:192: UserWarning: Detected call of `lr_scheduler.step()` before `optimizer.step()`. In PyTorch 1.1.0 and later, you should call them in the opposite order: `optimizer.step()` before `lr_scheduler.step()`.  Failure to do this will result in PyTorch skipping the first value of the learning rate schedule. See more details at https://pytorch.org/docs/stable/optim.html#how-to-adjust-learning-rate
+  warnings.warn(
+/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/optim/lr_scheduler.py:192: UserWarning: Detected call of `lr_scheduler.step()` before `optimizer.step()`. In PyTorch 1.1.0 and later, you should call them in the opposite order: `optimizer.step()` before `lr_scheduler.step()`.  Failure to do this will result in PyTorch skipping the first value of the learning rate schedule. See more details at https://pytorch.org/docs/stable/optim.html#how-to-adjust-learning-rate
+  warnings.warn(
+[rank0]:[E210 21:39:09.101057148 ProcessGroupNCCL.cpp:685] [Rank 0] Watchdog caught collective operation timeout: WorkNCCL(SeqNum=9626, OpType=ALLREDUCE, NumelIn=5781505, NumelOut=5781505, Timeout(ms)=1800000) ran for 1800051 milliseconds before timing out.
+[rank0]:[E210 21:39:09.103376367 ProcessGroupNCCL.cpp:2252] [PG ID 0 PG GUID 0(default_pg) Rank 0]  failure detected by watchdog at work sequence id: 9626 PG status: last enqueued work: 9629, last completed work: 9625
+[rank0]:[E210 21:39:09.103410467 ProcessGroupNCCL.cpp:732] Stack trace of the failed collective not found, potentially because FlightRecorder is disabled. You can enable it by setting TORCH_NCCL_TRACE_BUFFER_SIZE to a non-zero value.
+[rank0]:[E210 21:39:09.103465900 ProcessGroupNCCL.cpp:2584] [PG ID 0 PG GUID 0(default_pg) Rank 0] First PG on this rank to signal dumping.
+[rank0]:[E210 21:39:09.230482873 ProcessGroupNCCL.cpp:1870] [PG ID 0 PG GUID 0(default_pg) Rank 0] Received a dump signal due to a collective timeout from this local rank and we will try our best to dump the debug info. Last enqueued NCCL work: 9629, last completed NCCL work: 9625.This is most likely caused by incorrect usages of collectives, e.g., wrong sizes used across ranks, the order of collectives is not same for all ranks or the scheduled collective, for some reason, didn't run. Additionally, this can be caused by GIL deadlock or other reasons such as network errors or bugs in the communications library (e.g. NCCL), etc. 
+[rank0]:[E210 21:39:09.230741403 ProcessGroupNCCL.cpp:1589] [PG ID 0 PG GUID 0(default_pg) Rank 0] ProcessGroupNCCL preparing to dump debug info. Include stack trace: 1
+[rank3]:[E210 21:39:09.231712302 ProcessGroupNCCL.cpp:1806] [PG ID 0 PG GUID 0(default_pg) Rank 3] Observed flight recorder dump signal from another rank via TCPStore.
+[rank2]:[E210 21:39:09.231758164 ProcessGroupNCCL.cpp:1806] [PG ID 0 PG GUID 0(default_pg) Rank 2] Observed flight recorder dump signal from another rank via TCPStore.
+[rank3]:[E210 21:39:09.231889035 ProcessGroupNCCL.cpp:1870] [PG ID 0 PG GUID 0(default_pg) Rank 3] Received a dump signal due to a collective timeout from  rank 0 and we will try our best to dump the debug info. Last enqueued NCCL work: 9625, last completed NCCL work: 9625.This is most likely caused by incorrect usages of collectives, e.g., wrong sizes used across ranks, the order of collectives is not same for all ranks or the scheduled collective, for some reason, didn't run. Additionally, this can be caused by GIL deadlock or other reasons such as network errors or bugs in the communications library (e.g. NCCL), etc. 
+[rank2]:[E210 21:39:09.231953509 ProcessGroupNCCL.cpp:1870] [PG ID 0 PG GUID 0(default_pg) Rank 2] Received a dump signal due to a collective timeout from  rank 0 and we will try our best to dump the debug info. Last enqueued NCCL work: 9625, last completed NCCL work: 9625.This is most likely caused by incorrect usages of collectives, e.g., wrong sizes used across ranks, the order of collectives is not same for all ranks or the scheduled collective, for some reason, didn't run. Additionally, this can be caused by GIL deadlock or other reasons such as network errors or bugs in the communications library (e.g. NCCL), etc. 
+[rank3]:[E210 21:39:09.232151829 ProcessGroupNCCL.cpp:1589] [PG ID 0 PG GUID 0(default_pg) Rank 3] ProcessGroupNCCL preparing to dump debug info. Include stack trace: 1
+[rank2]:[E210 21:39:09.232267820 ProcessGroupNCCL.cpp:1589] [PG ID 0 PG GUID 0(default_pg) Rank 2] ProcessGroupNCCL preparing to dump debug info. Include stack trace: 1
+[rank1]:[E210 21:39:09.250875702 ProcessGroupNCCL.cpp:1806] [PG ID 0 PG GUID 0(default_pg) Rank 1] Observed flight recorder dump signal from another rank via TCPStore.
+[rank1]:[E210 21:39:09.251026028 ProcessGroupNCCL.cpp:1870] [PG ID 0 PG GUID 0(default_pg) Rank 1] Received a dump signal due to a collective timeout from  rank 0 and we will try our best to dump the debug info. Last enqueued NCCL work: 9625, last completed NCCL work: 9625.This is most likely caused by incorrect usages of collectives, e.g., wrong sizes used across ranks, the order of collectives is not same for all ranks or the scheduled collective, for some reason, didn't run. Additionally, this can be caused by GIL deadlock or other reasons such as network errors or bugs in the communications library (e.g. NCCL), etc. 
+[rank1]:[E210 21:39:09.251282015 ProcessGroupNCCL.cpp:1589] [PG ID 0 PG GUID 0(default_pg) Rank 1] ProcessGroupNCCL preparing to dump debug info. Include stack trace: 1
+[rank2]:[F210 21:47:09.243114445 ProcessGroupNCCL.cpp:1614] [PG ID 0 PG GUID 0(default_pg) Rank 2] [PG ID 0 PG GUID 0(default_pg) Rank 2] Terminating the process after attempting to dump debug info, due to collective timeout or exception.
+[rank3]:[F210 21:47:09.244679638 ProcessGroupNCCL.cpp:1614] [PG ID 0 PG GUID 0(default_pg) Rank 3] [PG ID 0 PG GUID 0(default_pg) Rank 3] Terminating the process after attempting to dump debug info, due to collective timeout or exception.
+[rank0]:[F210 21:47:09.245515758 ProcessGroupNCCL.cpp:1614] [PG ID 0 PG GUID 0(default_pg) Rank 0] [PG ID 0 PG GUID 0(default_pg) Rank 0] Terminating the process after attempting to dump debug info, due to collective timeout or exception.
+[rank1]:[F210 21:47:09.258675363 ProcessGroupNCCL.cpp:1614] [PG ID 0 PG GUID 0(default_pg) Rank 1] [PG ID 0 PG GUID 0(default_pg) Rank 1] Terminating the process after attempting to dump debug info, due to collective timeout or exception.
+W0210 21:47:09.610000 51642 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 51751 closing signal SIGTERM
+W0210 21:47:09.613000 51642 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 51752 closing signal SIGTERM
+W0210 21:47:09.613000 51642 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 51754 closing signal SIGTERM
+E0210 21:47:09.979000 51642 site-packages/torch/distributed/elastic/multiprocessing/api.py:874] failed (exitcode: -6) local_rank: 2 (pid: 51753) of binary: /public/home/wangar2023/.conda/envs/esm/bin/python3.1
+Traceback (most recent call last):
+  File "/public/home/wangar2023/.conda/envs/esm/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+  File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+  File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/distributed/run.py", line 901, in main
+    run(args)
+  File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/distributed/run.py", line 892, in run
+    elastic_launch(
+  File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 143, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+  File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 277, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+======================================================
+src.run FAILED
+------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-02-10_21:47:09
+  host      : hexm03
+  rank      : 2 (local_rank: 2)
+  exitcode  : -6 (pid: 51753)
+  error_file: <N/A>
+  traceback : Signal 6 (SIGABRT) received by PID 51753
+======================================================
