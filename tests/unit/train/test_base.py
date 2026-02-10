@@ -458,6 +458,50 @@ class TestTrainerOHEM:
 
         assert unweighted_loss < weighted_loss
 
+    def test_ohem_scoring_uses_wrapped_module_forward(self, device):
+        from src.train.base import Trainer
+
+        class InnerModel(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.dummy = nn.Parameter(torch.zeros(1))
+
+            def forward(self, batch):
+                logits = batch["logits"] + 0.0 * self.dummy
+                return {"logits": logits}
+
+        class FakeDDP(nn.Module):
+            def __init__(self, module: nn.Module):
+                super().__init__()
+                self.module = module
+                self.wrapper_forward_called = False
+
+            def forward(self, batch):
+                self.wrapper_forward_called = True
+                raise AssertionError(
+                    "OHEM scoring should use the wrapped module forward"
+                )
+
+        wrapped_model = FakeDDP(InnerModel())
+        trainer = Trainer(
+            model=wrapped_model,
+            device=device,
+            optimizer_cfg={"type": "adamw", "lr": 1e-3},
+        )
+
+        pool = {
+            "logits": torch.tensor([[4.0], [3.0], [2.0]]),
+            "label": torch.tensor([[0.0], [0.0], [0.0]]),
+            "protein_a": ["P1", "P1", "P1"],
+            "protein_b": ["P2", "P3", "P4"],
+        }
+        batch = {"_ohem": True, "pool": pool, "ohem_batch_size": 2, "cap_protein": 1}
+
+        selected = trainer._prepare_ohem_batch(batch)
+
+        assert selected["logits"].size(0) == 2
+        assert wrapped_model.wrapper_forward_called is False
+
 
 class TestTrainerEdgeCases:
     """Test edge cases and error handling."""

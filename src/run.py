@@ -214,8 +214,34 @@ def build_loaders(
     stage_cfg = cfg[f"{stage}_config"]
     dataloader_cfg = data_cfg.get("dataloader", {})
     sampling_cfg = data_cfg.get(stage, {}).get("sampling", {})
+    ddp_enabled = bool(cfg["top_level_config"]["ddp"]["enabled"])
 
+    train_dataloader_cfg = dataloader_cfg
+    val_dataloader_cfg = dataloader_cfg
     model_name = cfg["model_config"]["model"]
+    if ddp_enabled and model_name != "v6" and dataloader_cfg:
+        val_dataloader_cfg = dict(dataloader_cfg)
+        num_workers = int(val_dataloader_cfg.get("num_workers", 0))
+        adjusted = False
+        if num_workers > 2:
+            val_dataloader_cfg["num_workers"] = 2
+            adjusted = True
+        if num_workers > 0:
+            if bool(val_dataloader_cfg.get("persistent_workers", False)):
+                val_dataloader_cfg["persistent_workers"] = False
+                adjusted = True
+            if int(val_dataloader_cfg.get("prefetch_factor", 2)) > 1:
+                val_dataloader_cfg["prefetch_factor"] = 1
+                adjusted = True
+            if bool(val_dataloader_cfg.get("pin_memory", False)):
+                val_dataloader_cfg["pin_memory"] = False
+                adjusted = True
+        if adjusted:
+            logging.info(
+                "Adjusted validation DataLoader settings for DDP stability: %s",
+                val_dataloader_cfg,
+            )
+
     if model_name == "v6":
         train_loader = build_sequence_loader(
             csv_path=data_cfg[stage]["train_csv"],
@@ -225,7 +251,7 @@ def build_loaders(
             ddp=cfg["top_level_config"]["ddp"]["enabled"],
             shuffle=True,
             sampling_cfg=sampling_cfg,
-            dataloader_cfg=dataloader_cfg,
+            dataloader_cfg=train_dataloader_cfg,
         )
 
         val_loader = build_sequence_loader(
@@ -235,7 +261,7 @@ def build_loaders(
             max_len=data_cfg["max_sequence_length"],
             ddp=cfg["top_level_config"]["ddp"]["enabled"],
             shuffle=False,
-            dataloader_cfg=dataloader_cfg,
+            dataloader_cfg=val_dataloader_cfg,
         )
     else:
         train_loader = build_loader(
@@ -247,7 +273,7 @@ def build_loaders(
             ddp=cfg["top_level_config"]["ddp"]["enabled"],
             shuffle=True,
             sampling_cfg=sampling_cfg,
-            dataloader_cfg=dataloader_cfg,
+            dataloader_cfg=train_dataloader_cfg,
         )
 
         val_loader = build_loader(
@@ -258,7 +284,7 @@ def build_loaders(
             dtype=data_cfg["embedding_dtype"],
             ddp=cfg["top_level_config"]["ddp"]["enabled"],
             shuffle=False,  # No shuffle for validation
-            dataloader_cfg=dataloader_cfg,
+            dataloader_cfg=val_dataloader_cfg,
         )
 
     return train_loader, val_loader

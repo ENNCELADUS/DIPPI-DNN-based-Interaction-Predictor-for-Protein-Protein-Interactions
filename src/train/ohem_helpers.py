@@ -75,10 +75,14 @@ def prepare_ohem_batch(
     was_training = model.training
     model.eval()
     pool_device = move_batch_to_device(pool)
+    # OHEM scoring is inference-only. When the training model is DDP-wrapped,
+    # use the underlying module to avoid an extra DDP forward pass that can
+    # desynchronize reducer state across ranks.
+    score_model = model.module if hasattr(model, "module") else model
 
     with torch.no_grad():
         with amp_context():
-            outputs = model(pool_device)
+            outputs = score_model(pool_device)
             if not isinstance(outputs, dict) or "logits" not in outputs:
                 raise ValueError(
                     "OHEM mining requires model outputs to include 'logits'."
