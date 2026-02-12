@@ -146,12 +146,16 @@ class Trainer:
         self.optimizer = self._build_optimizer()
         self.scheduler = self._build_scheduler()
 
-    def _move_batch_to_device(
-        self, batch: dict[str, torch.Tensor]
-    ) -> dict[str, torch.Tensor]:
-        return {key: value.to(self.device) for key, value in batch.items()}
+    def _move_batch_to_device(self, batch: dict[str, object]) -> dict[str, object]:
+        prepared_batch: dict[str, object] = {}
+        for key, value in batch.items():
+            if isinstance(value, torch.Tensor):
+                prepared_batch[key] = value.to(self.device)
+            else:
+                prepared_batch[key] = value
+        return prepared_batch
 
-    def _forward_model(self, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+    def _forward_model(self, batch: dict[str, object]) -> dict[str, torch.Tensor]:
         try:
             output = self.model(**batch)
         except TypeError:
@@ -163,11 +167,14 @@ class Trainer:
     def _select_loss(
         self,
         output: dict[str, torch.Tensor],
-        batch: dict[str, torch.Tensor],
+        batch: dict[str, object],
         epoch_index: int,
     ) -> torch.Tensor:
         logits = output["logits"]
-        labels = batch["label"].float()
+        labels_raw = batch.get("label")
+        if not isinstance(labels_raw, torch.Tensor):
+            raise ValueError("Batch must include tensor field 'label'")
+        labels = labels_raw.float()
         loss = binary_classification_loss(
             logits=logits,
             labels=labels,
@@ -214,7 +221,7 @@ class Trainer:
 
     def train_one_epoch(
         self,
-        train_loader: DataLoader[dict[str, torch.Tensor]],
+        train_loader: DataLoader[dict[str, object]],
         epoch_index: int = 0,
     ) -> dict[str, float]:
         """Run one full training epoch.

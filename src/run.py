@@ -20,7 +20,7 @@ from torch.nn.parallel import DistributedDataParallel
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 from src.evaluate import Evaluator
-from src.model import V3, V4, V5
+from src.model import V3, V4, V5, V6
 from src.train import NoOpStrategy, StagedUnfreezeStrategy, Trainer
 from src.train.base import OptimizerConfig, SchedulerConfig
 from src.utils.config import (
@@ -40,6 +40,7 @@ from src.utils.data_io import (
     collect_embedding_split_paths,
     ensure_embedding_cache,
 )
+from src.utils.data_io_v6 import build_dataloaders_v6
 from src.utils.device import resolve_device
 from src.utils.distributed import (
     DistributedContext,
@@ -84,6 +85,7 @@ EVAL_CSV_COLUMNS = [
     "f1",
     "mcc",
 ]
+SEQUENCE_NATIVE_MODELS: frozenset[str] = frozenset({"v6"})
 
 
 def _stage_logger_name(model_name: str, stage: str, run_id: str, rank: int) -> str:
@@ -114,10 +116,16 @@ def _build_v5_model(model_kwargs: ConfigDict) -> nn.Module:
     return V5(**model_kwargs)
 
 
+def _build_v6_model(model_kwargs: ConfigDict) -> nn.Module:
+    """Build V6 model instance."""
+    return V6(**model_kwargs)
+
+
 MODEL_FACTORIES: dict[str, ModelFactory] = {
     "v3": _build_v3_model,
     "v4": _build_v4_model,
     "v5": _build_v5_model,
+    "v6": _build_v6_model,
 }
 
 
@@ -629,7 +637,7 @@ def run_training_stage(
     config: ConfigDict,
     model: nn.Module,
     device: torch.device,
-    dataloaders: dict[str, torch.utils.data.DataLoader[dict[str, torch.Tensor]]],
+    dataloaders: dict[str, torch.utils.data.DataLoader[dict[str, object]]],
     run_id: str,
     distributed_context: DistributedContext,
 ) -> Path:
@@ -816,7 +824,7 @@ def run_evaluation_stage(
     config: ConfigDict,
     model: nn.Module,
     device: torch.device,
-    dataloaders: dict[str, torch.utils.data.DataLoader[dict[str, torch.Tensor]]],
+    dataloaders: dict[str, torch.utils.data.DataLoader[dict[str, object]]],
     run_id: str,
     checkpoint_path: Path,
     distributed_context: DistributedContext,
@@ -952,20 +960,47 @@ def execute_pipeline(config: ConfigDict) -> None:
                     resolved_device=device,
                 )
 
-        data_cfg = get_section(config, "data_config")
-        model_cfg = get_section(config, "model_config")
-        embedding_split_paths = collect_embedding_split_paths(config=config)
-        embedding_cache = ensure_embedding_cache(
-            config=config,
-            split_paths=embedding_split_paths,
-            input_dim=as_int(model_cfg.get("input_dim", 0), "model_config.input_dim"),
-            max_sequence_length=as_int(
-                data_cfg.get("max_sequence_length", 64),
-                "data_config.max_sequence_length",
-            ),
-            distributed=distributed_context.is_distributed,
-            rank=distributed_context.rank,
-        )
+        use_sequence_native_data = model_name in SEQUENCE_NATIVE_MODELS
+        embedding_split_paths: list[Path] | None = None
+        embedding_cache = None
+        if not use_sequence_native_data:
+            data_cfg = get_section(config, "data_config")
+            model_cfg = get_section(config, "model_config")
+            embedding_split_paths = collect_embedding_split_paths(config=config)
+            embedding_cache = ensure_embedding_cache(
+                config=config,
+                split_paths=embedding_split_paths,
+                input_dim=as_int(
+                    model_cfg.get("input_dim", 0), "model_config.input_dim"
+                ),
+                max_sequence_length=as_int(
+                    data_cfg.get("max_sequence_length", 64),
+                    "data_config.max_sequence_length",
+                ),
+                distributed=distributed_context.is_distributed,
+                rank=distributed_context.rank,
+            )
+
+        def _build_stage_dataloaders(
+            stage_config: ConfigDict, train_stage: TrainingStage
+        ) -> dict[str, torch.utils.data.DataLoader[dict[str, object]]]:
+            if use_sequence_native_data:
+                return build_dataloaders_v6(
+                    config=stage_config,
+                    distributed=distributed_context.is_distributed,
+                    rank=distributed_context.rank,
+                    world_size=distributed_context.world_size,
+                    train_stage=train_stage,
+                )
+            return build_dataloaders(
+                config=stage_config,
+                distributed=distributed_context.is_distributed,
+                rank=distributed_context.rank,
+                world_size=distributed_context.world_size,
+                train_stage=train_stage,
+                embedding_cache=embedding_cache,
+                embedding_split_paths=embedding_split_paths,
+            )
 
         model = build_model(config=config).to(device)
         if distributed_context.is_main_process:
@@ -1022,14 +1057,8 @@ def execute_pipeline(config: ConfigDict) -> None:
                         path=active_checkpoint,
                     )
 
-            dataloaders = build_dataloaders(
-                config=stage_config,
-                distributed=distributed_context.is_distributed,
-                rank=distributed_context.rank,
-                world_size=distributed_context.world_size,
-                train_stage=training_stage,
-                embedding_cache=embedding_cache,
-                embedding_split_paths=embedding_split_paths,
+            dataloaders = _build_stage_dataloaders(
+                stage_config=stage_config, train_stage=training_stage
             )
             if distributed_context.is_main_process:
                 log_stage_event(
@@ -1069,14 +1098,8 @@ def execute_pipeline(config: ConfigDict) -> None:
             eval_config = _config_for_training_stage(
                 config=config, stage=eval_base_stage
             )
-            eval_dataloaders = build_dataloaders(
-                config=eval_config,
-                distributed=distributed_context.is_distributed,
-                rank=distributed_context.rank,
-                world_size=distributed_context.world_size,
-                train_stage=eval_base_stage,
-                embedding_cache=embedding_cache,
-                embedding_split_paths=embedding_split_paths,
+            eval_dataloaders = _build_stage_dataloaders(
+                stage_config=eval_config, train_stage=eval_base_stage
             )
             if distributed_context.is_main_process:
                 log_stage_event(

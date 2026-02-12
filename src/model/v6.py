@@ -547,12 +547,21 @@ class V6(nn.Module):
     def _pair_features(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
         return torch.cat([a, b, (a - b).abs(), a * b], dim=-1)
 
-    def forward(self, batch: Dict[str, Any]) -> Dict[str, torch.Tensor]:
-        if "seq_a" not in batch or "seq_b" not in batch:
+    def forward(
+        self,
+        batch: dict[str, object] | None = None,
+        **kwargs: object,
+    ) -> dict[str, torch.Tensor]:
+        merged_batch: dict[str, object] = {}
+        if batch is not None:
+            merged_batch.update(batch)
+        merged_batch.update(kwargs)
+
+        if "seq_a" not in merged_batch or "seq_b" not in merged_batch:
             raise KeyError("Batch must contain 'seq_a' and 'seq_b' raw sequences")
 
-        seq_a = batch["seq_a"]
-        seq_b = batch["seq_b"]
+        seq_a = merged_batch["seq_a"]
+        seq_b = merged_batch["seq_b"]
 
         if isinstance(seq_a, str) or isinstance(seq_b, str):
             raise TypeError("seq_a and seq_b must be sequences of strings")
@@ -595,8 +604,11 @@ class V6(nn.Module):
         logits = self.output_head(pair_features)
 
         output = {"logits": logits}
-        if "label" in batch:
-            labels = batch["label"].float()
+        if "label" in merged_batch:
+            labels_value = merged_batch["label"]
+            if not isinstance(labels_value, torch.Tensor):
+                raise TypeError("label must be a torch.Tensor when provided")
+            labels = labels_value.float()
             logits_for_loss = (
                 logits.squeeze(-1)
                 if logits.dim() > 1 and logits.size(-1) == 1

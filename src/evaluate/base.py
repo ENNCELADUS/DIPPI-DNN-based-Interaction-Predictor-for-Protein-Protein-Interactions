@@ -49,7 +49,7 @@ class Evaluator:
 
     @staticmethod
     def _forward_model(
-        model: nn.Module, batch: dict[str, torch.Tensor]
+        model: nn.Module, batch: dict[str, object]
     ) -> dict[str, torch.Tensor]:
         """Execute model forward and validate output contract.
 
@@ -163,7 +163,7 @@ class Evaluator:
     def evaluate(
         self,
         model: nn.Module,
-        data_loader: DataLoader[dict[str, torch.Tensor]],
+        data_loader: DataLoader[dict[str, object]],
         device: torch.device,
         prefix: str | None = "val",
     ) -> dict[str, float]:
@@ -187,10 +187,18 @@ class Evaluator:
 
         for batch in data_loader:
             batch_count += 1
-            prepared_batch = {key: value.to(device) for key, value in batch.items()}
+            prepared_batch: dict[str, object] = {}
+            for key, value in batch.items():
+                if isinstance(value, torch.Tensor):
+                    prepared_batch[key] = value.to(device)
+                else:
+                    prepared_batch[key] = value
             output = self._forward_model(model=model, batch=prepared_batch)
             logits = output["logits"]
-            labels = prepared_batch["label"].float()
+            labels_value = prepared_batch.get("label")
+            if not isinstance(labels_value, torch.Tensor):
+                raise ValueError("Batch must include tensor field 'label'")
+            labels = labels_value.float()
             loss = binary_classification_loss(
                 logits=logits,
                 labels=labels,

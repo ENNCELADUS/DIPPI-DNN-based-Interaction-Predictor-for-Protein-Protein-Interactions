@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+import src.run as run_module
 from src.run import build_model
 from src.utils.config import load_config
 
@@ -69,3 +70,29 @@ def test_build_model_from_pipeline_configs(
 def test_build_model_unknown_raises() -> None:
     with pytest.raises(ValueError, match="Unknown model"):
         build_model(_base_config("unknown"))
+
+
+def test_build_model_v6_dispatches_factory(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _FakeV6Model:
+        pass
+
+    captured_kwargs: dict[str, object] = {}
+
+    def _fake_v6_factory(model_kwargs: dict[str, object]) -> _FakeV6Model:
+        captured_kwargs.update(model_kwargs)
+        return _FakeV6Model()
+
+    monkeypatch.setitem(run_module.MODEL_FACTORIES, "v6", _fake_v6_factory)
+    model = build_model(
+        {
+            "model_config": {
+                "model": "v6",
+                "d_model": 8,
+                "cross_attn_layers": 1,
+                "n_heads": 2,
+                "mlp_head": {"dropout": 0.1},
+            }
+        }
+    )
+    assert isinstance(model, _FakeV6Model)
+    assert captured_kwargs["d_model"] == 8

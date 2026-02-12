@@ -408,3 +408,109 @@ def test_execute_pipeline_staged_unfreeze_enables_ddp_find_unused(
 
     assert ddp_call["device_ids"] is None
     assert ddp_call["find_unused_parameters"] is True
+
+
+def test_execute_pipeline_v6_uses_sequence_dataloaders(
+    monkeypatch: pytest.MonkeyPatch,
+    base_config: ConfigDict,
+) -> None:
+    run_cfg = base_config["run_config"]
+    assert isinstance(run_cfg, dict)
+    run_cfg["stages"] = ["finetune", "evaluate"]
+    run_cfg["load_checkpoint_path"] = "artifacts/v6_seed_model.pth"
+
+    model_cfg = base_config["model_config"]
+    assert isinstance(model_cfg, dict)
+    model_cfg["model"] = "v6"
+
+    calls = {"v6_dataloader_calls": 0}
+
+    def fake_build_model(config: ConfigDict) -> nn.Module:
+        del config
+        return _DummyModel()
+
+    def fake_build_dataloaders_v6(
+        config: ConfigDict,
+        distributed: bool = False,
+        rank: int = 0,
+        world_size: int = 1,
+        train_stage: str = "pretrain",
+    ) -> dict[str, DataLoader[dict[str, object]]]:
+        del config, distributed, rank, world_size, train_stage
+        calls["v6_dataloader_calls"] += 1
+        loader = DataLoader(_EmptyDataset(), batch_size=1)
+        return {"train": loader, "valid": loader, "test": loader}
+
+    def _unexpected_embedding_call(*args: object, **kwargs: object) -> object:
+        del args, kwargs
+        raise AssertionError("embedding-cache path should not run for v6")
+
+    def fake_initialize_distributed(ddp_enabled: bool) -> DistributedContext:
+        del ddp_enabled
+        return DistributedContext(ddp_enabled=False, is_distributed=False)
+
+    def fake_cleanup_distributed(context: DistributedContext) -> None:
+        del context
+
+    def fake_resolve_device(device_name: str) -> torch.device:
+        del device_name
+        return torch.device("cpu")
+
+    def fake_run_training_stage(
+        stage: str,
+        config: ConfigDict,
+        model: nn.Module,
+        device: torch.device,
+        dataloaders: dict[str, DataLoader[dict[str, object]]],
+        run_id: str,
+        distributed_context: DistributedContext,
+    ) -> Path:
+        del stage, config, model, device, dataloaders, run_id, distributed_context
+        return Path("artifacts/v6_finetune_best_model.pth")
+
+    def fake_load_checkpoint(
+        model: nn.Module, checkpoint_path: Path, device: torch.device
+    ) -> None:
+        del model, checkpoint_path, device
+
+    def fake_run_evaluation_stage(
+        config: ConfigDict,
+        model: nn.Module,
+        device: torch.device,
+        dataloaders: dict[str, DataLoader[dict[str, object]]],
+        run_id: str,
+        checkpoint_path: Path,
+        distributed_context: DistributedContext,
+    ) -> dict[str, float]:
+        del (
+            config,
+            model,
+            device,
+            dataloaders,
+            run_id,
+            checkpoint_path,
+            distributed_context,
+        )
+        return {"accuracy": 1.0}
+
+    monkeypatch.setattr(run_module, "build_model", fake_build_model)
+    monkeypatch.setattr(run_module, "build_dataloaders_v6", fake_build_dataloaders_v6)
+    monkeypatch.setattr(
+        run_module, "collect_embedding_split_paths", _unexpected_embedding_call
+    )
+    monkeypatch.setattr(
+        run_module, "ensure_embedding_cache", _unexpected_embedding_call
+    )
+    monkeypatch.setattr(run_module, "build_dataloaders", _unexpected_embedding_call)
+    monkeypatch.setattr(
+        run_module, "initialize_distributed", fake_initialize_distributed
+    )
+    monkeypatch.setattr(run_module, "cleanup_distributed", fake_cleanup_distributed)
+    monkeypatch.setattr(run_module, "resolve_device", fake_resolve_device)
+    monkeypatch.setattr(run_module, "run_training_stage", fake_run_training_stage)
+    monkeypatch.setattr(run_module, "_load_checkpoint", fake_load_checkpoint)
+    monkeypatch.setattr(run_module, "run_evaluation_stage", fake_run_evaluation_stage)
+
+    run_module.execute_pipeline(base_config)
+
+    assert calls["v6_dataloader_calls"] == 2
