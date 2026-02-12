@@ -20,7 +20,7 @@ from torch.nn.parallel import DistributedDataParallel
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 from src.evaluate import Evaluator
-from src.model import V3
+from src.model import V3, V4, V5
 from src.train import NoOpStrategy, StagedUnfreezeStrategy, Trainer
 from src.train.base import OptimizerConfig, SchedulerConfig
 from src.utils.config import (
@@ -104,8 +104,20 @@ def _build_v3_model(model_kwargs: ConfigDict) -> nn.Module:
     return V3(**model_kwargs)
 
 
+def _build_v4_model(model_kwargs: ConfigDict) -> nn.Module:
+    """Build V4 model instance."""
+    return V4(**model_kwargs)
+
+
+def _build_v5_model(model_kwargs: ConfigDict) -> nn.Module:
+    """Build V5 model instance."""
+    return V5(**model_kwargs)
+
+
 MODEL_FACTORIES: dict[str, ModelFactory] = {
     "v3": _build_v3_model,
+    "v4": _build_v4_model,
+    "v5": _build_v5_model,
 }
 
 

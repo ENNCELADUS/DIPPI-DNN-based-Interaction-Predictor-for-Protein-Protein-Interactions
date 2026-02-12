@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 import torch
 import torch.nn as nn
 
-from .v3 import SiameseEncoder, _build_padding_mask
+from src.model.v3 import SiameseEncoder, _build_padding_mask
 
 
 class AttentionPooling(nn.Module):
@@ -338,12 +338,21 @@ class V4(nn.Module):
             activation=self.mlp_activation,
         )
 
-    def forward(self, batch: Dict[str, Any]) -> Dict[str, torch.Tensor]:
-        if "emb_a" not in batch or "emb_b" not in batch:
+    def forward(
+        self,
+        batch: dict[str, torch.Tensor] | None = None,
+        **kwargs: torch.Tensor,
+    ) -> dict[str, torch.Tensor]:
+        merged_batch: dict[str, torch.Tensor] = {}
+        if batch is not None:
+            merged_batch.update(batch)
+        merged_batch.update(kwargs)
+
+        if "emb_a" not in merged_batch or "emb_b" not in merged_batch:
             raise KeyError("Batch must contain 'emb_a' and 'emb_b' tensors")
 
-        emb_a = batch["emb_a"]
-        emb_b = batch["emb_b"]
+        emb_a = merged_batch["emb_a"]
+        emb_b = merged_batch["emb_b"]
         if emb_a.dim() != 3 or emb_b.dim() != 3:
             raise ValueError(
                 "Input embeddings must be shaped (batch, seq_len, embedding_dim)"
@@ -354,8 +363,8 @@ class V4(nn.Module):
             raise ValueError("Protein pair batches must have matching batch dimension")
 
         device = emb_a.device
-        lengths_a = batch.get("len_a")
-        lengths_b = batch.get("len_b")
+        lengths_a = merged_batch.get("len_a")
+        lengths_b = merged_batch.get("len_b")
         if lengths_a is None:
             lengths_a = torch.full(
                 (emb_a.size(0),), emb_a.size(1), device=device, dtype=torch.long
@@ -393,8 +402,8 @@ class V4(nn.Module):
 
         # Compute loss if labels are provided (training mode)
         output = {"logits": logits}
-        if "label" in batch:
-            labels = batch["label"].float()
+        if "label" in merged_batch:
+            labels = merged_batch["label"].float()
             # Normalize logits shape: (N, 1) → (N,) and (N, 1) labels → (N,)
             logits_for_loss = (
                 logits.squeeze(-1)

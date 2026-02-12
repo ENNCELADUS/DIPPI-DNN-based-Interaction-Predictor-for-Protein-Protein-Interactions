@@ -1,0 +1,107 @@
+run_config:
+  mode: "full_pipeline"  # full_pipeline | train_only | eval_only
+  seed: 47
+  train_run_id: null
+  finetune_run_id: null
+  eval_run_id: null
+  load_checkpoint_path: null
+  save_best_only: true
+
+device_config:
+  device: "cuda"
+  ddp_enabled: true
+  use_mixed_precision: true
+
+data_config:
+  benchmark:
+    name: "TMP"
+    root_dir: "data/TMP"
+    processed_dir: "data/TMP/processed"
+  embeddings:
+    source: "esm3"
+    cache_dir: "data/embeddings/esm3"
+  max_sequence_length: 1024
+  dataloader:
+    train_dataset: "data/TMP/processed/pretrain_train_balanced.csv"
+    valid_dataset: "data/TMP/processed/pretrain_val_balanced.csv"
+    finetune_train_dataset: "data/TMP/processed/finetune_train.csv"
+    finetune_val_dataset: "data/TMP/processed/finetune_val.csv"
+    test_dataset: "data/TMP/processed/test.csv"
+    num_workers: 4
+    pin_memory: true
+    drop_last: true
+    sampling:
+      strategy: "ohem"  # none | ohem
+      warmup_epochs: 2
+      pool_multiplier: 16
+      cap_protein: 2
+
+model_config:
+  model: "v4"
+  input_dim: 1536
+  d_model: 256
+  encoder_layers: 2
+  cross_attn_layers: 2
+  n_heads: 8
+  mlp_head:
+    hidden_dims: [512, 256, 64]
+    dropout: 0.20
+    activation: "gelu"
+    norm: "layernorm"
+  regularization:
+    dropout: 0.20
+    token_dropout: 0.10
+    cross_attention_dropout: 0.15
+    stochastic_depth: 0.10
+
+training_config:
+  epochs: 40
+  batch_size: 64
+  early_stopping_patience: 5
+  monitor_metric: "auprc"
+  logging:
+    validation_metrics: ["auprc", "auroc", "f1", "accuracy"]
+  optimizer:
+    type: "adamw"
+    lr: 0.00006
+    beta1: 0.9
+    beta2: 0.999
+    eps: 1.0e-8
+    weight_decay: 0.015
+  scheduler:
+    type: "onecycle"
+    max_lr: 0.00006
+    pct_start: 0.20
+    div_factor: 25
+    final_div_factor: 10000
+    anneal_strategy: "cos"
+  loss:
+    type: "bce_with_logits"
+    pos_weight: 1.0
+    label_smoothing: 0.02
+  strategy:
+    type: "none"
+  finetune:
+    epochs: 30
+    monitor_metric: "auprc"
+    optimizer:
+      lr: 0.000006
+    loss:
+      pos_weight: 7.0
+      label_smoothing: 0.005
+    strategy:
+      type: "staged_unfreeze"
+      unfreeze_epoch: 3
+      initial_trainable_prefixes: ["output_head"]
+
+evaluate:
+  metrics:
+    - "auroc"
+    - "auprc"
+    - "accuracy"
+    - "sensitivity"
+    - "specificity"
+    - "precision"
+    - "recall"
+    - "f1"
+    - "mcc"
