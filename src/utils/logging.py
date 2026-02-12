@@ -74,7 +74,8 @@ def log_stage_event(logger: logging.Logger, event: str, **fields: object) -> Non
         logger.info(event_label)
         return
     formatted_fields = " | ".join(
-        f"{_format_label(key)}: {_format_field_value(fields[key])}" for key in sorted(fields)
+        f"{_format_label(key)}: {_format_field_value(fields[key])}"
+        for key in sorted(fields)
     )
     logger.info("%s | %s", event_label, formatted_fields)
 
@@ -101,7 +102,9 @@ def _format_label(token: str) -> str:
     return " ".join(formatted_words)
 
 
-def prepare_stage_directories(model_name: str, stage: str, run_id: str) -> tuple[Path, Path]:
+def prepare_stage_directories(
+    model_name: str, stage: str, run_id: str
+) -> tuple[Path, Path]:
     """Create and return log/model directories for a stage.
 
     Args:

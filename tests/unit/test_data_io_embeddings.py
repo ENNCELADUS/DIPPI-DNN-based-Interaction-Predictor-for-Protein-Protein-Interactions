@@ -19,6 +19,13 @@ def _write_split(path: Path, rows: list[tuple[str, str, int]]) -> None:
             handle.write(f"{protein_a}\t{protein_b}\t{label}\n")
 
 
+def _write_split_csv(path: Path, rows: list[tuple[str, str, int]]) -> None:
+    with path.open("w", encoding="utf-8") as handle:
+        handle.write("uniprotID_A,uniprotID_B,isInteraction\n")
+        for protein_a, protein_b, label in rows:
+            handle.write(f"{protein_a},{protein_b},{label}\n")
+
+
 def _write_cache(
     cache_dir: Path,
     embeddings: dict[str, torch.Tensor],
@@ -54,6 +61,8 @@ def _build_config(
     test_path: Path,
     input_dim: int,
     max_sequence_length: int,
+    finetune_train_path: Path | None = None,
+    finetune_valid_path: Path | None = None,
     sampling: dict[str, object] | None = None,
 ) -> ConfigDict:
     dataloader_config: dict[str, object] = {
@@ -64,6 +73,10 @@ def _build_config(
         "pin_memory": False,
         "drop_last": False,
     }
+    if finetune_train_path is not None:
+        dataloader_config["finetune_train_dataset"] = str(finetune_train_path)
+    if finetune_valid_path is not None:
+        dataloader_config["finetune_val_dataset"] = str(finetune_valid_path)
     if sampling is not None:
         dataloader_config["sampling"] = sampling
 
@@ -153,7 +166,9 @@ def test_build_dataloaders_ohem_uses_pool_batch_sampler(tmp_path: Path) -> None:
     train_path = tmp_path / "train.txt"
     valid_path = tmp_path / "valid.txt"
     test_path = tmp_path / "test.txt"
-    _write_split(train_path, [("P1", "P2", 1), ("P3", "P4", 1), ("P5", "P6", 0), ("P7", "P8", 0)])
+    _write_split(
+        train_path, [("P1", "P2", 1), ("P3", "P4", 1), ("P5", "P6", 0), ("P7", "P8", 0)]
+    )
     _write_split(valid_path, [("P1", "P2", 1)])
     _write_split(test_path, [("P5", "P6", 0)])
 
@@ -194,6 +209,47 @@ def test_build_dataloaders_ohem_uses_pool_batch_sampler(tmp_path: Path) -> None:
     dataloaders = data_io.build_dataloaders(config=config)
     train_batch = next(iter(dataloaders["train"]))
     assert tuple(train_batch["label"].shape) == (4,)
+
+
+def test_build_dataloaders_supports_csv_pair_files(tmp_path: Path) -> None:
+    benchmark_root = tmp_path / "benchmark"
+    benchmark_root.mkdir(parents=True, exist_ok=True)
+
+    train_path = tmp_path / "train.csv"
+    valid_path = tmp_path / "valid.csv"
+    test_path = tmp_path / "test.csv"
+    _write_split_csv(train_path, [("C1", "C2", 1), ("C3", "C2", 0)])
+    _write_split_csv(valid_path, [("C1", "C3", 1)])
+    _write_split_csv(test_path, [("C2", "C3", 0)])
+
+    cache_dir = tmp_path / "cache"
+    input_dim = 4
+    max_sequence_length = 8
+    _write_cache(
+        cache_dir=cache_dir,
+        embeddings={
+            "C1": torch.ones((2, input_dim), dtype=torch.float32),
+            "C2": torch.full((3, input_dim), 2.0, dtype=torch.float32),
+            "C3": torch.full((4, input_dim), 3.0, dtype=torch.float32),
+        },
+        input_dim=input_dim,
+        max_sequence_length=max_sequence_length,
+    )
+
+    config = _build_config(
+        benchmark_root=benchmark_root,
+        cache_dir=cache_dir,
+        train_path=train_path,
+        valid_path=valid_path,
+        test_path=test_path,
+        input_dim=input_dim,
+        max_sequence_length=max_sequence_length,
+    )
+    dataloaders = data_io.build_dataloaders(config=config)
+    train_batch = next(iter(dataloaders["train"]))
+    valid_batch = next(iter(dataloaders["valid"]))
+    assert tuple(train_batch["label"].shape) == (2,)
+    assert valid_batch["label"].tolist() == [1.0]
 
 
 def test_build_dataloaders_calls_ensure_embeddings_ready(
@@ -241,7 +297,9 @@ def test_build_dataloaders_calls_ensure_embeddings_ready(
             required_ids=frozenset({"A1", "A2"}),
         )
 
-    monkeypatch.setattr(data_io, "ensure_embeddings_ready", _fake_ensure_embeddings_ready)
+    monkeypatch.setattr(
+        data_io, "ensure_embeddings_ready", _fake_ensure_embeddings_ready
+    )
 
     config = _build_config(
         benchmark_root=benchmark_root,
@@ -256,7 +314,9 @@ def test_build_dataloaders_calls_ensure_embeddings_ready(
     assert called["value"] is True
 
 
-def test_build_dataloaders_failfast_when_cache_missing_for_non_main_rank(tmp_path: Path) -> None:
+def test_build_dataloaders_failfast_when_cache_missing_for_non_main_rank(
+    tmp_path: Path,
+) -> None:
     benchmark_root = tmp_path / "benchmark"
     benchmark_root.mkdir(parents=True, exist_ok=True)
 
@@ -282,7 +342,9 @@ def test_build_dataloaders_failfast_when_cache_missing_for_non_main_rank(tmp_pat
         data_io.build_dataloaders(config=config, distributed=True, rank=1, world_size=2)
 
 
-def test_build_dataloaders_failfast_on_dim_mismatch_for_non_main_rank(tmp_path: Path) -> None:
+def test_build_dataloaders_failfast_on_dim_mismatch_for_non_main_rank(
+    tmp_path: Path,
+) -> None:
     benchmark_root = tmp_path / "benchmark"
     benchmark_root.mkdir(parents=True, exist_ok=True)
 
@@ -315,3 +377,91 @@ def test_build_dataloaders_failfast_on_dim_mismatch_for_non_main_rank(tmp_path: 
 
     with pytest.raises(ValueError, match="Invalid embeddings"):
         data_io.build_dataloaders(config=config, distributed=True, rank=1, world_size=2)
+
+
+def test_collect_embedding_split_paths_includes_finetune_when_configured(
+    tmp_path: Path,
+) -> None:
+    benchmark_root = tmp_path / "benchmark"
+    benchmark_root.mkdir(parents=True, exist_ok=True)
+
+    train_path = tmp_path / "train.txt"
+    valid_path = tmp_path / "valid.txt"
+    finetune_train_path = tmp_path / "finetune_train.txt"
+    finetune_valid_path = tmp_path / "finetune_valid.txt"
+    test_path = tmp_path / "test.txt"
+    _write_split(train_path, [("A", "B", 1)])
+    _write_split(valid_path, [("A", "B", 1)])
+    _write_split(finetune_train_path, [("C", "D", 1)])
+    _write_split(finetune_valid_path, [("C", "D", 1)])
+    _write_split(test_path, [("A", "B", 1)])
+
+    config = _build_config(
+        benchmark_root=benchmark_root,
+        cache_dir=tmp_path / "cache",
+        train_path=train_path,
+        valid_path=valid_path,
+        test_path=test_path,
+        input_dim=4,
+        max_sequence_length=8,
+        finetune_train_path=finetune_train_path,
+        finetune_valid_path=finetune_valid_path,
+    )
+    split_paths = data_io.collect_embedding_split_paths(config=config)
+    assert split_paths == [
+        train_path,
+        valid_path,
+        finetune_train_path,
+        finetune_valid_path,
+        test_path,
+    ]
+
+
+def test_build_dataloaders_finetune_stage_uses_finetune_splits(tmp_path: Path) -> None:
+    benchmark_root = tmp_path / "benchmark"
+    benchmark_root.mkdir(parents=True, exist_ok=True)
+
+    train_path = tmp_path / "train.txt"
+    valid_path = tmp_path / "valid.txt"
+    finetune_train_path = tmp_path / "finetune_train.txt"
+    finetune_valid_path = tmp_path / "finetune_valid.txt"
+    test_path = tmp_path / "test.txt"
+    _write_split(train_path, [("P1", "P2", 1)])
+    _write_split(valid_path, [("P1", "P2", 1)])
+    _write_split(finetune_train_path, [("F1", "F2", 0), ("F3", "F2", 1)])
+    _write_split(finetune_valid_path, [("F1", "F3", 1)])
+    _write_split(test_path, [("F2", "F3", 0)])
+
+    cache_dir = tmp_path / "cache"
+    input_dim = 4
+    max_sequence_length = 8
+    _write_cache(
+        cache_dir=cache_dir,
+        embeddings={
+            "P1": torch.ones((2, input_dim), dtype=torch.float32),
+            "P2": torch.ones((2, input_dim), dtype=torch.float32),
+            "F1": torch.full((2, input_dim), 1.0, dtype=torch.float32),
+            "F2": torch.full((2, input_dim), 2.0, dtype=torch.float32),
+            "F3": torch.full((2, input_dim), 3.0, dtype=torch.float32),
+        },
+        input_dim=input_dim,
+        max_sequence_length=max_sequence_length,
+    )
+
+    config = _build_config(
+        benchmark_root=benchmark_root,
+        cache_dir=cache_dir,
+        train_path=train_path,
+        valid_path=valid_path,
+        test_path=test_path,
+        input_dim=input_dim,
+        max_sequence_length=max_sequence_length,
+        finetune_train_path=finetune_train_path,
+        finetune_valid_path=finetune_valid_path,
+    )
+    dataloaders = data_io.build_dataloaders(config=config, train_stage="finetune")
+    train_batch = next(iter(dataloaders["train"]))
+    valid_batch = next(iter(dataloaders["valid"]))
+    assert tuple(train_batch["label"].shape) == (2,)
+    assert train_batch["label"].tolist().count(1.0) == 1
+    assert valid_batch["label"].tolist() == [1.0]

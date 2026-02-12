@@ -26,7 +26,7 @@ legacy/
 *.gz
 
 # External Codebases
-PRING/
+external/
 
 # Research & Report Files
 docs/research/

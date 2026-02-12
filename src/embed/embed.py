@@ -16,6 +16,7 @@ import torch
 import torch.distributed as dist
 
 from src.utils.config import ConfigDict, as_str, get_section
+from src.utils.pair_io import collect_required_protein_ids
 
 LOGGER = logging.getLogger(__name__)
 
@@ -80,7 +81,9 @@ class _Esm3ModelProtocol(Protocol):
     def encode(self, protein: object) -> object:
         """Encode an ESM protein object."""
 
-    def logits(self, protein_tensor: object, logits_config: object) -> _LogitsOutputProtocol:
+    def logits(
+        self, protein_tensor: object, logits_config: object
+    ) -> _LogitsOutputProtocol:
         """Run logits call returning embeddings."""
 
 
@@ -126,12 +129,16 @@ def _parse_embedding_settings(config: ConfigDict) -> _EmbeddingSettings:
     data_cfg = get_section(config, "data_config")
     embeddings_cfg = get_section(data_cfg, "embeddings")
 
-    source = as_str(embeddings_cfg.get("source", ""), "data_config.embeddings.source").lower()
+    source = as_str(
+        embeddings_cfg.get("source", ""), "data_config.embeddings.source"
+    ).lower()
     cache_dir_raw = _optional_string(embeddings_cfg.get("cache_dir"))
     if cache_dir_raw is None:
         raise ValueError("data_config.embeddings.cache_dir must be a non-empty path")
 
-    model_name = _optional_string(embeddings_cfg.get("model_name")) or DEFAULT_ESM3_MODEL_NAME
+    model_name = (
+        _optional_string(embeddings_cfg.get("model_name")) or DEFAULT_ESM3_MODEL_NAME
+    )
     device = _optional_string(embeddings_cfg.get("device")) or DEFAULT_EMBEDDING_DEVICE
     sequence_file_raw = _optional_string(embeddings_cfg.get("sequence_file"))
     id_column = _optional_string(embeddings_cfg.get("id_column"))
@@ -142,38 +149,17 @@ def _parse_embedding_settings(config: ConfigDict) -> _EmbeddingSettings:
         cache_dir=Path(cache_dir_raw),
         model_name=model_name,
         device=device,
-        sequence_file=Path(sequence_file_raw) if sequence_file_raw is not None else None,
+        sequence_file=Path(sequence_file_raw)
+        if sequence_file_raw is not None
+        else None,
         id_column=id_column,
         sequence_column=sequence_column,
     )
 
 
-def _collect_required_protein_ids(
-    split_paths: Sequence[Path],
-) -> set[str]:
-    """Collect required protein IDs from configured split files."""
-    required_ids: set[str] = set()
-    for split_path in split_paths:
-        if not split_path.exists():
-            raise FileNotFoundError(f"Split dataset path not found: {split_path}")
-
-        with split_path.open("r", encoding="utf-8") as handle:
-            for line in handle:
-                parts = [part.strip() for part in line.strip().split("\t")]
-                if len(parts) < 2:
-                    continue
-                if not parts[0] or not parts[1]:
-                    continue
-
-                required_ids.add(parts[0])
-                required_ids.add(parts[1])
-
-    if not required_ids:
-        raise ValueError("No protein IDs found in configured split files")
-    return required_ids
-
-
-def _resolve_sequence_search_roots(config: ConfigDict, split_paths: Sequence[Path]) -> list[Path]:
+def _resolve_sequence_search_roots(
+    config: ConfigDict, split_paths: Sequence[Path]
+) -> list[Path]:
     """Build ordered sequence-discovery roots from config and split paths."""
     data_cfg = get_section(config, "data_config")
     benchmark_cfg = get_section(data_cfg, "benchmark")
@@ -202,7 +188,9 @@ def _resolve_sequence_search_roots(config: ConfigDict, split_paths: Sequence[Pat
     return [path for path in candidate_roots if path.exists()]
 
 
-def _collect_candidate_files(search_roots: Sequence[Path], suffixes: Sequence[str]) -> list[Path]:
+def _collect_candidate_files(
+    search_roots: Sequence[Path], suffixes: Sequence[str]
+) -> list[Path]:
     """Collect candidate files under search roots for the specified suffixes."""
     candidates: list[Path] = []
     seen: set[str] = set()
@@ -316,7 +304,11 @@ def _load_sequences_from_fasta(
     def _flush_current() -> None:
         nonlocal current_id
         nonlocal current_chunks
-        if current_id is None or current_id in sequences or current_id not in required_ids:
+        if (
+            current_id is None
+            or current_id in sequences
+            or current_id not in required_ids
+        ):
             current_id = None
             current_chunks = []
             return
@@ -372,11 +364,15 @@ def _discover_sequences(
 
     if explicit_sequence_file is not None:
         if not explicit_sequence_file.exists():
-            raise FileNotFoundError(f"Configured sequence file not found: {explicit_sequence_file}")
+            raise FileNotFoundError(
+                f"Configured sequence file not found: {explicit_sequence_file}"
+            )
         _load_from_path(explicit_sequence_file)
 
     if len(sequences) < len(required_ids):
-        csv_files = _collect_candidate_files(search_roots=search_roots, suffixes=CSV_SUFFIXES)
+        csv_files = _collect_candidate_files(
+            search_roots=search_roots, suffixes=CSV_SUFFIXES
+        )
         for csv_path in csv_files:
             if (
                 explicit_sequence_file is not None
@@ -394,7 +390,9 @@ def _discover_sequences(
                 break
 
     if len(sequences) < len(required_ids):
-        fasta_files = _collect_candidate_files(search_roots=search_roots, suffixes=FASTA_SUFFIXES)
+        fasta_files = _collect_candidate_files(
+            search_roots=search_roots, suffixes=FASTA_SUFFIXES
+        )
         for fasta_path in fasta_files:
             if (
                 explicit_sequence_file is not None
@@ -438,7 +436,9 @@ def _load_index(index_path: Path) -> dict[str, str]:
         if not isinstance(protein_id, str) or not protein_id:
             raise ValueError(f"Invalid protein ID key in index: {protein_id!r}")
         if not isinstance(rel_path, str) or not rel_path:
-            raise ValueError(f"Invalid embedding path for protein '{protein_id}' in index")
+            raise ValueError(
+                f"Invalid embedding path for protein '{protein_id}' in index"
+            )
         index[protein_id] = rel_path
     return index
 
@@ -476,7 +476,9 @@ def _resolve_embedding_path(cache_dir: Path, relative_path: str) -> Path:
     cache_root = cache_dir.resolve()
     absolute_path = (cache_dir / rel_path).resolve()
     if absolute_path != cache_root and cache_root not in absolute_path.parents:
-        raise ValueError(f"Embedding index path escapes cache directory: {relative_path}")
+        raise ValueError(
+            f"Embedding index path escapes cache directory: {relative_path}"
+        )
     return absolute_path
 
 
@@ -513,9 +515,13 @@ def load_cached_embedding(
     """
     relative_path = index.get(protein_id)
     if relative_path is None:
-        raise FileNotFoundError(f"Protein '{protein_id}' is missing from embedding index")
+        raise FileNotFoundError(
+            f"Protein '{protein_id}' is missing from embedding index"
+        )
 
-    embedding_path = _resolve_embedding_path(cache_dir=cache_dir, relative_path=relative_path)
+    embedding_path = _resolve_embedding_path(
+        cache_dir=cache_dir, relative_path=relative_path
+    )
     if not embedding_path.exists():
         raise FileNotFoundError(
             f"Embedding file missing for protein '{protein_id}': {embedding_path}"
@@ -523,7 +529,9 @@ def load_cached_embedding(
 
     tensor_object: object = torch.load(embedding_path, map_location="cpu")
     if not isinstance(tensor_object, torch.Tensor):
-        raise ValueError(f"Embedding file for protein '{protein_id}' does not contain a tensor")
+        raise ValueError(
+            f"Embedding file for protein '{protein_id}' does not contain a tensor"
+        )
 
     tensor = tensor_object.detach().to(dtype=torch.float32)
     if tensor.dim() == 3 and tensor.size(0) == 1:
@@ -533,7 +541,9 @@ def load_cached_embedding(
             f"Embedding for protein '{protein_id}' must be 2D, got shape {tuple(tensor.shape)}"
         )
     if tensor.size(0) <= 0:
-        raise ValueError(f"Embedding for protein '{protein_id}' has empty sequence length")
+        raise ValueError(
+            f"Embedding for protein '{protein_id}' has empty sequence length"
+        )
     if expected_input_dim is not None and tensor.size(1) != expected_input_dim:
         raise ValueError(
             f"Embedding dim mismatch for protein '{protein_id}': "
@@ -670,7 +680,9 @@ def _expected_metadata(
     }
 
 
-def _metadata_matches(current: Mapping[str, object], expected: Mapping[str, object]) -> bool:
+def _metadata_matches(
+    current: Mapping[str, object], expected: Mapping[str, object]
+) -> bool:
     """Return whether current metadata matches expected runtime settings."""
     if not current:
         return False
@@ -698,7 +710,9 @@ def _load_esm3_runtime(
         from esm.models.esm3 import ESM3
         from esm.sdk.api import ESMProtein, LogitsConfig
     except ImportError as error:
-        raise RuntimeError("ESM3 runtime is unavailable. Install the 'esm' dependency.") from error
+        raise RuntimeError(
+            "ESM3 runtime is unavailable. Install the 'esm' dependency."
+        ) from error
 
     device = _resolve_embedding_device(requested_device)
     esm3_class = cast(_Esm3ClassProtocol, ESM3)
@@ -769,7 +783,9 @@ def _generate_missing_embeddings(
 
         truncated_sequence = sequence[:max_sequence_length]
         if not truncated_sequence:
-            raise ValueError(f"Protein '{protein_id}' has an empty sequence after cleaning")
+            raise ValueError(
+                f"Protein '{protein_id}' has an empty sequence after cleaning"
+            )
 
         embedding_tensor = _embed_sequence_with_esm3(
             model=model,
@@ -805,7 +821,9 @@ def _build_missing_ids_error_message(missing_ids: set[str]) -> str:
 def _build_invalid_ids_error_message(invalid_ids: Mapping[str, str]) -> str:
     """Build concise invalid-ID message."""
     sampled_items = sorted(invalid_ids.items())[:5]
-    details = "; ".join(f"{protein_id}: {reason}" for protein_id, reason in sampled_items)
+    details = "; ".join(
+        f"{protein_id}: {reason}" for protein_id, reason in sampled_items
+    )
     return f"Invalid embeddings detected for {len(invalid_ids)} proteins ({details})"
 
 
@@ -838,10 +856,12 @@ def ensure_embeddings_ready(
         raise ValueError("max_sequence_length must be positive")
 
     settings = _parse_embedding_settings(config)
-    required_ids = _collect_required_protein_ids(
+    required_ids = collect_required_protein_ids(
         split_paths=split_paths,
     )
-    distributed_context = _distributed_generation_context(allow_generation=allow_generation)
+    distributed_context = _distributed_generation_context(
+        allow_generation=allow_generation
+    )
     distributed_rank: int | None = None
     distributed_world_size: int | None = None
     if distributed_context is not None:
@@ -885,15 +905,23 @@ def ensure_embeddings_ready(
 
     if distributed_context is not None:
         if distributed_rank is None or distributed_world_size is None:
-            raise RuntimeError("Distributed generation context must include rank and world size")
+            raise RuntimeError(
+                "Distributed generation context must include rank and world size"
+            )
 
-        index_payload_list: list[object] = [dict(index) if distributed_rank == 0 else {}]
-        ids_payload_list: list[object] = [sorted(ids_to_generate) if distributed_rank == 0 else []]
+        index_payload_list: list[object] = [
+            dict(index) if distributed_rank == 0 else {}
+        ]
+        ids_payload_list: list[object] = [
+            sorted(ids_to_generate) if distributed_rank == 0 else []
+        ]
         dist.broadcast_object_list(index_payload_list, src=0)
         dist.broadcast_object_list(ids_payload_list, src=0)
 
         index = _parse_str_dict(index_payload_list[0], "broadcast embedding index")
-        ids_to_generate = set(_parse_str_list(ids_payload_list[0], "broadcast ids_to_generate"))
+        ids_to_generate = set(
+            _parse_str_list(ids_payload_list[0], "broadcast ids_to_generate")
+        )
 
     if ids_to_generate:
         if not allow_generation:
@@ -901,7 +929,9 @@ def ensure_embeddings_ready(
                 raise ValueError(_build_invalid_ids_error_message(invalid_ids))
             raise FileNotFoundError(_build_missing_ids_error_message(ids_to_generate))
 
-        search_roots = _resolve_sequence_search_roots(config=config, split_paths=split_paths)
+        search_roots = _resolve_sequence_search_roots(
+            config=config, split_paths=split_paths
+        )
         if distributed_context is None:
             discovered_sequences = _discover_sequences(
                 required_ids=ids_to_generate,
@@ -957,15 +987,23 @@ def ensure_embeddings_ready(
 
             error_reports: list[object] = [None for _ in range(distributed_world_size)]
             dist.all_gather_object(error_reports, local_error)
-            errors = [report for report in error_reports if isinstance(report, str) and report]
+            errors = [
+                report for report in error_reports if isinstance(report, str) and report
+            ]
             if errors:
-                raise RuntimeError("Distributed embedding generation failed: " + " | ".join(errors))
+                raise RuntimeError(
+                    "Distributed embedding generation failed: " + " | ".join(errors)
+                )
 
             if distributed_rank == 0:
-                gathered_updates: list[object] = [None for _ in range(distributed_world_size)]
+                gathered_updates: list[object] = [
+                    None for _ in range(distributed_world_size)
+                ]
                 dist.gather_object(local_updates, gathered_updates, dst=0)
                 for rank_updates_payload in gathered_updates:
-                    index.update(_parse_str_dict(rank_updates_payload, "gathered index updates"))
+                    index.update(
+                        _parse_str_dict(rank_updates_payload, "gathered index updates")
+                    )
                 _write_json_atomic(path=index_path, payload=index)
                 _write_json_atomic(path=metadata_path, payload=expected_metadata)
             else:

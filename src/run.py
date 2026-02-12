@@ -7,7 +7,7 @@ import logging
 import os
 import random
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Literal, cast
 
@@ -34,7 +34,12 @@ from src.utils.config import (
     get_section,
     load_config,
 )
-from src.utils.data_io import build_dataloaders
+from src.utils.data_io import (
+    TrainingStage,
+    build_dataloaders,
+    collect_embedding_split_paths,
+    ensure_embedding_cache,
+)
 from src.utils.device import resolve_device
 from src.utils.distributed import (
     DistributedContext,
@@ -55,9 +60,18 @@ from src.utils.ohem_sample_strategy import OHEMSampleStrategy
 
 ROOT_LOGGER = logging.getLogger(__name__)
 AnnealStrategy = Literal["cos", "linear"]
+PipelineStage = Literal["pretrain", "finetune", "evaluate"]
 ModelFactory = Callable[[ConfigDict], nn.Module]
 DEFAULT_TRAINING_VAL_METRICS = ["auprc", "auroc"]
 DEFAULT_HEARTBEAT_EVERY_N_STEPS = 20
+TRAINING_STAGE_SEQUENCE: tuple[TrainingStage, ...] = ("pretrain", "finetune")
+PIPELINE_STAGE_SEQUENCE: tuple[PipelineStage, ...] = (
+    "pretrain",
+    "finetune",
+    "evaluate",
+)
+TRAINING_STAGE_NAMES: frozenset[str] = frozenset(TRAINING_STAGE_SEQUENCE)
+PIPELINE_STAGE_NAMES: frozenset[str] = frozenset(PIPELINE_STAGE_SEQUENCE)
 EVAL_CSV_COLUMNS = [
     "split",
     "auroc",
@@ -99,7 +113,9 @@ def _parse_anneal_strategy(value: object) -> AnnealStrategy:
     """Parse OneCycle anneal strategy."""
     anneal_strategy = as_str(value, "training_config.scheduler.anneal_strategy").lower()
     if anneal_strategy not in {"cos", "linear"}:
-        raise ValueError("training_config.scheduler.anneal_strategy must be 'cos' or 'linear'")
+        raise ValueError(
+            "training_config.scheduler.anneal_strategy must be 'cos' or 'linear'"
+        )
     return cast(AnnealStrategy, anneal_strategy)
 
 
@@ -117,8 +133,12 @@ def _build_loss_config(training_cfg: ConfigDict) -> LossConfig:
     if not isinstance(loss_cfg, dict):
         raise ValueError("training_config.loss must be a mapping")
     return LossConfig(
-        loss_type=as_str(loss_cfg.get("type", "bce_with_logits"), "training_config.loss.type"),
-        pos_weight=as_float(loss_cfg.get("pos_weight", 1.0), "training_config.loss.pos_weight"),
+        loss_type=as_str(
+            loss_cfg.get("type", "bce_with_logits"), "training_config.loss.type"
+        ),
+        pos_weight=as_float(
+            loss_cfg.get("pos_weight", 1.0), "training_config.loss.pos_weight"
+        ),
         label_smoothing=as_float(
             loss_cfg.get("label_smoothing", 0.0), "training_config.loss.label_smoothing"
         ),
@@ -130,10 +150,14 @@ def _training_validation_metrics(training_cfg: ConfigDict) -> list[str]:
     logging_cfg = _training_logging_config(training_cfg)
     raw_metrics = logging_cfg.get("validation_metrics", DEFAULT_TRAINING_VAL_METRICS)
     if not isinstance(raw_metrics, Sequence) or isinstance(raw_metrics, (str, bytes)):
-        raise ValueError("training_config.logging.validation_metrics must be a sequence")
+        raise ValueError(
+            "training_config.logging.validation_metrics must be a sequence"
+        )
     metrics = [
         metric.lower()
-        for metric in as_str_list(raw_metrics, "training_config.logging.validation_metrics")
+        for metric in as_str_list(
+            raw_metrics, "training_config.logging.validation_metrics"
+        )
     ]
     if not metrics:
         raise ValueError("training_config.logging.validation_metrics must not be empty")
@@ -188,6 +212,132 @@ def _unwrap_model(model: nn.Module) -> nn.Module:
     return model
 
 
+def _merged_config(
+    base_cfg: Mapping[str, object],
+    override_cfg: Mapping[str, object],
+) -> ConfigDict:
+    """Return a shallow+one-level merged configuration mapping."""
+    merged: ConfigDict = dict(base_cfg)
+    for key, value in override_cfg.items():
+        base_value = merged.get(key)
+        if isinstance(base_value, Mapping) and isinstance(value, Mapping):
+            nested = dict(base_value)
+            nested.update(value)
+            merged[key] = nested
+            continue
+        merged[key] = value
+    return merged
+
+
+def _stage_training_config(config: ConfigDict, stage: TrainingStage) -> ConfigDict:
+    """Resolve stage-specific training config with defaults fallback."""
+    training_cfg = get_section(config, "training_config")
+    default_cfg: ConfigDict = {
+        key: value
+        for key, value in training_cfg.items()
+        if key not in TRAINING_STAGE_NAMES
+    }
+    stage_override = training_cfg.get(stage)
+    if stage_override is None:
+        return default_cfg
+    if not isinstance(stage_override, Mapping):
+        raise ValueError(f"training_config.{stage} must be a mapping")
+    return _merged_config(default_cfg, stage_override)
+
+
+def _config_for_training_stage(config: ConfigDict, stage: TrainingStage) -> ConfigDict:
+    """Build effective config for a given training stage."""
+    stage_config = dict(config)
+    stage_config["training_config"] = _stage_training_config(config=config, stage=stage)
+    return stage_config
+
+
+def _normalize_stage_name(value: object) -> PipelineStage:
+    """Parse one stage name from run config."""
+    stage_name = as_str(value, "run_config.stages[]").lower()
+    if stage_name not in PIPELINE_STAGE_NAMES:
+        raise ValueError(f"Unsupported stage name in run_config.stages: {stage_name}")
+    return cast(PipelineStage, stage_name)
+
+
+def _ordered_unique_stages(stages: Sequence[PipelineStage]) -> list[PipelineStage]:
+    """Return stage sequence without duplicates while preserving order."""
+    deduplicated: list[PipelineStage] = []
+    seen: set[str] = set()
+    for stage in stages:
+        if stage in seen:
+            continue
+        seen.add(stage)
+        deduplicated.append(stage)
+    return deduplicated
+
+
+def _validate_stage_order(stages: Sequence[PipelineStage]) -> None:
+    """Validate stage ordering constraints."""
+    positions = {stage: index for index, stage in enumerate(stages)}
+    if "finetune" in positions and "pretrain" in positions:
+        if positions["finetune"] < positions["pretrain"]:
+            raise ValueError(
+                "run_config.stages must order 'pretrain' before 'finetune'"
+            )
+    if "evaluate" in positions:
+        for training_stage in TRAINING_STAGE_SEQUENCE:
+            if (
+                training_stage in positions
+                and positions["evaluate"] < positions[training_stage]
+            ):
+                raise ValueError(
+                    "run_config.stages must place 'evaluate' after training stages"
+                )
+
+
+def _resolve_stage_sequence(run_cfg: ConfigDict) -> list[PipelineStage]:
+    """Resolve execution stages from config."""
+    raw_stages = run_cfg.get("stages")
+    if raw_stages is not None:
+        if not isinstance(raw_stages, Sequence) or isinstance(raw_stages, (str, bytes)):
+            raise ValueError("run_config.stages must be a sequence")
+        parsed = [_normalize_stage_name(stage) for stage in raw_stages]
+        if not parsed:
+            raise ValueError("run_config.stages must not be empty")
+        stages = _ordered_unique_stages(parsed)
+        _validate_stage_order(stages)
+        return stages
+
+    mode = as_str(run_cfg.get("mode", "full_pipeline"), "run_config.mode").lower()
+    if mode == "train_only":
+        return ["pretrain"]
+    if mode == "full_pipeline":
+        return ["pretrain", "finetune", "evaluate"]
+    if mode == "eval_only":
+        return ["evaluate"]
+    raise ValueError(f"Unsupported run mode: {mode}")
+
+
+def _stage_run_ids(run_cfg: ConfigDict) -> dict[PipelineStage, str]:
+    """Resolve run IDs for each pipeline stage."""
+    pretrain_seed_id = run_cfg.get("pretrain_run_id")
+    if pretrain_seed_id is None:
+        pretrain_seed_id = run_cfg.get("train_run_id")
+    return {
+        "pretrain": generate_run_id(pretrain_seed_id),
+        "finetune": generate_run_id(run_cfg.get("finetune_run_id")),
+        "evaluate": generate_run_id(run_cfg.get("eval_run_id")),
+    }
+
+
+def _load_checkpoint_if_provided(
+    model: nn.Module,
+    checkpoint_path: Path | None,
+    device: torch.device,
+) -> bool:
+    """Load checkpoint when provided, returning whether load occurred."""
+    if checkpoint_path is None:
+        return False
+    _load_checkpoint(model=model, checkpoint_path=checkpoint_path, device=device)
+    return True
+
+
 def _ddp_find_unused_parameters(config: ConfigDict) -> bool:
     """Return DDP ``find_unused_parameters`` setting from config."""
     device_cfg = get_section(config, "device_config")
@@ -196,14 +346,23 @@ def _ddp_find_unused_parameters(config: ConfigDict) -> bool:
         return as_bool(explicit_find_unused, "device_config.find_unused_parameters")
 
     training_cfg = get_section(config, "training_config")
-    strategy_cfg = training_cfg.get("strategy")
-    if not isinstance(strategy_cfg, dict):
-        return False
-    strategy_type = as_str(
-        strategy_cfg.get("type", "none"),
-        "training_config.strategy.type",
-    ).lower()
-    return strategy_type == "staged_unfreeze"
+    candidate_configs: list[ConfigDict] = [training_cfg]
+    for stage in TRAINING_STAGE_SEQUENCE:
+        stage_cfg = training_cfg.get(stage)
+        if isinstance(stage_cfg, dict):
+            candidate_configs.append(cast(ConfigDict, stage_cfg))
+
+    for candidate in candidate_configs:
+        strategy_cfg = candidate.get("strategy")
+        if not isinstance(strategy_cfg, dict):
+            continue
+        strategy_type = as_str(
+            strategy_cfg.get("type", "none"),
+            "training_config.strategy.type",
+        ).lower()
+        if strategy_type == "staged_unfreeze":
+            return True
+    return False
 
 
 def _build_stage_runtime(
@@ -245,8 +404,12 @@ def parse_args() -> argparse.Namespace:
     Returns:
         Parsed CLI namespace with the config path.
     """
-    parser = argparse.ArgumentParser(description="Run RELIC training/evaluation pipeline.")
-    parser.add_argument("--config", type=str, required=True, help="Path to config YAML.")
+    parser = argparse.ArgumentParser(
+        description="Run RELIC training/evaluation pipeline."
+    )
+    parser.add_argument(
+        "--config", type=str, required=True, help="Path to config YAML."
+    )
     return parser.parse_args()
 
 
@@ -312,10 +475,16 @@ def build_trainer(
     sampling_cfg = sampling_raw
 
     optimizer_config = OptimizerConfig(
-        optimizer_type=as_str(optimizer_cfg.get("type", "adamw"), "training_config.optimizer.type"),
+        optimizer_type=as_str(
+            optimizer_cfg.get("type", "adamw"), "training_config.optimizer.type"
+        ),
         lr=as_float(optimizer_cfg.get("lr", 1e-4), "training_config.optimizer.lr"),
-        beta1=as_float(optimizer_cfg.get("beta1", 0.9), "training_config.optimizer.beta1"),
-        beta2=as_float(optimizer_cfg.get("beta2", 0.999), "training_config.optimizer.beta2"),
+        beta1=as_float(
+            optimizer_cfg.get("beta1", 0.9), "training_config.optimizer.beta1"
+        ),
+        beta2=as_float(
+            optimizer_cfg.get("beta2", 0.999), "training_config.optimizer.beta2"
+        ),
         eps=as_float(optimizer_cfg.get("eps", 1e-8), "training_config.optimizer.eps"),
         weight_decay=as_float(
             optimizer_cfg.get("weight_decay", 0.0),
@@ -323,9 +492,12 @@ def build_trainer(
         ),
     )
     scheduler_config = SchedulerConfig(
-        scheduler_type=as_str(scheduler_cfg.get("type", "none"), "training_config.scheduler.type"),
+        scheduler_type=as_str(
+            scheduler_cfg.get("type", "none"), "training_config.scheduler.type"
+        ),
         max_lr=as_float(
-            scheduler_cfg.get("max_lr", optimizer_config.lr), "training_config.scheduler.max_lr"
+            scheduler_cfg.get("max_lr", optimizer_config.lr),
+            "training_config.scheduler.max_lr",
         ),
         pct_start=as_float(
             scheduler_cfg.get("pct_start", 0.2),
@@ -339,7 +511,9 @@ def build_trainer(
             scheduler_cfg.get("final_div_factor", 10000.0),
             "training_config.scheduler.final_div_factor",
         ),
-        anneal_strategy=_parse_anneal_strategy(scheduler_cfg.get("anneal_strategy", "cos")),
+        anneal_strategy=_parse_anneal_strategy(
+            scheduler_cfg.get("anneal_strategy", "cos")
+        ),
     )
 
     sampling_strategy = as_str(
@@ -347,7 +521,9 @@ def build_trainer(
     ).lower()
     ohem_strategy = None
     if sampling_strategy == "ohem":
-        batch_size = as_int(training_cfg.get("batch_size", 8), "training_config.batch_size")
+        batch_size = as_int(
+            training_cfg.get("batch_size", 8), "training_config.batch_size"
+        )
         ohem_strategy = OHEMSampleStrategy(
             target_batch_size=batch_size,
             cap_protein=as_int(
@@ -370,7 +546,8 @@ def build_trainer(
         scheduler_config=scheduler_config,
         loss_config=loss_config,
         use_amp=as_bool(
-            device_cfg.get("use_mixed_precision", False), "device_config.use_mixed_precision"
+            device_cfg.get("use_mixed_precision", False),
+            "device_config.use_mixed_precision",
         ),
         total_epochs=total_epochs,
         steps_per_epoch=steps_per_epoch,
@@ -402,7 +579,8 @@ def build_strategy(config: ConfigDict) -> NoOpStrategy | StagedUnfreezeStrategy:
         prefixes = tuple(str(prefix) for prefix in prefixes_value)
         return StagedUnfreezeStrategy(
             unfreeze_epoch=as_int(
-                strategy_cfg.get("unfreeze_epoch", 1), "training_config.strategy.unfreeze_epoch"
+                strategy_cfg.get("unfreeze_epoch", 1),
+                "training_config.strategy.unfreeze_epoch",
             ),
             initial_trainable_prefixes=prefixes,
         )
@@ -420,7 +598,9 @@ def _save_checkpoint(model: nn.Module, checkpoint_path: Path) -> None:
     torch.save(_unwrap_model(model).state_dict(), checkpoint_path)
 
 
-def _load_checkpoint(model: nn.Module, checkpoint_path: Path, device: torch.device) -> None:
+def _load_checkpoint(
+    model: nn.Module, checkpoint_path: Path, device: torch.device
+) -> None:
     """Load model weights from disk.
 
     Args:
@@ -444,7 +624,7 @@ def run_training_stage(
     """Run stage training loop.
 
     Args:
-        stage: Training stage name (`train`).
+        stage: Training stage name (`pretrain` or `finetune`).
         config: Global run configuration dictionary.
         model: Model to train.
         device: Target torch device.
@@ -569,7 +749,9 @@ def run_training_stage(
                     value=monitor_value,
                 )
             if not save_best_only:
-                epoch_checkpoint_path = model_dir / f"checkpoint_epoch_{epoch + 1:03d}.pth"
+                epoch_checkpoint_path = (
+                    model_dir / f"checkpoint_epoch_{epoch + 1:03d}.pth"
+                )
                 _save_checkpoint(
                     model=model,
                     checkpoint_path=epoch_checkpoint_path,
@@ -582,7 +764,8 @@ def run_training_stage(
 
         if distributed_context.is_main_process:
             val_metric_fields = {
-                f"val_{m}": float(val_stats.get(f"val_{m}", 0.0)) for m in validation_metrics
+                f"val_{m}": float(val_stats.get(f"val_{m}", 0.0))
+                for m in validation_metrics
             }
             log_stage_event(
                 stage_logger,
@@ -594,7 +777,9 @@ def run_training_stage(
                 **val_metric_fields,
             )
         if distributed_context.is_distributed:
-            stop_flag = torch.tensor([1 if should_stop else 0], device=device, dtype=torch.int64)
+            stop_flag = torch.tensor(
+                [1 if should_stop else 0], device=device, dtype=torch.int64
+            )
             dist.broadcast(stop_flag, src=0)
             should_stop = bool(int(stop_flag.item()))
         if should_stop:
@@ -660,7 +845,9 @@ def run_evaluation_stage(
     training_cfg = get_section(config, "training_config")
     configured_metrics = _metrics_from_config(eval_cfg)
     metrics_to_compute = sorted(set(configured_metrics + EVAL_CSV_COLUMNS[1:]))
-    evaluator = Evaluator(metrics=metrics_to_compute, loss_config=_build_loss_config(training_cfg))
+    evaluator = Evaluator(
+        metrics=metrics_to_compute, loss_config=_build_loss_config(training_cfg)
+    )
     with torch.no_grad():
         metrics = evaluator.evaluate(
             model=model,
@@ -702,13 +889,16 @@ def execute_pipeline(config: ConfigDict) -> None:
     seed = as_int(run_cfg.get("seed", 0), "run_config.seed")
     set_global_seed(seed=seed)
     distributed_context = initialize_distributed(
-        ddp_enabled=as_bool(device_cfg.get("ddp_enabled", False), "device_config.ddp_enabled")
+        ddp_enabled=as_bool(
+            device_cfg.get("ddp_enabled", False), "device_config.ddp_enabled"
+        )
     )
     ddp_find_unused_parameters = _ddp_find_unused_parameters(config)
     try:
-        mode = as_str(run_cfg.get("mode", "full_pipeline"), "run_config.mode").lower()
-        train_run_id = generate_run_id(run_cfg.get("train_run_id"))
-        eval_run_id = generate_run_id(run_cfg.get("eval_run_id"))
+        mode_value = run_cfg.get("mode", "full_pipeline")
+        mode_label = mode_value if isinstance(mode_value, str) else "custom_stages"
+        selected_stages = _resolve_stage_sequence(run_cfg=run_cfg)
+        stage_run_map = _stage_run_ids(run_cfg=run_cfg)
         load_checkpoint_value = run_cfg.get("load_checkpoint_path")
         load_checkpoint_path = (
             Path(str(load_checkpoint_value))
@@ -716,21 +906,9 @@ def execute_pipeline(config: ConfigDict) -> None:
             else None
         )
         model_name, _ = extract_model_kwargs(config)
-        stage_run_map: dict[str, str] = {
-            "train": train_run_id,
-            "evaluate": eval_run_id,
-        }
-        stage_names_for_mode: dict[str, list[str]] = {
-            "train_only": ["train"],
-            "full_pipeline": ["train", "evaluate"],
-            "eval_only": ["evaluate"],
-        }
-        selected_stages = stage_names_for_mode.get(mode)
-        if selected_stages is None:
-            raise ValueError(f"Unsupported run mode: {mode}")
-        stage_loggers: dict[str, logging.Logger] = {}
+        stage_loggers: dict[PipelineStage, logging.Logger] = {}
         for stage in selected_stages:
-            log_dir, _, stage_logger = _build_stage_runtime(
+            _, _, stage_logger = _build_stage_runtime(
                 model_name=model_name,
                 stage=stage,
                 run_id=stage_run_map[stage],
@@ -741,13 +919,16 @@ def execute_pipeline(config: ConfigDict) -> None:
                 log_stage_event(
                     stage_logger,
                     "startup",
-                    mode=mode,
+                    mode=mode_label,
                     run_id=stage_run_map[stage],
                     seed=seed,
                     rank=distributed_context.rank,
                     world_size=distributed_context.world_size,
+                    stages=",".join(selected_stages),
                 )
-        requested_device = as_str(device_cfg.get("device", "cpu"), "device_config.device")
+        requested_device = as_str(
+            device_cfg.get("device", "cpu"), "device_config.device"
+        )
         device = resolve_device(requested_device)
         if distributed_context.is_distributed and device.type == "cuda":
             device = torch.device("cuda", distributed_context.local_rank)
@@ -759,25 +940,26 @@ def execute_pipeline(config: ConfigDict) -> None:
                     resolved_device=device,
                 )
 
-        dataloaders = build_dataloaders(
+        data_cfg = get_section(config, "data_config")
+        model_cfg = get_section(config, "model_config")
+        embedding_split_paths = collect_embedding_split_paths(config=config)
+        embedding_cache = ensure_embedding_cache(
             config=config,
+            split_paths=embedding_split_paths,
+            input_dim=as_int(model_cfg.get("input_dim", 0), "model_config.input_dim"),
+            max_sequence_length=as_int(
+                data_cfg.get("max_sequence_length", 64),
+                "data_config.max_sequence_length",
+            ),
             distributed=distributed_context.is_distributed,
             rank=distributed_context.rank,
-            world_size=distributed_context.world_size,
         )
-        if distributed_context.is_main_process:
-            for stage in selected_stages:
-                log_stage_event(
-                    stage_loggers[stage],
-                    "data_ready",
-                    train=_len_or_unknown(dataloaders["train"].dataset),
-                    valid=_len_or_unknown(dataloaders["valid"].dataset),
-                    test=_len_or_unknown(dataloaders["test"].dataset),
-                )
+
         model = build_model(config=config).to(device)
         if distributed_context.is_main_process:
+            first_stage = selected_stages[0]
             log_stage_event(
-                stage_loggers[selected_stages[0]],
+                stage_loggers[first_stage],
                 "model_init",
                 model=model_name,
                 params=sum(parameter.numel() for parameter in model.parameters()),
@@ -785,7 +967,9 @@ def execute_pipeline(config: ConfigDict) -> None:
         if distributed_context.is_distributed:
             model = DistributedDataParallel(
                 model,
-                device_ids=[distributed_context.local_rank] if device.type == "cuda" else None,
+                device_ids=[distributed_context.local_rank]
+                if device.type == "cuda"
+                else None,
                 find_unused_parameters=ddp_find_unused_parameters,
             )
         if distributed_context.is_main_process:
@@ -796,69 +980,113 @@ def execute_pipeline(config: ConfigDict) -> None:
                     wrapped=distributed_context.is_distributed,
                 )
 
-        if mode == "train_only":
-            if distributed_context.is_main_process:
-                log_stage_event(stage_loggers["train"], "begin_training")
-            run_training_stage(
-                stage="train",
-                config=config,
-                model=model,
-                device=device,
-                dataloaders=dataloaders,
-                run_id=train_run_id,
-                distributed_context=distributed_context,
-            )
-            if distributed_context.is_main_process:
-                log_stage_event(stage_loggers["train"], "end_training")
-            return
+        active_checkpoint = load_checkpoint_path
+        last_training_stage: TrainingStage | None = None
 
-        if mode == "full_pipeline":
+        for stage in selected_stages:
+            if stage not in TRAINING_STAGE_NAMES:
+                continue
+            training_stage = cast(TrainingStage, stage)
+            stage_config = _config_for_training_stage(
+                config=config, stage=training_stage
+            )
+
+            if training_stage == "finetune":
+                if active_checkpoint is None:
+                    raise ValueError(
+                        "load_checkpoint_path is required when finetune runs without pretrain"
+                    )
+                if (
+                    _load_checkpoint_if_provided(
+                        model=model,
+                        checkpoint_path=active_checkpoint,
+                        device=device,
+                    )
+                    and distributed_context.is_main_process
+                ):
+                    log_stage_event(
+                        stage_loggers[training_stage],
+                        "checkpoint_loaded",
+                        path=active_checkpoint,
+                    )
+
+            dataloaders = build_dataloaders(
+                config=stage_config,
+                distributed=distributed_context.is_distributed,
+                rank=distributed_context.rank,
+                world_size=distributed_context.world_size,
+                train_stage=training_stage,
+                embedding_cache=embedding_cache,
+                embedding_split_paths=embedding_split_paths,
+            )
             if distributed_context.is_main_process:
-                log_stage_event(stage_loggers["train"], "begin_training")
-            train_checkpoint = run_training_stage(
-                stage="train",
-                config=config,
+                log_stage_event(
+                    stage_loggers[training_stage],
+                    "data_ready",
+                    train=_len_or_unknown(dataloaders["train"].dataset),
+                    valid=_len_or_unknown(dataloaders["valid"].dataset),
+                    test=_len_or_unknown(dataloaders["test"].dataset),
+                )
+                log_stage_event(stage_loggers[training_stage], "begin_training")
+
+            active_checkpoint = run_training_stage(
+                stage=training_stage,
+                config=stage_config,
                 model=model,
                 device=device,
                 dataloaders=dataloaders,
-                run_id=train_run_id,
+                run_id=stage_run_map[training_stage],
                 distributed_context=distributed_context,
             )
+            last_training_stage = training_stage
             if distributed_context.is_main_process:
-                log_stage_event(stage_loggers["train"], "end_training")
+                log_stage_event(
+                    stage_loggers[training_stage],
+                    "end_training",
+                    checkpoint=active_checkpoint,
+                )
+
+        if "evaluate" in selected_stages:
+            if active_checkpoint is None:
+                raise ValueError(
+                    "load_checkpoint_path is required for evaluate stage when no training stage ran"
+                )
+            eval_base_stage: TrainingStage = (
+                last_training_stage if last_training_stage is not None else "pretrain"
+            )
+            eval_config = _config_for_training_stage(
+                config=config, stage=eval_base_stage
+            )
+            eval_dataloaders = build_dataloaders(
+                config=eval_config,
+                distributed=distributed_context.is_distributed,
+                rank=distributed_context.rank,
+                world_size=distributed_context.world_size,
+                train_stage=eval_base_stage,
+                embedding_cache=embedding_cache,
+                embedding_split_paths=embedding_split_paths,
+            )
+            if distributed_context.is_main_process:
+                log_stage_event(
+                    stage_loggers["evaluate"],
+                    "data_ready",
+                    train=_len_or_unknown(eval_dataloaders["train"].dataset),
+                    valid=_len_or_unknown(eval_dataloaders["valid"].dataset),
+                    test=_len_or_unknown(eval_dataloaders["test"].dataset),
+                )
                 log_stage_event(stage_loggers["evaluate"], "begin_evaluation")
             run_evaluation_stage(
-                config=config,
+                config=eval_config,
                 model=model,
                 device=device,
-                dataloaders=dataloaders,
-                run_id=eval_run_id,
-                checkpoint_path=train_checkpoint,
+                dataloaders=eval_dataloaders,
+                run_id=stage_run_map["evaluate"],
+                checkpoint_path=active_checkpoint,
                 distributed_context=distributed_context,
             )
             if distributed_context.is_main_process:
                 log_stage_event(stage_loggers["evaluate"], "end_evaluation")
-            return
-
-        if mode == "eval_only":
-            if load_checkpoint_path is None:
-                raise ValueError("load_checkpoint_path is required for eval_only")
-            if distributed_context.is_main_process:
-                log_stage_event(stage_loggers["evaluate"], "begin_evaluation")
-            run_evaluation_stage(
-                config=config,
-                model=model,
-                device=device,
-                dataloaders=dataloaders,
-                run_id=eval_run_id,
-                checkpoint_path=load_checkpoint_path,
-                distributed_context=distributed_context,
-            )
-            if distributed_context.is_main_process:
-                log_stage_event(stage_loggers["evaluate"], "end_evaluation")
-            return
-
-        raise ValueError(f"Unsupported run mode: {mode}")
+        return
     finally:
         cleanup_distributed(distributed_context)
 

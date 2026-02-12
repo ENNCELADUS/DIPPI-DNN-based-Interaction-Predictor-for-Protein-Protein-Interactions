@@ -63,8 +63,12 @@ class OHEMSampleStrategy:
         remaining: list[int] = []
         counts: dict[int, int] = {}
         sorted_list = [int(index) for index in sorted_indices.detach().cpu().tolist()]
-        protein_a_list = [int(protein_id) for protein_id in protein_a_ids.detach().cpu().tolist()]
-        protein_b_list = [int(protein_id) for protein_id in protein_b_ids.detach().cpu().tolist()]
+        protein_a_list = [
+            int(protein_id) for protein_id in protein_a_ids.detach().cpu().tolist()
+        ]
+        protein_b_list = [
+            int(protein_id) for protein_id in protein_b_ids.detach().cpu().tolist()
+        ]
 
         for sample_index in sorted_list:
             protein_a = protein_a_list[sample_index]
@@ -132,7 +136,10 @@ class OHEMSampleStrategy:
             return sorted_indices[:keep_count]
         if protein_a_ids.dim() != 1 or protein_b_ids.dim() != 1:
             raise ValueError("protein ids must be 1D tensors")
-        if protein_a_ids.numel() != losses.numel() or protein_b_ids.numel() != losses.numel():
+        if (
+            protein_a_ids.numel() != losses.numel()
+            or protein_b_ids.numel() != losses.numel()
+        ):
             raise ValueError("protein ids must align with losses")
 
         return self._select_with_cap(

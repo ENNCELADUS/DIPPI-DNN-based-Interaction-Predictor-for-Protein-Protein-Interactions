@@ -2,6 +2,7 @@ run_config:
   mode: "full_pipeline"  # full_pipeline | train_only | eval_only
   seed: 47
   train_run_id: null
+  finetune_run_id: null
   eval_run_id: null
   load_checkpoint_path: null
   save_best_only: true
@@ -80,6 +81,18 @@ training_config:
     label_smoothing: 0.05
   strategy:
     type: "none"
+  finetune:
+    epochs: 30
+    monitor_metric: "auprc"
+    optimizer:
+      lr: 0.00005
+    loss:
+      pos_weight: 7.7
+      label_smoothing: 0.01
+    strategy:
+      type: "staged_unfreeze"
+      unfreeze_epoch: 3
+      initial_trainable_prefixes: ["output_head"]
 
 evaluate:
   metrics:

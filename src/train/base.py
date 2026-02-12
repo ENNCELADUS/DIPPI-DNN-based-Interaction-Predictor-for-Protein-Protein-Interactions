@@ -118,7 +118,9 @@ class Trainer:
                 lr=self.optimizer_config.lr,
                 weight_decay=self.optimizer_config.weight_decay,
             )
-        raise ValueError(f"Unsupported optimizer type: {self.optimizer_config.optimizer_type}")
+        raise ValueError(
+            f"Unsupported optimizer type: {self.optimizer_config.optimizer_type}"
+        )
 
     def _build_scheduler(self) -> LRScheduler | None:
         scheduler_type = self.scheduler_config.scheduler_type.lower()
@@ -135,14 +137,18 @@ class Trainer:
                 final_div_factor=self.scheduler_config.final_div_factor,
                 anneal_strategy=self.scheduler_config.anneal_strategy,
             )
-        raise ValueError(f"Unsupported scheduler type: {self.scheduler_config.scheduler_type}")
+        raise ValueError(
+            f"Unsupported scheduler type: {self.scheduler_config.scheduler_type}"
+        )
 
     def rebuild_optimizer_and_scheduler(self) -> None:
         """Rebuild optimizer and scheduler after trainable params change."""
         self.optimizer = self._build_optimizer()
         self.scheduler = self._build_scheduler()
 
-    def _move_batch_to_device(self, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+    def _move_batch_to_device(
+        self, batch: dict[str, torch.Tensor]
+    ) -> dict[str, torch.Tensor]:
         return {key: value.to(self.device) for key, value in batch.items()}
 
     def _forward_model(self, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
@@ -273,4 +279,7 @@ class Trainer:
             return False
         if step == 1 or step == total_steps:
             return True
-        return self.heartbeat_every_n_steps > 0 and step % self.heartbeat_every_n_steps == 0
+        return (
+            self.heartbeat_every_n_steps > 0
+            and step % self.heartbeat_every_n_steps == 0
+        )

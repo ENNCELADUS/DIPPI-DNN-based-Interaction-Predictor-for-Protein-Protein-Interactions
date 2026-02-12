@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 import src.run as run_module
 import torch
+from src.embed import EmbeddingCacheManifest
 from src.utils.config import ConfigDict
 from src.utils.distributed import DistributedContext
 from torch import nn
@@ -41,6 +42,7 @@ class PipelineCalls:
 
     training: list[tuple[str, str]] = field(default_factory=list)
     evaluation: list[tuple[Path, str]] = field(default_factory=list)
+    checkpoint_loads: list[Path] = field(default_factory=list)
 
 
 @pytest.fixture
@@ -51,6 +53,7 @@ def base_config() -> ConfigDict:
             "mode": "full_pipeline",
             "seed": 7,
             "train_run_id": "train_run",
+            "finetune_run_id": "finetune_run",
             "eval_run_id": "eval_run",
             "load_checkpoint_path": "artifacts/input_checkpoint.pth",
             "save_best_only": True,
@@ -77,8 +80,19 @@ def patched_pipeline(monkeypatch: pytest.MonkeyPatch) -> PipelineCalls:
         distributed: bool = False,
         rank: int = 0,
         world_size: int = 1,
+        train_stage: str = "pretrain",
+        embedding_cache: object | None = None,
+        embedding_split_paths: object | None = None,
     ) -> dict[str, DataLoader[dict[str, torch.Tensor]]]:
-        del config, distributed, rank, world_size
+        del (
+            config,
+            distributed,
+            rank,
+            world_size,
+            train_stage,
+            embedding_cache,
+            embedding_split_paths,
+        )
         loader = DataLoader(_EmptyDataset(), batch_size=1)
         return {"train": loader, "valid": loader, "test": loader}
 
@@ -98,6 +112,31 @@ def patched_pipeline(monkeypatch: pytest.MonkeyPatch) -> PipelineCalls:
         del config, model, device, dataloaders, distributed_context
         calls.training.append((stage, run_id))
         return Path(f"artifacts/{stage}_best_model.pth")
+
+    def fake_collect_embedding_split_paths(config: ConfigDict) -> list[Path]:
+        del config
+        return [Path("train.txt"), Path("valid.txt"), Path("test.txt")]
+
+    def fake_ensure_embedding_cache(
+        config: ConfigDict,
+        split_paths: list[Path],
+        input_dim: int,
+        max_sequence_length: int,
+        distributed: bool = False,
+        rank: int = 0,
+    ) -> EmbeddingCacheManifest:
+        del config, split_paths, input_dim, max_sequence_length, distributed, rank
+        return EmbeddingCacheManifest(
+            cache_dir=Path("cache"),
+            index={},
+            required_ids=frozenset(),
+        )
+
+    def fake_load_checkpoint(
+        model: nn.Module, checkpoint_path: Path, device: torch.device
+    ) -> None:
+        del model, device
+        calls.checkpoint_loads.append(checkpoint_path)
 
     def fake_run_evaluation_stage(
         config: ConfigDict,
@@ -127,9 +166,18 @@ def patched_pipeline(monkeypatch: pytest.MonkeyPatch) -> PipelineCalls:
     monkeypatch.setattr(run_module, "build_model", fake_build_model)
     monkeypatch.setattr(run_module, "run_training_stage", fake_run_training_stage)
     monkeypatch.setattr(run_module, "run_evaluation_stage", fake_run_evaluation_stage)
-    monkeypatch.setattr(run_module, "initialize_distributed", fake_initialize_distributed)
+    monkeypatch.setattr(
+        run_module, "initialize_distributed", fake_initialize_distributed
+    )
     monkeypatch.setattr(run_module, "cleanup_distributed", fake_cleanup_distributed)
     monkeypatch.setattr(run_module, "resolve_device", fake_resolve_device)
+    monkeypatch.setattr(
+        run_module, "collect_embedding_split_paths", fake_collect_embedding_split_paths
+    )
+    monkeypatch.setattr(
+        run_module, "ensure_embedding_cache", fake_ensure_embedding_cache
+    )
+    monkeypatch.setattr(run_module, "_load_checkpoint", fake_load_checkpoint)
     return calls
 
 
@@ -139,9 +187,15 @@ def test_execute_pipeline_full_pipeline(
 ) -> None:
     run_module.execute_pipeline(base_config)
 
-    assert patched_pipeline.training == [("train", "train_run")]
+    assert patched_pipeline.training == [
+        ("pretrain", "train_run"),
+        ("finetune", "finetune_run"),
+    ]
     assert patched_pipeline.evaluation == [
-        (Path("artifacts/train_best_model.pth"), "eval_run"),
+        (Path("artifacts/finetune_best_model.pth"), "eval_run"),
+    ]
+    assert patched_pipeline.checkpoint_loads == [
+        Path("artifacts/pretrain_best_model.pth")
     ]
 
 
@@ -155,7 +209,7 @@ def test_execute_pipeline_train_only(
 
     run_module.execute_pipeline(base_config)
 
-    assert patched_pipeline.training == [("train", "train_run")]
+    assert patched_pipeline.training == [("pretrain", "train_run")]
     assert patched_pipeline.evaluation == []
 
 
@@ -171,7 +225,43 @@ def test_execute_pipeline_eval_only(
     run_module.execute_pipeline(base_config)
 
     assert patched_pipeline.training == []
-    assert patched_pipeline.evaluation == [(Path("artifacts/eval_input_model.pth"), "eval_run")]
+    assert patched_pipeline.evaluation == [
+        (Path("artifacts/eval_input_model.pth"), "eval_run")
+    ]
+
+
+def test_execute_pipeline_custom_stages_finetune_then_evaluate(
+    base_config: ConfigDict,
+    patched_pipeline: PipelineCalls,
+) -> None:
+    run_cfg = base_config["run_config"]
+    assert isinstance(run_cfg, dict)
+    run_cfg["stages"] = ["finetune", "evaluate"]
+    run_cfg["load_checkpoint_path"] = "artifacts/seed_model.pth"
+
+    run_module.execute_pipeline(base_config)
+
+    assert patched_pipeline.training == [("finetune", "finetune_run")]
+    assert patched_pipeline.evaluation == [
+        (Path("artifacts/finetune_best_model.pth"), "eval_run")
+    ]
+    assert patched_pipeline.checkpoint_loads == [Path("artifacts/seed_model.pth")]
+
+
+def test_execute_pipeline_finetune_without_checkpoint_raises(
+    base_config: ConfigDict,
+    patched_pipeline: PipelineCalls,
+) -> None:
+    del patched_pipeline
+    run_cfg = base_config["run_config"]
+    assert isinstance(run_cfg, dict)
+    run_cfg["stages"] = ["finetune"]
+    run_cfg["load_checkpoint_path"] = None
+
+    with pytest.raises(
+        ValueError, match="load_checkpoint_path is required when finetune"
+    ):
+        run_module.execute_pipeline(base_config)
 
 
 @pytest.mark.parametrize("deprecated_mode", ["pretrain_only", "finetune_from_pretrain"])
@@ -230,8 +320,19 @@ def test_execute_pipeline_staged_unfreeze_enables_ddp_find_unused(
         distributed: bool = False,
         rank: int = 0,
         world_size: int = 1,
+        train_stage: str = "pretrain",
+        embedding_cache: object | None = None,
+        embedding_split_paths: object | None = None,
     ) -> dict[str, DataLoader[dict[str, torch.Tensor]]]:
-        del config, distributed, rank, world_size
+        del (
+            config,
+            distributed,
+            rank,
+            world_size,
+            train_stage,
+            embedding_cache,
+            embedding_split_paths,
+        )
         loader = DataLoader(_EmptyDataset(), batch_size=1)
         return {"train": loader, "valid": loader, "test": loader}
 
@@ -268,12 +369,39 @@ def test_execute_pipeline_staged_unfreeze_enables_ddp_find_unused(
         del stage, config, model, device, dataloaders, run_id, distributed_context
         return Path("artifacts/train_best_model.pth")
 
+    def fake_collect_embedding_split_paths(config: ConfigDict) -> list[Path]:
+        del config
+        return [Path("train.txt"), Path("valid.txt"), Path("test.txt")]
+
+    def fake_ensure_embedding_cache(
+        config: ConfigDict,
+        split_paths: list[Path],
+        input_dim: int,
+        max_sequence_length: int,
+        distributed: bool = False,
+        rank: int = 0,
+    ) -> EmbeddingCacheManifest:
+        del config, split_paths, input_dim, max_sequence_length, distributed, rank
+        return EmbeddingCacheManifest(
+            cache_dir=Path("cache"),
+            index={},
+            required_ids=frozenset(),
+        )
+
     monkeypatch.setattr(run_module, "build_dataloaders", fake_build_dataloaders)
     monkeypatch.setattr(run_module, "build_model", fake_build_model)
-    monkeypatch.setattr(run_module, "initialize_distributed", fake_initialize_distributed)
+    monkeypatch.setattr(
+        run_module, "initialize_distributed", fake_initialize_distributed
+    )
     monkeypatch.setattr(run_module, "cleanup_distributed", fake_cleanup_distributed)
     monkeypatch.setattr(run_module, "resolve_device", fake_resolve_device)
     monkeypatch.setattr(run_module, "run_training_stage", fake_run_training_stage)
+    monkeypatch.setattr(
+        run_module, "collect_embedding_split_paths", fake_collect_embedding_split_paths
+    )
+    monkeypatch.setattr(
+        run_module, "ensure_embedding_cache", fake_ensure_embedding_cache
+    )
     monkeypatch.setattr(run_module, "DistributedDataParallel", _FakeDDP)
 
     run_module.execute_pipeline(base_config)

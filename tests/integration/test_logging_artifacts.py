@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 import src.run as run_module
 import torch
+from src.embed import EmbeddingCacheManifest
 from src.utils.config import ConfigDict
 from src.utils.distributed import DistributedContext
 from torch import nn
@@ -61,7 +62,8 @@ def _base_config(mode: str = "full_pipeline") -> ConfigDict:
         "run_config": {
             "mode": mode,
             "seed": 7,
-            "train_run_id": "train_case",
+            "train_run_id": "pretrain_case",
+            "finetune_run_id": "finetune_case",
             "eval_run_id": "eval_case",
             "load_checkpoint_path": None,
             "save_best_only": True,
@@ -87,7 +89,11 @@ def _base_config(mode: str = "full_pipeline") -> ConfigDict:
             },
             "optimizer": {"type": "adamw", "lr": 1e-2},
             "scheduler": {"type": "none"},
-            "loss": {"type": "bce_with_logits", "pos_weight": 1.0, "label_smoothing": 0.0},
+            "loss": {
+                "type": "bce_with_logits",
+                "pos_weight": 1.0,
+                "label_smoothing": 0.0,
+            },
             "strategy": {"type": "none"},
         },
         "evaluate": {"metrics": ["auprc", "auroc"]},
@@ -111,8 +117,19 @@ def test_execute_pipeline_writes_stage_logs_and_strict_csv_headers(
         distributed: bool = False,
         rank: int = 0,
         world_size: int = 1,
+        train_stage: str = "pretrain",
+        embedding_cache: object | None = None,
+        embedding_split_paths: object | None = None,
     ) -> dict[str, DataLoader[dict[str, torch.Tensor]]]:
-        del config, distributed, rank, world_size
+        del (
+            config,
+            distributed,
+            rank,
+            world_size,
+            train_stage,
+            embedding_cache,
+            embedding_split_paths,
+        )
         return _fake_dataloaders()
 
     def fake_build_model(config: ConfigDict) -> nn.Module:
@@ -130,37 +147,83 @@ def test_execute_pipeline_writes_stage_logs_and_strict_csv_headers(
         del device_name
         return torch.device("cpu")
 
+    def fake_collect_embedding_split_paths(config: ConfigDict) -> list[Path]:
+        del config
+        return [Path("train.txt"), Path("valid.txt"), Path("test.txt")]
+
+    def fake_ensure_embedding_cache(
+        config: ConfigDict,
+        split_paths: list[Path],
+        input_dim: int,
+        max_sequence_length: int,
+        distributed: bool = False,
+        rank: int = 0,
+    ) -> EmbeddingCacheManifest:
+        del config, split_paths, input_dim, max_sequence_length, distributed, rank
+        return EmbeddingCacheManifest(
+            cache_dir=Path("cache"),
+            index={},
+            required_ids=frozenset(),
+        )
+
     monkeypatch.setattr(run_module, "build_dataloaders", fake_build_dataloaders)
     monkeypatch.setattr(run_module, "build_model", fake_build_model)
-    monkeypatch.setattr(run_module, "initialize_distributed", fake_initialize_distributed)
+    monkeypatch.setattr(
+        run_module, "initialize_distributed", fake_initialize_distributed
+    )
     monkeypatch.setattr(run_module, "cleanup_distributed", fake_cleanup_distributed)
     monkeypatch.setattr(run_module, "resolve_device", fake_resolve_device)
+    monkeypatch.setattr(
+        run_module, "collect_embedding_split_paths", fake_collect_embedding_split_paths
+    )
+    monkeypatch.setattr(
+        run_module, "ensure_embedding_cache", fake_ensure_embedding_cache
+    )
 
     run_module.execute_pipeline(_base_config(mode="full_pipeline"))
 
-    train_log = tmp_path / "logs" / "v3" / "train" / "train_case" / "log.log"
+    pretrain_log = tmp_path / "logs" / "v3" / "pretrain" / "pretrain_case" / "log.log"
+    finetune_log = tmp_path / "logs" / "v3" / "finetune" / "finetune_case" / "log.log"
     eval_log = tmp_path / "logs" / "v3" / "evaluate" / "eval_case" / "log.log"
-    assert train_log.exists()
+    assert pretrain_log.exists()
+    assert finetune_log.exists()
     assert eval_log.exists()
 
-    train_text = train_log.read_text(encoding="utf-8")
+    pretrain_text = pretrain_log.read_text(encoding="utf-8")
+    finetune_text = finetune_log.read_text(encoding="utf-8")
     eval_text = eval_log.read_text(encoding="utf-8")
-    assert "Stage Start" in train_text
-    assert "Epoch Start" in train_text
-    assert "Epoch Done" in train_text
-    assert "Stage Done" in train_text
-    assert "Epoch 1 | Step 1/2" in train_text
+    assert "Stage Start" in pretrain_text
+    assert "Epoch Start" in pretrain_text
+    assert "Epoch Done" in pretrain_text
+    assert "Stage Done" in pretrain_text
+    assert "Epoch 1 | Step 1/2" in pretrain_text
+    assert "Stage Start" in finetune_text
+    assert "Checkpoint Loaded" in finetune_text
     assert "Evaluation Metrics" in eval_text
     assert "CSV Written" in eval_text
 
-    training_csv = tmp_path / "logs" / "v3" / "train" / "train_case" / "training_step.csv"
+    pretrain_csv = (
+        tmp_path / "logs" / "v3" / "pretrain" / "pretrain_case" / "training_step.csv"
+    )
+    finetune_csv = (
+        tmp_path / "logs" / "v3" / "finetune" / "finetune_case" / "training_step.csv"
+    )
     evaluate_csv = tmp_path / "logs" / "v3" / "evaluate" / "eval_case" / "evaluate.csv"
-    assert training_csv.exists()
+    assert pretrain_csv.exists()
+    assert finetune_csv.exists()
     assert evaluate_csv.exists()
 
-    train_header = training_csv.read_text(encoding="utf-8").splitlines()[0]
+    pretrain_header = pretrain_csv.read_text(encoding="utf-8").splitlines()[0]
+    finetune_header = finetune_csv.read_text(encoding="utf-8").splitlines()[0]
     eval_header = evaluate_csv.read_text(encoding="utf-8").splitlines()[0]
-    assert train_header == "Epoch,Epoch Time,Train Loss,Val Loss,Val auprc,Val auroc,Learning Rate"
+    assert (
+        pretrain_header
+        == "Epoch,Epoch Time,Train Loss,Val Loss,Val auprc,Val auroc,Learning Rate"
+    )
+    assert (
+        finetune_header
+        == "Epoch,Epoch Time,Train Loss,Val Loss,Val auprc,Val auroc,Learning Rate"
+    )
     assert eval_header == (
         "split,auroc,auprc,accuracy,sensitivity,specificity,precision,recall,f1,mcc"
     )
@@ -181,7 +244,7 @@ def test_non_main_process_does_not_write_stage_artifacts(tmp_path: Path) -> None
             world_size=2,
         )
         best_checkpoint = run_module.run_training_stage(
-            stage="train",
+            stage="pretrain",
             config=config,
             model=model,
             device=torch.device("cpu"),
@@ -192,7 +255,7 @@ def test_non_main_process_does_not_write_stage_artifacts(tmp_path: Path) -> None
     finally:
         os.chdir(previous_cwd)
 
-    log_dir = tmp_path / "logs" / "v3" / "train" / "rank1_case"
+    log_dir = tmp_path / "logs" / "v3" / "pretrain" / "rank1_case"
     assert log_dir.exists()
     assert not (log_dir / "log.log").exists()
     assert not (log_dir / "training_step.csv").exists()

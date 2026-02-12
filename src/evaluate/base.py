@@ -48,7 +48,9 @@ class Evaluator:
         self.loss_config = loss_config
 
     @staticmethod
-    def _forward_model(model: nn.Module, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+    def _forward_model(
+        model: nn.Module, batch: dict[str, torch.Tensor]
+    ) -> dict[str, torch.Tensor]:
         """Execute model forward and validate output contract.
 
         Args:
@@ -70,7 +72,9 @@ class Evaluator:
         return output
 
     @staticmethod
-    def _binary_stats(labels: torch.Tensor, predictions: torch.Tensor) -> tuple[float, float]:
+    def _binary_stats(
+        labels: torch.Tensor, predictions: torch.Tensor
+    ) -> tuple[float, float]:
         """Compute sensitivity and specificity.
 
         Args:
@@ -116,19 +120,27 @@ class Evaluator:
                 if not has_both_classes:
                     results[metric] = 0.0
                 else:
-                    results[metric] = _safe_float(roc_auc_score(label_array, prob_array))
+                    results[metric] = _safe_float(
+                        roc_auc_score(label_array, prob_array)
+                    )
             elif metric == "auprc":
                 if not has_both_classes:
                     results[metric] = 0.0
                 else:
-                    results[metric] = _safe_float(average_precision_score(label_array, prob_array))
+                    results[metric] = _safe_float(
+                        average_precision_score(label_array, prob_array)
+                    )
             elif metric == "accuracy":
                 results[metric] = _safe_float(accuracy_score(label_array, pred_array))
             elif metric == "sensitivity":
-                sensitivity, _ = self._binary_stats(labels=labels, predictions=predictions)
+                sensitivity, _ = self._binary_stats(
+                    labels=labels, predictions=predictions
+                )
                 results[metric] = _safe_float(sensitivity)
             elif metric == "specificity":
-                _, specificity = self._binary_stats(labels=labels, predictions=predictions)
+                _, specificity = self._binary_stats(
+                    labels=labels, predictions=predictions
+                )
                 results[metric] = _safe_float(specificity)
             elif metric == "precision":
                 results[metric] = _safe_float(
@@ -139,9 +151,13 @@ class Evaluator:
                     recall_score(label_array, pred_array, zero_division=0)
                 )
             elif metric == "f1":
-                results[metric] = _safe_float(f1_score(label_array, pred_array, zero_division=0))
+                results[metric] = _safe_float(
+                    f1_score(label_array, pred_array, zero_division=0)
+                )
             elif metric == "mcc":
-                results[metric] = _safe_float(matthews_corrcoef(label_array, pred_array))
+                results[metric] = _safe_float(
+                    matthews_corrcoef(label_array, pred_array)
+                )
         return results
 
     def evaluate(
@@ -183,14 +199,18 @@ class Evaluator:
             )
             total_loss += float(loss.detach().item())
             reduced_logits = (
-                logits.squeeze(-1) if logits.dim() > 1 and logits.size(-1) == 1 else logits
+                logits.squeeze(-1)
+                if logits.dim() > 1 and logits.size(-1) == 1
+                else logits
             )
             all_probs.append(torch.sigmoid(reduced_logits).detach().cpu())
             all_labels.append(labels.detach().cpu())
 
         probs_tensor = torch.cat(all_probs, dim=0)
         labels_tensor = torch.cat(all_labels, dim=0).long()
-        metric_values = self._compute_metrics(labels=labels_tensor, probabilities=probs_tensor)
+        metric_values = self._compute_metrics(
+            labels=labels_tensor, probabilities=probs_tensor
+        )
         metric_values["loss"] = total_loss / max(1, batch_count)
         if prefix is None:
             return metric_values

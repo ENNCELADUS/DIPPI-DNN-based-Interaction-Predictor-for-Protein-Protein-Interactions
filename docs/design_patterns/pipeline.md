@@ -6,7 +6,7 @@ The DIPPI pipeline is a centralized, config-driven orchestration system controll
 
 1. **Centralized Orchestration**: The `run.py` module acts as the chief orchestrator. It manages the global state (configuration, seeds, devices) and drives the execution flow. Cross-module interactions are mediated by the orchestrator, not by direct calls between components.
 2. **Config-Driven Execution**: All behaviors—model hyperparameters, training duration, optimization strategies, and data paths—are defined in a YAML configuration file.
-3. **Stage-Based Workflow**: The pipeline supports pretrain, finetune, and evaluate stages, selected by run mode.
+3. **Stage-Based Workflow**: The pipeline supports pretrain, finetune, and evaluate stages, selected by run mode or explicit stage list.
 
 ## Pipeline Stages
 
@@ -61,11 +61,13 @@ The orchestrator selects and instantiates the model architecture based on the `m
 
 ## Run Modes
 
-The pipeline supports three strict execution modes defined in `run_config.mode`:
+The pipeline supports three execution modes defined in `run_config.mode`:
 
-*   `full_pipeline`: Runs pretraining, then automatically loads the resulting best model for finetuning.
-*   `train_only`: Runs pretraining and saves the best model. No input checkpoint required.
-*   `eval_only`: Loads a checkpoint and runs the evaluation protocol.
+*   `full_pipeline`: Runs `pretrain -> finetune -> evaluate`.
+*   `train_only`: Runs `pretrain` only.
+*   `eval_only`: Runs `evaluate` only and requires `run_config.load_checkpoint_path`.
+
+Advanced users can override mode defaults with `run_config.stages`, e.g. `["finetune", "evaluate"]`.
 
 ## Launcher Disposition
 

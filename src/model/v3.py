@@ -33,7 +33,9 @@ class DropPath(nn.Module):
         return x * random_tensor / keep_prob
 
 
-def _build_padding_mask(lengths: torch.Tensor | None, max_len: int) -> torch.Tensor | None:
+def _build_padding_mask(
+    lengths: torch.Tensor | None, max_len: int
+) -> torch.Tensor | None:
     """Create a padding mask from sequence lengths.
 
     Args:
@@ -98,7 +100,9 @@ class SiameseEncoder(nn.Module):
     ) -> None:
         super().__init__()
         self.input_projection = nn.Linear(input_dim, d_model)
-        self.token_dropout = nn.Dropout(token_dropout) if token_dropout > 0.0 else nn.Identity()
+        self.token_dropout = (
+            nn.Dropout(token_dropout) if token_dropout > 0.0 else nn.Identity()
+        )
         self.layers = nn.ModuleList(
             nn.TransformerEncoderLayer(
                 d_model=d_model,
@@ -131,7 +135,9 @@ class SiameseEncoder(nn.Module):
             Encoded embedding tensor ``(batch, seq_len, d_model)``.
         """
         if embeddings.dim() != 3:
-            raise ValueError("embeddings must be of shape (batch_size, seq_len, embedding_dim)")
+            raise ValueError(
+                "embeddings must be of shape (batch_size, seq_len, embedding_dim)"
+            )
         projected = self.input_projection(embeddings)
         projected = self.token_dropout(projected)
         max_len = projected.size(1)
@@ -194,7 +200,9 @@ class CrossAttentionLayer(nn.Module):
     ) -> torch.Tensor:
         """Apply attention sub-layer with residual connection."""
         query_norm = self.norm_attn(query)
-        attn_out, _ = self.attn(query_norm, key_value, key_value, key_padding_mask=key_padding_mask)
+        attn_out, _ = self.attn(
+            query_norm, key_value, key_value, key_padding_mask=key_padding_mask
+        )
         return query + cast(torch.Tensor, self.drop_attn(attn_out))
 
     def _ffn(self, x: torch.Tensor) -> torch.Tensor:
@@ -234,7 +242,9 @@ class CrossAttentionLayer(nn.Module):
             combined_mask = None
 
         cls_norm = self.norm_cls_attn(cls_token)
-        attn_cls, _ = self.attn_cls(cls_norm, combined, combined, key_padding_mask=combined_mask)
+        attn_cls, _ = self.attn_cls(
+            cls_norm, combined, combined, key_padding_mask=combined_mask
+        )
         cls_token = cls_token + self.drop_cls_attn(attn_cls)
 
         cls_ffn_norm = self.norm_cls_ffn(cls_token)
@@ -246,7 +256,9 @@ class CrossAttentionLayer(nn.Module):
 class InteractionCrossAttention(nn.Module):
     """Stacked cross-attention encoder with CLS pooling."""
 
-    def __init__(self, d_model: int, n_heads: int, n_layers: int, dropout: float) -> None:
+    def __init__(
+        self, d_model: int, n_heads: int, n_layers: int, dropout: float
+    ) -> None:
         super().__init__()
         self.cls_token = nn.Parameter(torch.zeros(1, 1, d_model))
         nn.init.normal_(self.cls_token, mean=0.0, std=0.02)
@@ -381,7 +393,9 @@ class V3(nn.Module):
 
         self.input_dim = _to_int(model_config["input_dim"], "model_config.input_dim")
         self.d_model = _to_int(model_config["d_model"], "model_config.d_model")
-        self.encoder_layers = _to_int(model_config["encoder_layers"], "model_config.encoder_layers")
+        self.encoder_layers = _to_int(
+            model_config["encoder_layers"], "model_config.encoder_layers"
+        )
         self.cross_attn_layers = _to_int(
             model_config["cross_attn_layers"],
             "model_config.cross_attn_layers",
@@ -393,14 +407,19 @@ class V3(nn.Module):
             raise ValueError("mlp_head configuration is required for V3")
         mlp_cfg = _to_mapping(mlp_cfg_raw, "model_config.mlp_head")
         if "hidden_dims" not in mlp_cfg or "dropout" not in mlp_cfg:
-            raise ValueError("mlp_head.hidden_dims and mlp_head.dropout must be provided")
+            raise ValueError(
+                "mlp_head.hidden_dims and mlp_head.dropout must be provided"
+            )
         hidden_dims_raw = mlp_cfg["hidden_dims"]
         if not isinstance(hidden_dims_raw, list) or not hidden_dims_raw:
             raise ValueError("mlp_head.hidden_dims must be a non-empty list")
         self.mlp_hidden_dims = [
-            _to_int(value, "model_config.mlp_head.hidden_dims") for value in hidden_dims_raw
+            _to_int(value, "model_config.mlp_head.hidden_dims")
+            for value in hidden_dims_raw
         ]
-        self.mlp_dropout = _to_float(mlp_cfg["dropout"], "model_config.mlp_head.dropout")
+        self.mlp_dropout = _to_float(
+            mlp_cfg["dropout"], "model_config.mlp_head.dropout"
+        )
         self.mlp_activation = str(mlp_cfg.get("activation", "gelu"))
         self.mlp_norm = str(mlp_cfg.get("norm", "layernorm"))
 
@@ -408,7 +427,9 @@ class V3(nn.Module):
         if not isinstance(reg_cfg_raw, dict) or "dropout" not in reg_cfg_raw:
             raise ValueError("regularization.dropout must be provided for V3")
         reg_cfg = _to_mapping(reg_cfg_raw, "model_config.regularization")
-        self.encoder_dropout = _to_float(reg_cfg["dropout"], "model_config.regularization.dropout")
+        self.encoder_dropout = _to_float(
+            reg_cfg["dropout"], "model_config.regularization.dropout"
+        )
         self.cross_attention_dropout = _to_float(
             reg_cfg.get("cross_attention_dropout", self.encoder_dropout),
             "model_config.regularization.cross_attention_dropout",
@@ -471,7 +492,9 @@ class V3(nn.Module):
         emb_a = merged_batch["emb_a"]
         emb_b = merged_batch["emb_b"]
         if emb_a.dim() != 3 or emb_b.dim() != 3:
-            raise ValueError("Input embeddings must be shaped (batch, seq_len, embedding_dim)")
+            raise ValueError(
+                "Input embeddings must be shaped (batch, seq_len, embedding_dim)"
+            )
         if emb_a.size(2) != self.input_dim or emb_b.size(2) != self.input_dim:
             raise ValueError("Input embedding dimension must match model input_dim")
         if emb_a.size(0) != emb_b.size(0):
@@ -481,17 +504,23 @@ class V3(nn.Module):
         lengths_a = merged_batch.get("len_a")
         lengths_b = merged_batch.get("len_b")
         if lengths_a is None:
-            lengths_a = torch.full((emb_a.size(0),), emb_a.size(1), device=device, dtype=torch.long)
+            lengths_a = torch.full(
+                (emb_a.size(0),), emb_a.size(1), device=device, dtype=torch.long
+            )
         else:
             lengths_a = lengths_a.to(device=device, dtype=torch.long)
         if lengths_b is None:
-            lengths_b = torch.full((emb_b.size(0),), emb_b.size(1), device=device, dtype=torch.long)
+            lengths_b = torch.full(
+                (emb_b.size(0),), emb_b.size(1), device=device, dtype=torch.long
+            )
         else:
             lengths_b = lengths_b.to(device=device, dtype=torch.long)
 
         encoded_a = self.encoder(emb_a, lengths_a)
         encoded_b = self.encoder(emb_b, lengths_b)
-        cls_representation = self.cross_attention(encoded_a, encoded_b, lengths_a, lengths_b)
+        cls_representation = self.cross_attention(
+            encoded_a, encoded_b, lengths_a, lengths_b
+        )
         logits = self.output_head(cls_representation)
 
         # Compute loss if labels are provided (training mode)
@@ -500,13 +529,19 @@ class V3(nn.Module):
             labels = merged_batch["label"].float()
             # Normalize logits shape: (N, 1) → (N,) and (N, 1) labels → (N,)
             logits_for_loss = (
-                logits.squeeze(-1) if logits.dim() > 1 and logits.size(-1) == 1 else logits
+                logits.squeeze(-1)
+                if logits.dim() > 1 and logits.size(-1) == 1
+                else logits
             )
             labels_for_loss = (
-                labels.squeeze(-1) if labels.dim() > 1 and labels.size(-1) == 1 else labels
+                labels.squeeze(-1)
+                if labels.dim() > 1 and labels.size(-1) == 1
+                else labels
             )
             # Compute BCE loss with logits
-            loss = nn.functional.binary_cross_entropy_with_logits(logits_for_loss, labels_for_loss)
+            loss = nn.functional.binary_cross_entropy_with_logits(
+                logits_for_loss, labels_for_loss
+            )
             output["loss"] = loss
 
         return output

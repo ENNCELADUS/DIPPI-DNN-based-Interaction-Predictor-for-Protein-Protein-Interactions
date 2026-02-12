@@ -79,7 +79,9 @@ def test_trainer_runs_single_epoch() -> None:
         device=torch.device("cpu"),
         optimizer_config=OptimizerConfig(optimizer_type="adamw", lr=1e-2),
         scheduler_config=SchedulerConfig(scheduler_type="none"),
-        loss_config=LossConfig(loss_type="bce_with_logits", pos_weight=1.0, label_smoothing=0.0),
+        loss_config=LossConfig(
+            loss_type="bce_with_logits", pos_weight=1.0, label_smoothing=0.0
+        ),
         use_amp=False,
         total_epochs=1,
         steps_per_epoch=len(loader),
@@ -105,7 +107,9 @@ def test_trainer_heartbeat_logging(caplog: pytest.LogCaptureFixture) -> None:
         device=torch.device("cpu"),
         optimizer_config=OptimizerConfig(optimizer_type="adamw", lr=1e-2),
         scheduler_config=SchedulerConfig(scheduler_type="none"),
-        loss_config=LossConfig(loss_type="bce_with_logits", pos_weight=1.0, label_smoothing=0.0),
+        loss_config=LossConfig(
+            loss_type="bce_with_logits", pos_weight=1.0, label_smoothing=0.0
+        ),
         use_amp=False,
         total_epochs=1,
         steps_per_epoch=len(loader),
@@ -116,7 +120,9 @@ def test_trainer_heartbeat_logging(caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.INFO, logger=logger_name):
         trainer.train_one_epoch(loader, epoch_index=0)
 
-    messages = [record.getMessage() for record in caplog.records if record.name == logger_name]
+    messages = [
+        record.getMessage() for record in caplog.records if record.name == logger_name
+    ]
     assert any("Epoch 1 | Step 1/4" in message for message in messages)
     assert any("Epoch 1 | Step 2/4" in message for message in messages)
     assert any("Epoch 1 | Step 4/4" in message for message in messages)
@@ -130,11 +136,15 @@ def test_ohem_disables_pos_weight_for_selected_batch_loss() -> None:
         device=torch.device("cpu"),
         optimizer_config=OptimizerConfig(optimizer_type="adamw", lr=1e-2),
         scheduler_config=SchedulerConfig(scheduler_type="none"),
-        loss_config=LossConfig(loss_type="bce_with_logits", pos_weight=5.0, label_smoothing=0.0),
+        loss_config=LossConfig(
+            loss_type="bce_with_logits", pos_weight=5.0, label_smoothing=0.0
+        ),
         use_amp=False,
         total_epochs=1,
         steps_per_epoch=1,
-        ohem_strategy=OHEMSampleStrategy(target_batch_size=2, cap_protein=4, warmup_epochs=0),
+        ohem_strategy=OHEMSampleStrategy(
+            target_batch_size=2, cap_protein=4, warmup_epochs=0
+        ),
     )
     logits = torch.tensor([[0.0], [1.0], [-0.5]], dtype=torch.float32)
     labels = torch.tensor([1.0, 0.0, 1.0], dtype=torch.float32)
@@ -213,7 +223,9 @@ def test_evaluator_returns_metric_dictionary() -> None:
     loader = DataLoader(TinyDataset(), batch_size=2, shuffle=False, collate_fn=_collate)
     evaluator = Evaluator(
         metrics=["accuracy", "f1", "auroc"],
-        loss_config=LossConfig(loss_type="bce_with_logits", pos_weight=1.0, label_smoothing=0.0),
+        loss_config=LossConfig(
+            loss_type="bce_with_logits", pos_weight=1.0, label_smoothing=0.0
+        ),
     )
     model.eval()
     with torch.no_grad():
@@ -234,7 +246,9 @@ def test_evaluator_without_prefix_returns_raw_metric_names() -> None:
     loader = DataLoader(TinyDataset(), batch_size=2, shuffle=False, collate_fn=_collate)
     evaluator = Evaluator(
         metrics=["accuracy", "f1", "auroc"],
-        loss_config=LossConfig(loss_type="bce_with_logits", pos_weight=1.0, label_smoothing=0.0),
+        loss_config=LossConfig(
+            loss_type="bce_with_logits", pos_weight=1.0, label_smoothing=0.0
+        ),
     )
     model.eval()
     with torch.no_grad():

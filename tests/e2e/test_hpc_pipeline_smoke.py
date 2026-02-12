@@ -94,12 +94,36 @@ def test_hpc_ddp_full_pipeline_smoke() -> None:
     env["PYTHONPATH"] = f"{REPO_ROOT}:{env.get('PYTHONPATH', '')}".rstrip(":")
     subprocess.run(command, cwd=REPO_ROOT, env=env, check=True)
 
-    expected_checkpoint = REPO_ROOT / "models" / "v3" / "train" / "hpc_e2e_train" / "best_model.pth"
-    assert expected_checkpoint.exists()
+    pretrain_checkpoint = (
+        REPO_ROOT / "models" / "v3" / "pretrain" / "hpc_e2e_pretrain" / "best_model.pth"
+    )
+    finetune_checkpoint = (
+        REPO_ROOT / "models" / "v3" / "finetune" / "hpc_e2e_finetune" / "best_model.pth"
+    )
+    assert pretrain_checkpoint.exists()
+    assert finetune_checkpoint.exists()
 
-    train_csv = REPO_ROOT / "logs" / "v3" / "train" / "hpc_e2e_train" / "training_step.csv"
-    evaluate_csv = REPO_ROOT / "logs" / "v3" / "evaluate" / "hpc_e2e_eval" / "evaluate.csv"
-    assert train_csv.exists()
+    pretrain_csv = (
+        REPO_ROOT
+        / "logs"
+        / "v3"
+        / "pretrain"
+        / "hpc_e2e_pretrain"
+        / "training_step.csv"
+    )
+    finetune_csv = (
+        REPO_ROOT
+        / "logs"
+        / "v3"
+        / "finetune"
+        / "hpc_e2e_finetune"
+        / "training_step.csv"
+    )
+    evaluate_csv = (
+        REPO_ROOT / "logs" / "v3" / "evaluate" / "hpc_e2e_eval" / "evaluate.csv"
+    )
+    assert pretrain_csv.exists()
+    assert finetune_csv.exists()
     assert evaluate_csv.exists()
 
     config = load_config(CONFIG_PATH)
@@ -118,10 +142,13 @@ def test_hpc_ddp_full_pipeline_smoke() -> None:
         "Learning Rate",
     ]
 
-    with train_csv.open("r", encoding="utf-8", newline="") as handle:
-        train_header = DictReader(handle).fieldnames
+    with pretrain_csv.open("r", encoding="utf-8", newline="") as handle:
+        pretrain_header = DictReader(handle).fieldnames
+    with finetune_csv.open("r", encoding="utf-8", newline="") as handle:
+        finetune_header = DictReader(handle).fieldnames
     with evaluate_csv.open("r", encoding="utf-8", newline="") as handle:
         eval_header = DictReader(handle).fieldnames
 
-    assert train_header == expected_train_header
+    assert pretrain_header == expected_train_header
+    assert finetune_header == expected_train_header
     assert eval_header == run_module.EVAL_CSV_COLUMNS

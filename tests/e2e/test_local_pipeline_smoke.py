@@ -34,11 +34,27 @@ def _resolve_data_paths(config: ConfigDict) -> ConfigDict:
     assert isinstance(embeddings_cfg, dict)
 
     benchmark_cfg["root_dir"] = _to_absolute_path(str(benchmark_cfg["root_dir"]))
-    benchmark_cfg["processed_dir"] = _to_absolute_path(str(benchmark_cfg["processed_dir"]))
+    benchmark_cfg["processed_dir"] = _to_absolute_path(
+        str(benchmark_cfg["processed_dir"])
+    )
     embeddings_cfg["cache_dir"] = _to_absolute_path(str(embeddings_cfg["cache_dir"]))
-    dataloader_cfg["train_dataset"] = _to_absolute_path(str(dataloader_cfg["train_dataset"]))
-    dataloader_cfg["valid_dataset"] = _to_absolute_path(str(dataloader_cfg["valid_dataset"]))
-    dataloader_cfg["test_dataset"] = _to_absolute_path(str(dataloader_cfg["test_dataset"]))
+    dataloader_cfg["train_dataset"] = _to_absolute_path(
+        str(dataloader_cfg["train_dataset"])
+    )
+    dataloader_cfg["valid_dataset"] = _to_absolute_path(
+        str(dataloader_cfg["valid_dataset"])
+    )
+    if "finetune_train_dataset" in dataloader_cfg:
+        dataloader_cfg["finetune_train_dataset"] = _to_absolute_path(
+            str(dataloader_cfg["finetune_train_dataset"])
+        )
+    if "finetune_val_dataset" in dataloader_cfg:
+        dataloader_cfg["finetune_val_dataset"] = _to_absolute_path(
+            str(dataloader_cfg["finetune_val_dataset"])
+        )
+    dataloader_cfg["test_dataset"] = _to_absolute_path(
+        str(dataloader_cfg["test_dataset"])
+    )
     return config
 
 
@@ -94,7 +110,9 @@ def test_local_cpu_config_artifact_is_valid() -> None:
 
 @pytest.mark.e2e
 @pytest.mark.slow
-def test_local_cpu_full_pipeline_smoke(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_local_cpu_full_pipeline_smoke(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Run optional local full-pipeline smoke test on CPU."""
     if os.environ.get("RELIC_RUN_LOCAL_E2E", "0") != "1":
         pytest.skip("Set RELIC_RUN_LOCAL_E2E=1 to run local CPU E2E smoke test.")
@@ -103,23 +121,45 @@ def test_local_cpu_full_pipeline_smoke(tmp_path: Path, monkeypatch: pytest.Monke
     config = _resolve_data_paths(load_config(CONFIG_PATH))
     run_module.execute_pipeline(config=config)
 
-    train_log_dir = tmp_path / "logs" / "v3" / "train" / "local_cpu_e2e_train"
+    pretrain_log_dir = tmp_path / "logs" / "v3" / "pretrain" / "local_cpu_e2e_pretrain"
+    finetune_log_dir = tmp_path / "logs" / "v3" / "finetune" / "local_cpu_e2e_finetune"
     eval_log_dir = tmp_path / "logs" / "v3" / "evaluate" / "local_cpu_e2e_eval"
-    train_model = tmp_path / "models" / "v3" / "train" / "local_cpu_e2e_train" / "best_model.pth"
-    assert train_model.exists()
-    assert (train_log_dir / "log.log").exists()
+    pretrain_model = (
+        tmp_path
+        / "models"
+        / "v3"
+        / "pretrain"
+        / "local_cpu_e2e_pretrain"
+        / "best_model.pth"
+    )
+    finetune_model = (
+        tmp_path
+        / "models"
+        / "v3"
+        / "finetune"
+        / "local_cpu_e2e_finetune"
+        / "best_model.pth"
+    )
+    assert pretrain_model.exists()
+    assert finetune_model.exists()
+    assert (pretrain_log_dir / "log.log").exists()
+    assert (finetune_log_dir / "log.log").exists()
     assert (eval_log_dir / "log.log").exists()
 
-    train_csv = train_log_dir / "training_step.csv"
+    pretrain_csv = pretrain_log_dir / "training_step.csv"
+    finetune_csv = finetune_log_dir / "training_step.csv"
     evaluate_csv = eval_log_dir / "evaluate.csv"
-    assert train_csv.exists()
+    assert pretrain_csv.exists()
+    assert finetune_csv.exists()
     assert evaluate_csv.exists()
 
-    with train_csv.open("r", encoding="utf-8", newline="") as handle:
-        train_header = DictReader(handle).fieldnames
+    with pretrain_csv.open("r", encoding="utf-8", newline="") as handle:
+        pretrain_header = DictReader(handle).fieldnames
+    with finetune_csv.open("r", encoding="utf-8", newline="") as handle:
+        finetune_header = DictReader(handle).fieldnames
     with evaluate_csv.open("r", encoding="utf-8", newline="") as handle:
         eval_header = DictReader(handle).fieldnames
-    assert train_header == [
+    expected_training_header = [
         "Epoch",
         "Epoch Time",
         "Train Loss",
@@ -128,4 +168,6 @@ def test_local_cpu_full_pipeline_smoke(tmp_path: Path, monkeypatch: pytest.Monke
         "Val auroc",
         "Learning Rate",
     ]
+    assert pretrain_header == expected_training_header
+    assert finetune_header == expected_training_header
     assert eval_header == run_module.EVAL_CSV_COLUMNS

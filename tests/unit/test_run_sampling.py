@@ -14,7 +14,11 @@ def test_build_trainer_wires_ohem_warmup_epochs() -> None:
             "epochs": 2,
             "optimizer": {"type": "adamw", "lr": 1e-3},
             "scheduler": {"type": "none"},
-            "loss": {"type": "bce_with_logits", "pos_weight": 1.0, "label_smoothing": 0.0},
+            "loss": {
+                "type": "bce_with_logits",
+                "pos_weight": 1.0,
+                "label_smoothing": 0.0,
+            },
             "logging": {"heartbeat_every_n_steps": 0, "validation_metrics": ["auprc"]},
         },
         "data_config": {

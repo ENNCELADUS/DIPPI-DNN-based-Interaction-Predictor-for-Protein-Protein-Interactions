@@ -18,6 +18,13 @@ def _write_split(path: Path, rows: list[tuple[str, str, int]]) -> None:
             handle.write(f"{protein_a}\t{protein_b}\t{label}\n")
 
 
+def _write_split_csv(path: Path, rows: list[tuple[str, str, int]]) -> None:
+    with path.open("w", encoding="utf-8") as handle:
+        handle.write("uniprotID_A,uniprotID_B,isInteraction\n")
+        for protein_a, protein_b, label in rows:
+            handle.write(f"{protein_a},{protein_b},{label}\n")
+
+
 def _base_config(cache_dir: Path, processed_dir: Path) -> ConfigDict:
     return {
         "data_config": {
@@ -95,7 +102,9 @@ def test_ensure_embeddings_ready_prefers_csv_over_fasta(
     cache_dir = tmp_path / "cache"
     config = _base_config(cache_dir=cache_dir, processed_dir=processed_dir)
     captured_sequences: dict[str, str] = {}
-    _patch_fake_generator(monkeypatch=monkeypatch, captured_sequences=captured_sequences)
+    _patch_fake_generator(
+        monkeypatch=monkeypatch, captured_sequences=captured_sequences
+    )
 
     ensure_embeddings_ready(
         config=config,
@@ -126,7 +135,9 @@ def test_ensure_embeddings_ready_falls_back_to_fasta(
     cache_dir = tmp_path / "cache"
     config = _base_config(cache_dir=cache_dir, processed_dir=processed_dir)
     captured_sequences: dict[str, str] = {}
-    _patch_fake_generator(monkeypatch=monkeypatch, captured_sequences=captured_sequences)
+    _patch_fake_generator(
+        monkeypatch=monkeypatch, captured_sequences=captured_sequences
+    )
 
     ensure_embeddings_ready(
         config=config,
@@ -137,6 +148,39 @@ def test_ensure_embeddings_ready_falls_back_to_fasta(
     )
 
     assert captured_sequences == {"Q1": "ACDE", "Q2": "FGHI"}
+
+
+def test_ensure_embeddings_ready_supports_csv_pair_files_with_fasta_sequences(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    split_path = tmp_path / "train.csv"
+    _write_split_csv(split_path, [("Z1", "Z2", 1)])
+
+    processed_dir = tmp_path / "processed"
+    processed_dir.mkdir(parents=True, exist_ok=True)
+    fasta_path = processed_dir / "proteins.fasta"
+    fasta_path.write_text(
+        ">sp|Z1|PROT1\nMNOP\n>sp|Z2|PROT2\nQRST\n",
+        encoding="utf-8",
+    )
+
+    cache_dir = tmp_path / "cache"
+    config = _base_config(cache_dir=cache_dir, processed_dir=processed_dir)
+    captured_sequences: dict[str, str] = {}
+    _patch_fake_generator(
+        monkeypatch=monkeypatch, captured_sequences=captured_sequences
+    )
+
+    ensure_embeddings_ready(
+        config=config,
+        split_paths=[split_path],
+        input_dim=4,
+        max_sequence_length=8,
+        allow_generation=True,
+    )
+
+    assert captured_sequences == {"Z1": "MNOP", "Z2": "QRST"}
 
 
 def test_ensure_embeddings_ready_incremental_regeneration(
@@ -177,7 +221,9 @@ def test_ensure_embeddings_ready_incremental_regeneration(
     assert call_counter["count"] == 1
 
 
-def test_ensure_embeddings_ready_missing_cache_when_generation_disabled(tmp_path: Path) -> None:
+def test_ensure_embeddings_ready_missing_cache_when_generation_disabled(
+    tmp_path: Path,
+) -> None:
     split_path = tmp_path / "train.txt"
     _write_split(split_path, [("S1", "S2", 1)])
 
@@ -196,7 +242,9 @@ def test_ensure_embeddings_ready_missing_cache_when_generation_disabled(tmp_path
         )
 
 
-def test_ensure_embeddings_ready_invalid_dim_when_generation_disabled(tmp_path: Path) -> None:
+def test_ensure_embeddings_ready_invalid_dim_when_generation_disabled(
+    tmp_path: Path,
+) -> None:
     split_path = tmp_path / "train.txt"
     _write_split(split_path, [("T1", "T1", 1)])
 
@@ -221,7 +269,9 @@ def test_ensure_embeddings_ready_invalid_dim_when_generation_disabled(tmp_path: 
         "format": "torch_pt_per_protein",
     }
     (cache_dir / "index.json").write_text(json.dumps(index_payload), encoding="utf-8")
-    (cache_dir / "metadata.json").write_text(json.dumps(metadata_payload), encoding="utf-8")
+    (cache_dir / "metadata.json").write_text(
+        json.dumps(metadata_payload), encoding="utf-8"
+    )
 
     config = _base_config(cache_dir=cache_dir, processed_dir=processed_dir)
     with pytest.raises(ValueError, match="Invalid embeddings"):

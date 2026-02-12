@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Literal
 
 import torch
 import torch.distributed as dist
@@ -11,63 +12,19 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.distributed import DistributedSampler
 
-from src.embed import EmbeddingCacheManifest, ensure_embeddings_ready, load_cached_embedding
+from src.embed import (
+    EmbeddingCacheManifest,
+    ensure_embeddings_ready,
+    load_cached_embedding,
+)
 from src.utils.config import ConfigDict, as_bool, as_float, as_int, as_str, get_section
+from src.utils.pair_io import PairRecord, read_pair_records
 from src.utils.data_samplers import StagedOHEMBatchSampler
 
-
-@dataclass(frozen=True)
-class PPIPairRecord:
-    """Single protein-protein interaction record.
-
-    Attributes:
-        protein_a: First protein identifier.
-        protein_b: Second protein identifier.
-        label: Binary interaction label.
-    """
-
-    protein_a: str
-    protein_b: str
-    label: int
+TrainingStage = Literal["pretrain", "finetune"]
 
 
-def _read_ppi_records(file_path: Path) -> list[PPIPairRecord]:
-    """Read tab-separated PPI records.
-
-    Args:
-        file_path: Input interaction file path.
-
-    Returns:
-        Parsed interaction records.
-
-    Raises:
-        ValueError: If no valid records are parsed.
-    """
-    records: list[PPIPairRecord] = []
-    with file_path.open("r", encoding="utf-8") as handle:
-        for line in handle:
-            parts = [part.strip() for part in line.strip().split("\t")]
-            if len(parts) < 2:
-                continue
-            if not parts[0] or not parts[1]:
-                continue
-
-            if len(parts) >= 3 and parts[2]:
-                try:
-                    label = int(float(parts[2]))
-                except ValueError:
-                    continue
-            else:
-                label = 1
-
-            records.append(PPIPairRecord(parts[0], parts[1], label))
-
-    if not records:
-        raise ValueError(f"No valid PPI records found in {file_path}")
-    return records
-
-
-class PRINGPairDataset(Dataset[dict[str, torch.Tensor]]):
+class PPIPairDataset(Dataset[dict[str, torch.Tensor]]):
     """PPI dataset that loads precomputed protein embeddings from cache."""
 
     def __init__(
@@ -83,7 +40,7 @@ class PRINGPairDataset(Dataset[dict[str, torch.Tensor]]):
         if max_sequence_length <= 0:
             raise ValueError("max_sequence_length must be positive")
 
-        self._records = _read_ppi_records(file_path=file_path)
+        self._records: list[PairRecord] = read_pair_records(file_path=file_path)
         self._input_dim = int(input_dim)
         self._max_sequence_length = int(max_sequence_length)
         self._cache_dir = cache_dir
@@ -97,7 +54,9 @@ class PRINGPairDataset(Dataset[dict[str, torch.Tensor]]):
         required_ids = {record.protein_a for record in self._records}
         required_ids.update(record.protein_b for record in self._records)
         missing_ids = sorted(
-            protein_id for protein_id in required_ids if protein_id not in self._embedding_index
+            protein_id
+            for protein_id in required_ids
+            if protein_id not in self._embedding_index
         )
         if missing_ids:
             preview = ", ".join(missing_ids[:10])
@@ -132,8 +91,12 @@ class PRINGPairDataset(Dataset[dict[str, torch.Tensor]]):
         len_a = torch.tensor(emb_a.size(0), dtype=torch.long)
         len_b = torch.tensor(emb_b.size(0), dtype=torch.long)
         label = torch.tensor(float(record.label), dtype=torch.float32)
-        protein_a_id = torch.tensor(self._protein_to_id[record.protein_a], dtype=torch.long)
-        protein_b_id = torch.tensor(self._protein_to_id[record.protein_b], dtype=torch.long)
+        protein_a_id = torch.tensor(
+            self._protein_to_id[record.protein_a], dtype=torch.long
+        )
+        protein_b_id = torch.tensor(
+            self._protein_to_id[record.protein_b], dtype=torch.long
+        )
         return {
             "emb_a": emb_a,
             "emb_b": emb_b,
@@ -155,8 +118,12 @@ def _collate_batch(batch: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tens
         "len_a": torch.stack([sample["len_a"] for sample in batch], dim=0),
         "len_b": torch.stack([sample["len_b"] for sample in batch], dim=0),
         "label": torch.stack([sample["label"] for sample in batch], dim=0),
-        "protein_a_id": torch.stack([sample["protein_a_id"] for sample in batch], dim=0),
-        "protein_b_id": torch.stack([sample["protein_b_id"] for sample in batch], dim=0),
+        "protein_a_id": torch.stack(
+            [sample["protein_a_id"] for sample in batch], dim=0
+        ),
+        "protein_b_id": torch.stack(
+            [sample["protein_b_id"] for sample in batch], dim=0
+        ),
     }
 
 
@@ -178,14 +145,18 @@ def _build_split_loader(
     dataloader_cfg = get_section(data_cfg, "dataloader")
 
     batch_size = as_int(training_cfg.get("batch_size", 8), "training_config.batch_size")
-    num_workers = as_int(dataloader_cfg.get("num_workers", 0), "data_config.dataloader.num_workers")
+    num_workers = as_int(
+        dataloader_cfg.get("num_workers", 0), "data_config.dataloader.num_workers"
+    )
     pin_memory = as_bool(
         dataloader_cfg.get("pin_memory", False),
         "data_config.dataloader.pin_memory",
     )
-    drop_last = as_bool(dataloader_cfg.get("drop_last", False), "data_config.dataloader.drop_last")
+    drop_last = as_bool(
+        dataloader_cfg.get("drop_last", False), "data_config.dataloader.drop_last"
+    )
 
-    dataset = PRINGPairDataset(
+    dataset = PPIPairDataset(
         file_path=split_path,
         input_dim=input_dim,
         max_sequence_length=max_sequence_length,
@@ -274,52 +245,135 @@ def _distributed_barrier_if_initialized() -> None:
         dist.barrier()
 
 
-def build_dataloaders(
+def _resolve_training_stage(stage: str) -> TrainingStage:
+    """Validate and normalize training-stage name."""
+    stage_name = stage.lower()
+    if stage_name == "pretrain":
+        return "pretrain"
+    if stage_name == "finetune":
+        return "finetune"
+    raise ValueError(f"Unsupported training stage: {stage}")
+
+
+def _split_path_from_key(
+    dataloader_cfg: ConfigDict,
+    *,
+    key: str,
+    field_name: str,
+) -> Path:
+    """Resolve one dataset split path from dataloader config."""
+    path = Path(as_str(dataloader_cfg.get(key, ""), field_name))
+    if not path.exists():
+        raise FileNotFoundError(f"Dataset path not found: {path}")
+    return path
+
+
+def resolve_split_paths(
     config: ConfigDict,
-    distributed: bool = False,
-    rank: int = 0,
-    world_size: int = 1,
-) -> dict[str, DataLoader[dict[str, torch.Tensor]]]:
-    """Build train/valid/test loaders from the global config.
+    train_stage: TrainingStage | str = "pretrain",
+) -> dict[str, Path]:
+    """Resolve train/valid/test paths for one training stage.
 
     Args:
         config: Root configuration mapping.
-        distributed: Whether distributed data loading is enabled.
-        rank: Global rank for distributed loading.
-        world_size: Number of distributed processes.
+        train_stage: Training stage used to resolve train/valid datasets.
 
     Returns:
-        Split dataloader mapping with keys ``train``, ``valid``, and ``test``.
-
-    Raises:
-        FileNotFoundError: If benchmark root, split files, or embedding files are missing.
-        ValueError: If embeddings are invalid for configured model input dimension.
+        Mapping with ``train``, ``valid``, and ``test`` split paths.
     """
-    run_cfg = get_section(config, "run_config")
     data_cfg = get_section(config, "data_config")
-    model_cfg = get_section(config, "model_config")
-    benchmark_cfg = get_section(data_cfg, "benchmark")
     dataloader_cfg = get_section(data_cfg, "dataloader")
+    stage_name = _resolve_training_stage(train_stage)
 
-    benchmark_root = Path(str(benchmark_cfg.get("root_dir", "")))
-    if not benchmark_root.exists():
-        raise FileNotFoundError(f"Benchmark root does not exist: {benchmark_root}")
+    if stage_name == "finetune":
+        train_key = (
+            "finetune_train_dataset"
+            if "finetune_train_dataset" in dataloader_cfg
+            else "train_dataset"
+        )
+        valid_key = (
+            "finetune_val_dataset"
+            if "finetune_val_dataset" in dataloader_cfg
+            else "valid_dataset"
+        )
+        train_field = "data_config.dataloader.finetune_train_dataset"
+        valid_field = "data_config.dataloader.finetune_val_dataset"
+    else:
+        train_key = "train_dataset"
+        valid_key = "valid_dataset"
+        train_field = "data_config.dataloader.train_dataset"
+        valid_field = "data_config.dataloader.valid_dataset"
 
-    train_path = Path(str(dataloader_cfg.get("train_dataset", "")))
-    valid_path = Path(str(dataloader_cfg.get("valid_dataset", "")))
-    test_path = Path(str(dataloader_cfg.get("test_dataset", "")))
-    split_paths = [train_path, valid_path, test_path]
-    for split_path in split_paths:
-        if not split_path.exists():
-            raise FileNotFoundError(f"Dataset path not found: {split_path}")
-
-    input_dim = as_int(model_cfg.get("input_dim", 0), "model_config.input_dim")
-    max_sequence_length = as_int(
-        data_cfg.get("max_sequence_length", 64),
-        "data_config.max_sequence_length",
+    train_path = _split_path_from_key(
+        dataloader_cfg,
+        key=train_key,
+        field_name=train_field,
     )
-    seed = as_int(run_cfg.get("seed", 0), "run_config.seed")
+    valid_path = _split_path_from_key(
+        dataloader_cfg,
+        key=valid_key,
+        field_name=valid_field,
+    )
+    test_path = _split_path_from_key(
+        dataloader_cfg,
+        key="test_dataset",
+        field_name="data_config.dataloader.test_dataset",
+    )
+    return {"train": train_path, "valid": valid_path, "test": test_path}
 
+
+def collect_embedding_split_paths(config: ConfigDict) -> list[Path]:
+    """Collect split paths required for embedding-cache preparation.
+
+    This includes pretrain and finetune splits (when configured), plus test.
+    """
+    data_cfg = get_section(config, "data_config")
+    dataloader_cfg = get_section(data_cfg, "dataloader")
+    base_split_paths = resolve_split_paths(config=config, train_stage="pretrain")
+    ordered_candidates: list[Path] = [
+        base_split_paths["train"],
+        base_split_paths["valid"],
+    ]
+    finetune_train = dataloader_cfg.get("finetune_train_dataset")
+    finetune_valid = dataloader_cfg.get("finetune_val_dataset")
+    if finetune_train is not None:
+        ordered_candidates.append(
+            _split_path_from_key(
+                dataloader_cfg,
+                key="finetune_train_dataset",
+                field_name="data_config.dataloader.finetune_train_dataset",
+            )
+        )
+    if finetune_valid is not None:
+        ordered_candidates.append(
+            _split_path_from_key(
+                dataloader_cfg,
+                key="finetune_val_dataset",
+                field_name="data_config.dataloader.finetune_val_dataset",
+            )
+        )
+    ordered_candidates.append(base_split_paths["test"])
+
+    deduplicated: list[Path] = []
+    seen: set[str] = set()
+    for path in ordered_candidates:
+        normalized = str(path.resolve())
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        deduplicated.append(path)
+    return deduplicated
+
+
+def ensure_embedding_cache(
+    config: ConfigDict,
+    split_paths: Sequence[Path],
+    input_dim: int,
+    max_sequence_length: int,
+    distributed: bool = False,
+    rank: int = 0,
+) -> EmbeddingCacheManifest:
+    """Ensure required embeddings exist and return cache manifest."""
     if distributed:
         distributed_initialized = dist.is_available() and dist.is_initialized()
         allow_generation = True if distributed_initialized else rank == 0
@@ -332,20 +386,86 @@ def build_dataloaders(
             allow_generation=allow_generation,
         )
         _distributed_barrier_if_initialized()
-    else:
-        embedding_cache = ensure_embeddings_ready(
+        return embedding_cache
+
+    return ensure_embeddings_ready(
+        config=config,
+        split_paths=split_paths,
+        input_dim=input_dim,
+        max_sequence_length=max_sequence_length,
+        allow_generation=True,
+    )
+
+
+def build_dataloaders(
+    config: ConfigDict,
+    distributed: bool = False,
+    rank: int = 0,
+    world_size: int = 1,
+    train_stage: TrainingStage | str = "pretrain",
+    embedding_cache: EmbeddingCacheManifest | None = None,
+    embedding_split_paths: Sequence[Path] | None = None,
+) -> dict[str, DataLoader[dict[str, torch.Tensor]]]:
+    """Build train/valid/test loaders from the global config.
+
+    Args:
+        config: Root configuration mapping.
+        distributed: Whether distributed data loading is enabled.
+        rank: Global rank for distributed loading.
+        world_size: Number of distributed processes.
+        train_stage: Training stage used to select train/valid datasets.
+        embedding_cache: Optional precomputed embedding cache manifest.
+        embedding_split_paths: Optional split files used for embedding generation.
+
+    Returns:
+        Split dataloader mapping with keys ``train``, ``valid``, and ``test``.
+
+    Raises:
+        FileNotFoundError: If benchmark root, split files, or embedding files are missing.
+        ValueError: If embeddings are invalid for configured model input dimension.
+    """
+    run_cfg = get_section(config, "run_config")
+    data_cfg = get_section(config, "data_config")
+    model_cfg = get_section(config, "model_config")
+    benchmark_cfg = get_section(data_cfg, "benchmark")
+
+    benchmark_root = Path(str(benchmark_cfg.get("root_dir", "")))
+    if not benchmark_root.exists():
+        raise FileNotFoundError(f"Benchmark root does not exist: {benchmark_root}")
+
+    split_path_map = resolve_split_paths(config=config, train_stage=train_stage)
+    train_path = split_path_map["train"]
+    valid_path = split_path_map["valid"]
+    test_path = split_path_map["test"]
+    required_embedding_paths = (
+        list(embedding_split_paths)
+        if embedding_split_paths is not None
+        else collect_embedding_split_paths(config=config)
+    )
+
+    input_dim = as_int(model_cfg.get("input_dim", 0), "model_config.input_dim")
+    max_sequence_length = as_int(
+        data_cfg.get("max_sequence_length", 64),
+        "data_config.max_sequence_length",
+    )
+    seed = as_int(run_cfg.get("seed", 0), "run_config.seed")
+
+    resolved_embedding_cache = embedding_cache
+    if resolved_embedding_cache is None:
+        resolved_embedding_cache = ensure_embedding_cache(
             config=config,
-            split_paths=split_paths,
+            split_paths=required_embedding_paths,
             input_dim=input_dim,
             max_sequence_length=max_sequence_length,
-            allow_generation=True,
+            distributed=distributed,
+            rank=rank,
         )
 
     return {
         "train": _build_split_loader(
             split_path=train_path,
             config=config,
-            embedding_cache=embedding_cache,
+            embedding_cache=resolved_embedding_cache,
             input_dim=input_dim,
             max_sequence_length=max_sequence_length,
             seed=seed,
@@ -357,7 +477,7 @@ def build_dataloaders(
         "valid": _build_split_loader(
             split_path=valid_path,
             config=config,
-            embedding_cache=embedding_cache,
+            embedding_cache=resolved_embedding_cache,
             input_dim=input_dim,
             max_sequence_length=max_sequence_length,
             seed=seed + 1,
@@ -369,7 +489,7 @@ def build_dataloaders(
         "test": _build_split_loader(
             split_path=test_path,
             config=config,
-            embedding_cache=embedding_cache,
+            embedding_cache=resolved_embedding_cache,
             input_dim=input_dim,
             max_sequence_length=max_sequence_length,
             seed=seed + 2,

@@ -54,12 +54,18 @@ class ImbalancedBatchSampler:
             raise ValueError("labels must be binary (0 or 1)")
 
         self.pos_indices = [idx for idx, label in enumerate(processed_labels) if label]
-        self.neg_indices = [idx for idx, label in enumerate(processed_labels) if not label]
+        self.neg_indices = [
+            idx for idx, label in enumerate(processed_labels) if not label
+        ]
 
         if not self.pos_indices:
-            raise ValueError("ImbalancedBatchSampler requires at least one positive sample")
+            raise ValueError(
+                "ImbalancedBatchSampler requires at least one positive sample"
+            )
         if not self.neg_indices:
-            raise ValueError("ImbalancedBatchSampler requires at least one negative sample")
+            raise ValueError(
+                "ImbalancedBatchSampler requires at least one negative sample"
+            )
 
         self.batch_size = batch_size
         self.pos_neg_ratio = float(pos_neg_ratio)
@@ -188,15 +194,21 @@ class StagedOHEMBatchSampler:
 
         self.labels = processed_labels
         full_pos_indices = [idx for idx, label in enumerate(processed_labels) if label]
-        full_neg_indices = [idx for idx, label in enumerate(processed_labels) if not label]
+        full_neg_indices = [
+            idx for idx, label in enumerate(processed_labels) if not label
+        ]
 
         self.pos_indices = full_pos_indices[rank::world_size]
         self.neg_indices = full_neg_indices[rank::world_size]
 
         if not self.pos_indices:
-            raise ValueError("StagedOHEMBatchSampler requires at least one positive sample")
+            raise ValueError(
+                "StagedOHEMBatchSampler requires at least one positive sample"
+            )
         if not self.neg_indices:
-            raise ValueError("StagedOHEMBatchSampler requires at least one negative sample")
+            raise ValueError(
+                "StagedOHEMBatchSampler requires at least one negative sample"
+            )
 
         self.batch_size = int(batch_size)
         self.warmup_pos_neg_ratio = float(warmup_pos_neg_ratio)
@@ -274,10 +286,14 @@ class StagedOHEMBatchSampler:
 
         for _ in range(num_pools):
             pos_batch = (
-                pos_indices[pos_offset : pos_offset + pos_in_pool] if pos_in_pool > 0 else []
+                pos_indices[pos_offset : pos_offset + pos_in_pool]
+                if pos_in_pool > 0
+                else []
             )
             neg_batch = (
-                neg_indices[neg_offset : neg_offset + neg_in_pool] if neg_in_pool > 0 else []
+                neg_indices[neg_offset : neg_offset + neg_in_pool]
+                if neg_in_pool > 0
+                else []
             )
             pos_offset += pos_in_pool
             neg_offset += neg_in_pool
@@ -328,8 +344,12 @@ class StagedOHEMBatchSampler:
 
     def _mining_length(self) -> int:
         pos_in_pool, neg_in_pool = self._pool_class_counts()
-        pos_limit = math.inf if pos_in_pool == 0 else len(self.pos_indices) // pos_in_pool
-        neg_limit = math.inf if neg_in_pool == 0 else len(self.neg_indices) // neg_in_pool
+        pos_limit = (
+            math.inf if pos_in_pool == 0 else len(self.pos_indices) // pos_in_pool
+        )
+        neg_limit = (
+            math.inf if neg_in_pool == 0 else len(self.neg_indices) // neg_in_pool
+        )
         if pos_limit is math.inf and neg_limit is math.inf:
             return 0
         return int(min(pos_limit, neg_limit))
