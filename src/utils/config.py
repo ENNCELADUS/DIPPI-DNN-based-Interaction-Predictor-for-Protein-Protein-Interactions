@@ -1,316 +1,179 @@
-"""
-Config parsing utilities for DIPPI pipeline.
+"""Configuration helpers for the centralized pipeline runner."""
 
-This module provides a minimal, progress-oriented interface for config management:
-- load_config(): Load YAML and track access
-- extract_keys(): Extract section by path, return flattened dict
-- enforce_used_keys(): Validate all keys consumed (raises on unused)
+from __future__ import annotations
 
-Usage pattern in run.py:
-    cfg = load_config("configs/v3.yaml")
-    run_cfg = extract_keys(cfg, "run_config")
-    model_params = extract_keys(cfg, "model_config.v3")
-    # ... extract other sections as needed
-    enforce_used_keys(cfg)  # Raise if any keys unused
-"""
-
-import logging
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Dict, List, Set, Union
+from typing import cast
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
-from src.utils.distributed import is_main_process
-
-logger = logging.getLogger(__name__)
+ConfigDict = dict[str, object]
 
 
-class TrackedConfig:
-    """
-    Dictionary wrapper that tracks which config keys are accessed.
-
-    Tracks access via dot-separated paths (e.g., "model_config.v3.d_model")
-    to enable strict validation that all config keys are consumed.
-
-    Attributes:
-        _data: Underlying config dictionary
-        _accessed_paths: Set of dot-separated paths that were accessed
-    """
-
-    def __init__(self, data: Dict[str, Any]):
-        """
-        Initialize tracked config.
-
-        Args:
-            data: Configuration dictionary (typically from YAML)
-        """
-        self._data = data
-        self._accessed_paths: Set[str] = set()
-
-    def get(self, path: str, default: Any = None) -> Any:
-        """
-        Get value by dot-separated path (e.g., "model_config.v3.d_model").
-
-        Args:
-            path: Dot-separated path to config value
-            default: Default value if path not found
-
-        Returns:
-            Config value at path, or default if not found
-        """
-        keys = path.split(".")
-        value = self._data
-
-        # Navigate through nested dict
-        for key in keys:
-            if isinstance(value, dict) and key in value:
-                value = value[key]
-            else:
-                return default
-
-        # Mark as accessed
-        self._accessed_paths.add(path)
-        return value
-
-    def _extract_section(self, path: str) -> Dict[str, Any]:
-        """
-        Extract a section by path and return as dict.
-
-        Args:
-            path: Dot-separated path to section (e.g., "model_config.v3")
-
-        Returns:
-            Dictionary at the specified path
-
-        Raises:
-            KeyError: If path does not exist
-        """
-        keys = path.split(".")
-        value = self._data
-
-        for key in keys:
-            if isinstance(value, dict) and key in value:
-                value = value[key]
-            else:
-                raise KeyError(f"Config path '{path}' not found")
-
-        if not isinstance(value, dict):
-            raise ValueError(
-                f"Config path '{path}' does not point to a dictionary section"
-            )
-
-        return value
-
-    def _mark_accessed(self, path: str, data: Any) -> None:
-        """
-        Recursively mark all paths under a section as accessed.
-        Also marks all parent paths leading to this section.
-
-        Args:
-            path: Base path for this section
-            data: Data at this path (dict, list, or scalar)
-        """
-        # Mark all parent paths
-        if path:
-            parts = path.split(".")
-            for i in range(1, len(parts) + 1):
-                parent_path = ".".join(parts[:i])
-                self._accessed_paths.add(parent_path)
-
-        if isinstance(data, dict):
-            # Recursively mark all nested keys
-            for key, value in data.items():
-                nested_path = f"{path}.{key}" if path else key
-                self._mark_accessed(nested_path, value)
-        elif isinstance(data, list):
-            # Mark list items (if they're dicts)
-            for idx, item in enumerate(data):
-                if isinstance(item, dict):
-                    list_item_path = f"{path}[{idx}]"
-                    self._mark_accessed(list_item_path, item)
-
-    def _get_all_paths(self, data: Any = None, prefix: str = "") -> Set[str]:
-        """
-        Get all possible paths in the config tree.
-
-        Args:
-            data: Config data (defaults to root)
-            prefix: Path prefix for recursion
-
-        Returns:
-            Set of all dot-separated paths
-        """
-        if data is None:
-            data = self._data
-
-        paths = set()
-
-        if isinstance(data, dict):
-            for key, value in data.items():
-                current_path = f"{prefix}.{key}" if prefix else key
-                paths.add(current_path)
-                # Recurse into nested structures only if value is dict or list
-                if isinstance(value, (dict, list)):
-                    paths.update(self._get_all_paths(value, current_path))
-        elif isinstance(data, list):
-            # For lists, mark the path but don't recurse deeply into items
-            if prefix:
-                paths.add(prefix)
-        # For scalars (str, int, bool, None, etc.), don't add or recurse
-
-        return paths
-
-    def get_unused_keys(self) -> List[str]:
-        """
-        Get list of config keys that were never accessed.
-
-        Returns:
-            Sorted list of unused dot-separated paths
-        """
-        all_paths = self._get_all_paths()
-        unused = all_paths - self._accessed_paths
-        return sorted(unused)
-
-    def __getitem__(self, key: str) -> Any:
-        """Direct dictionary-style access (for compatibility)."""
-        if key in self._data:
-            self._accessed_paths.add(key)
-            return self._data[key]
-        raise KeyError(key)
-
-    def __contains__(self, key: str) -> bool:
-        """Check if key exists."""
-        return key in self._data
-
-
-def load_config(path: Union[str, Path]) -> TrackedConfig:
-    """
-    Load YAML config file and wrap in tracker for validation.
+def as_str(value: object, field_name: str) -> str:
+    """Convert a config value to string.
 
     Args:
-        path: Path to YAML config file
+        value: Raw config value.
+        field_name: Field name used in error messages.
 
     Returns:
-        TrackedConfig wrapper around parsed YAML
+        Parsed string value.
 
     Raises:
-        FileNotFoundError: If config file doesn't exist
-        yaml.YAMLError: If config file is invalid YAML
-
-    Example:
-        >>> cfg = load_config("configs/v3.yaml")
-        >>> run_cfg = extract_keys(cfg, "run_config")
+        ValueError: If the value cannot be converted.
     """
-    path = Path(path)
-
-    if not path.exists():
-        raise FileNotFoundError(f"Config file not found: {path}")
-
-    if is_main_process():
-        logger.info(f"Loading config from: {path}")
-
-    try:
-        with open(path, "r") as f:
-            data = yaml.safe_load(f)
-    except yaml.YAMLError as e:
-        raise yaml.YAMLError(f"Invalid YAML in config file {path}: {e}")
-
-    if not isinstance(data, dict):
-        raise ValueError(
-            f"Config file must contain a YAML dictionary, got {type(data)}"
-        )
-
-    if is_main_process():
-        logger.info(f"Config loaded successfully with {len(data)} top-level sections")
-    return TrackedConfig(data)
+    if isinstance(value, str):
+        return value
+    raise ValueError(f"{field_name} must be a string")
 
 
-def extract_keys(cfg: TrackedConfig, section: str) -> Dict[str, Any]:
-    """
-    Extract a config section by dot-separated path and return flattened dict.
-
-    Marks the entire section as accessed for validation. Returns a plain dict
-    (not tracked) containing only the parameters in that section.
+def as_int(value: object, field_name: str) -> int:
+    """Convert a config value to integer.
 
     Args:
-        cfg: TrackedConfig instance from load_config()
-        section: Dot-separated path to section (e.g., "model_config.v3", "pretrain_config")
+        value: Raw config value.
+        field_name: Field name used in error messages.
 
     Returns:
-        Flattened dictionary of parameters in that section
+        Parsed integer value.
 
     Raises:
-        KeyError: If section path doesn't exist in config
-        ValueError: If section path doesn't point to a dict
-
-    Examples:
-        >>> cfg = load_config("configs/v3.yaml")
-        >>> model_params = extract_keys(cfg, "model_config.v3")
-        >>> # Returns: {"d_model": 384, "encoder_layers": 2, ...}
-        >>>
-        >>> pretrain_cfg = extract_keys(cfg, "pretrain_config")
-        >>> # Returns: {"epochs": 30, "batch_size": 32, ...}
+        ValueError: If the value cannot be converted.
     """
-    try:
-        section_data = cfg._extract_section(section)
-    except KeyError:
-        raise KeyError(f"Config section '{section}' not found in config file")
-    except ValueError as e:
-        raise ValueError(str(e))
-
-    # Mark entire section as accessed
-    cfg._mark_accessed(section, section_data)
-
-    # Return a plain dict copy (flattened at this level)
-    result = dict(section_data)
-
-    if is_main_process():
-        logger.debug(f"Extracted config section '{section}' with {len(result)} keys")
-    return result
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float, str)):
+        try:
+            return int(value)
+        except ValueError as error:
+            raise ValueError(f"{field_name} must be int-compatible") from error
+    raise ValueError(f"{field_name} must be int-compatible")
 
 
-def enforce_used_keys(cfg: TrackedConfig, used_paths: List[str] = None) -> None:
-    """
-    Validate that all config keys were accessed; raise if unused keys remain.
-
-    This is called at the end of run.py setup to catch typos or unused params.
-    Optionally accepts explicit paths to mark as used (for manual tracking).
+def as_float(value: object, field_name: str) -> float:
+    """Convert a config value to float.
 
     Args:
-        cfg: TrackedConfig instance from load_config()
-        used_paths: Optional list of additional paths to mark as used
+        value: Raw config value.
+        field_name: Field name used in error messages.
+
+    Returns:
+        Parsed floating-point value.
 
     Raises:
-        ValueError: If any config keys were never accessed, with list of unused keys
-
-    Example:
-        >>> cfg = load_config("configs/v3.yaml")
-        >>> # ... extract various sections ...
-        >>> enforce_used_keys(cfg)  # Raises if any keys unused
+        ValueError: If the value cannot be converted.
     """
-    # Mark any explicitly provided paths
-    if used_paths:
-        for path in used_paths:
-            cfg._accessed_paths.add(path)
+    if isinstance(value, bool):
+        return float(value)
+    if isinstance(value, (int, float, str)):
+        try:
+            return float(value)
+        except ValueError as error:
+            raise ValueError(f"{field_name} must be float-compatible") from error
+    raise ValueError(f"{field_name} must be float-compatible")
 
-    unused_keys = cfg.get_unused_keys()
 
-    if unused_keys:
-        # Format error message with all unused keys
-        error_msg = (
-            f"Found {len(unused_keys)} unused config key(s). "
-            f"These may be typos or unnecessary parameters:\n"
-        )
-        for key in unused_keys:
-            error_msg += f"  - {key}\n"
-        error_msg += (
-            "\nPlease remove unused keys or verify they are accessed correctly. "
-            "This strict validation prevents silent config typos."
-        )
+def as_bool(value: object, field_name: str) -> bool:
+    """Convert a config value to bool.
 
-        if is_main_process():
-            logger.error(error_msg)
-        raise ValueError(error_msg)
+    Args:
+        value: Raw config value.
+        field_name: Field name used in error messages.
 
-    if is_main_process():
-        logger.info("Config validation passed: all keys were accessed")
+    Returns:
+        Parsed boolean value.
+
+    Raises:
+        ValueError: If the value cannot be converted.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return bool(value)
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "on"}:
+            return True
+        if lowered in {"0", "false", "no", "off"}:
+            return False
+    raise ValueError(f"{field_name} must be bool-compatible")
+
+
+def as_str_list(value: object, field_name: str) -> list[str]:
+    """Convert a config value to list of strings.
+
+    Args:
+        value: Raw config value.
+        field_name: Field name used in error messages.
+
+    Returns:
+        List of string values.
+
+    Raises:
+        ValueError: If the value is not a sequence.
+    """
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        return [str(item) for item in value]
+    raise ValueError(f"{field_name} must be a sequence of strings")
+
+
+def load_config(config_path: str | Path) -> ConfigDict:
+    """Load YAML config into a dictionary.
+
+    Args:
+        config_path: Path to YAML configuration file.
+
+    Returns:
+        Parsed configuration mapping.
+
+    Raises:
+        ValueError: If the config root is not a mapping.
+    """
+    path = Path(config_path)
+    with path.open("r", encoding="utf-8") as handle:
+        raw = yaml.safe_load(handle)
+    if not isinstance(raw, dict):
+        raise ValueError("Config root must be a mapping")
+    return cast(ConfigDict, raw)
+
+
+def get_section(config: ConfigDict, section_name: str) -> ConfigDict:
+    """Return a required mapping section from the root config.
+
+    Args:
+        config: Root configuration mapping.
+        section_name: Required section key.
+
+    Returns:
+        Section mapping.
+
+    Raises:
+        ValueError: If the section is missing or not a mapping.
+    """
+    value = config.get(section_name)
+    if not isinstance(value, dict):
+        raise ValueError(f"Config section '{section_name}' must be a mapping")
+    return cast(ConfigDict, value)
+
+
+def extract_model_kwargs(config: ConfigDict) -> tuple[str, ConfigDict]:
+    """Extract model name and model kwargs from global config.
+
+    Args:
+        config: Root configuration mapping.
+
+    Returns:
+        Tuple of model name and model kwargs.
+
+    Raises:
+        ValueError: If the model name is invalid.
+    """
+    model_config = get_section(config, "model_config")
+    model_name = model_config.get("model")
+    if not isinstance(model_name, str) or not model_name:
+        raise ValueError("model_config.model must be a non-empty string")
+    kwargs = dict(model_config)
+    kwargs.pop("model", None)
+    return model_name.lower(), kwargs

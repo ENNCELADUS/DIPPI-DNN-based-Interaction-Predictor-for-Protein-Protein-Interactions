@@ -64,22 +64,18 @@
 | Finetune | 4,235 | 2,306 | 2,306 (100% of membrane) |
 | Test | 1,282 | 1,282 | **1,282 (identical)** |
 
-## Protein Embeddings
+## Protein Sequences
 
-### `TMP_embeddings.npz`
+### `all_proteins.fasta`
 
-ESM-3 embeddings for all unique proteins in the TMP dataset.
+FASTA format file containing all unique protein sequences in the TMP dataset.
 
 **File Structure:**
-- Format: NumPy compressed archive (`.npz`)
-- Keys:
-  - `ids`: 1D array of UniProt IDs (dtype: object)
-  - `embeddings`: 1D array of embedding arrays (dtype: object)
-    - Each element is a 2D array of shape `(sequence_length, 1536)`
-    - Sequence length varies per protein (max 2048 after truncation)
+- Format: Standard FASTA format
+- Header: `>UniProtID`
+- Sequence: One line per sequence (no line wrapping)
 
-**Generation:**
-- Model: `esm3_sm_open_v1` (ESM-3 small)
-- Embedding dimension: 1536
-- Max sequence length: 2048 (truncated if longer)
-- Generated via `scripts/embed.sh` → `src/embed/embed.py`
+**Content:**
+- Total proteins: 21,394 unique sequences
+- Corresponds to all proteins from `all_proteins.csv`
+- Generated via `convert_to_fasta.py`

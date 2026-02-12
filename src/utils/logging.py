@@ -1,66 +1,141 @@
-"""
-CSV logging utilities for DIPPI pipeline.
+"""Logging and artifact helper utilities."""
 
-Provides minimal helpers for appending metric rows to CSV files.
-No side effects: no logging setup, no prints, no global state.
-"""
+from __future__ import annotations
 
 import csv
+import logging
+from datetime import datetime
 from pathlib import Path
-from typing import Mapping, Optional, Sequence, Union
 
 
-def append_row(
-    csv_path: Union[str, Path],
-    row_dict: Mapping[str, object],
-    columns: Optional[Sequence[str]] = None,
-) -> None:
-    """
-    Append one row to a CSV at csv_path.
-
-    - Creates parent directories if needed.
-    - Writes header if file does not exist or is empty.
-    - Column order:
-        1) If columns is given, use it (missing keys become "", extra keys ignored).
-        2) Else if file has existing header, reuse that order.
-        3) Else use row_dict keys in insertion order (Python 3.7+).
+def generate_run_id(existing_value: object | None) -> str:
+    """Return explicit run ID or generate a timestamp-based one.
 
     Args:
-        csv_path: Path to CSV file (created if needed)
-        row_dict: Row data as {column_name: value}
-        columns: Optional explicit column order; if None, inferred from file or dict
+        existing_value: Optional configured run ID.
 
-    Raises:
-        OSError: If file cannot be read/written (permissions, disk full, etc.)
+    Returns:
+        Existing non-empty ID or generated timestamp ID.
     """
-    path = Path(csv_path)
+    if isinstance(existing_value, str) and existing_value.strip():
+        return existing_value.strip()
+    return datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    # Ensure parent directory exists
-    path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Detect if we need to write header
-    needs_header = (not path.exists()) or (path.stat().st_size == 0)
+def setup_stage_logger(name: str, log_file: Path) -> logging.Logger:
+    """Build a stage-specific logger with console and file handlers.
 
-    # Determine fieldnames (priority: explicit > existing > dict keys)
-    if columns is not None:
-        fieldnames = list(columns)
-    elif path.exists() and not needs_header:
-        # File exists with content: read existing header
-        with open(path, "r", newline="", encoding="utf-8") as f:
-            reader = csv.reader(f)
-            fieldnames = next(reader)  # First line is header
-    else:
-        # New file or empty: use dict keys
-        fieldnames = list(row_dict.keys())
+    Args:
+        name: Logger name.
+        log_file: Stage log file path.
 
-    # Append row to CSV
-    with open(path, "a", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+    Returns:
+        Configured logger instance.
+    """
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    resolved_log_file = str(log_file.resolve())
+    if logger.handlers:
+        has_expected_file_handler = any(
+            isinstance(handler, logging.FileHandler)
+            and str(Path(handler.baseFilename).resolve()) == resolved_log_file
+            for handler in logger.handlers
+        )
+        if has_expected_file_handler:
+            return logger
+        for handler in list(logger.handlers):
+            logger.removeHandler(handler)
+            handler.close()
+    formatter = logging.Formatter(
+        fmt="%(asctime)s %(levelname)s %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
+    file_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
+    logger.addHandler(file_handler)
+    return logger
 
-        # Write header if needed
-        if needs_header:
+
+def log_stage_event(logger: logging.Logger, event: str, **fields: object) -> None:
+    """Emit a structured stage event line.
+
+    Args:
+        logger: Destination logger.
+        event: Event name.
+        **fields: Optional key-value fields to append.
+    """
+    event_label = _format_label(event)
+    if not fields:
+        logger.info(event_label)
+        return
+    formatted_fields = " | ".join(
+        f"{_format_label(key)}: {_format_field_value(fields[key])}" for key in sorted(fields)
+    )
+    logger.info("%s | %s", event_label, formatted_fields)
+
+
+def _format_field_value(value: object) -> str:
+    """Format event field values in a stable human-readable form."""
+    if isinstance(value, float):
+        return f"{value:.4f}"
+    return str(value)
+
+
+def _format_label(token: str) -> str:
+    """Convert machine-style tokens to concise human-readable labels."""
+    acronyms = {"auc", "auprc", "csv", "ddp", "lr"}
+    words = token.replace("-", "_").split("_")
+    formatted_words = []
+    for word in words:
+        if not word:
+            continue
+        if word.lower() in acronyms:
+            formatted_words.append(word.upper())
+            continue
+        formatted_words.append(word.capitalize())
+    return " ".join(formatted_words)
+
+
+def prepare_stage_directories(model_name: str, stage: str, run_id: str) -> tuple[Path, Path]:
+    """Create and return log/model directories for a stage.
+
+    Args:
+        model_name: Model name (e.g. ``v3``).
+        stage: Stage name (train/evaluate).
+        run_id: Unique stage run ID.
+
+    Returns:
+        Tuple of ``(log_dir, model_dir)``.
+    """
+    log_dir = Path("logs") / model_name / stage / run_id
+    model_dir = Path("models") / model_name / stage / run_id
+    log_dir.mkdir(parents=True, exist_ok=True)
+    model_dir.mkdir(parents=True, exist_ok=True)
+    return log_dir, model_dir
+
+
+def append_csv_row(
+    csv_path: Path,
+    row: dict[str, float | int | str],
+    fieldnames: list[str] | None = None,
+) -> None:
+    """Append a row to a CSV file, creating headers when needed.
+
+    Args:
+        csv_path: CSV file path.
+        row: Row payload keyed by column names.
+        fieldnames: Optional explicit column order.
+    """
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    row_keys = fieldnames if fieldnames is not None else list(row.keys())
+    write_header = not csv_path.exists()
+    with csv_path.open("a", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=row_keys)
+        if write_header:
             writer.writeheader()
-
-        # Normalize row: missing keys become ""
-        normalized = {name: row_dict.get(name, "") for name in fieldnames}
-        writer.writerow(normalized)
+        writer.writerow(row)

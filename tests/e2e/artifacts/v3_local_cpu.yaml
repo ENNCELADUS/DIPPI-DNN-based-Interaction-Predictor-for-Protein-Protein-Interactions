@@ -1,0 +1,87 @@
+run_config:
+  mode: "full_pipeline"
+  seed: 47
+  train_run_id: "local_cpu_e2e_train"
+  eval_run_id: "local_cpu_e2e_eval"
+  load_checkpoint_path: null
+  save_best_only: true
+
+device_config:
+  device: "cpu"
+  ddp_enabled: false
+  use_mixed_precision: false
+
+data_config:
+  benchmark:
+    name: "PRING"
+    root_dir: "data/PRING"
+    species: "human"
+    split_strategy: "BFS"
+    processed_dir: "data/PRING/species_processed_data/human/BFS"
+  embeddings:
+    source: "esm3"
+    cache_dir: "data/embeddings/esm3"
+  max_sequence_length: 8
+  dataloader:
+    train_dataset: "data/PRING/species_processed_data/human/BFS/human_train_ppi.txt"
+    valid_dataset: "data/PRING/species_processed_data/human/BFS/human_val_ppi.txt"
+    test_dataset: "data/PRING/species_processed_data/human/BFS/human_test_ppi.txt"
+    num_workers: 0
+    pin_memory: false
+    drop_last: false
+    sampling:
+      strategy: "none"
+
+model_config:
+  model: "v3"
+  input_dim: 1536
+  d_model: 32
+  encoder_layers: 1
+  cross_attn_layers: 1
+  n_heads: 4
+  mlp_head:
+    hidden_dims: [16, 8]
+    dropout: 0.10
+    activation: "gelu"
+    norm: "layernorm"
+  regularization:
+    dropout: 0.10
+    token_dropout: 0.05
+    cross_attention_dropout: 0.10
+    stochastic_depth: 0.00
+
+training_config:
+  epochs: 1
+  batch_size: 4
+  early_stopping_patience: 1
+  monitor_metric: "auprc"
+  logging:
+    validation_metrics: ["auprc", "auroc"]
+    heartbeat_every_n_steps: 2
+  optimizer:
+    type: "adamw"
+    lr: 0.0001
+    beta1: 0.9
+    beta2: 0.999
+    eps: 1.0e-8
+    weight_decay: 0.01
+  scheduler:
+    type: "none"
+  loss:
+    type: "bce_with_logits"
+    pos_weight: 1.0
+    label_smoothing: 0.0
+  strategy:
+    type: "none"
+
+evaluate:
+  metrics:
+    - "auroc"
+    - "auprc"
+    - "accuracy"
+    - "sensitivity"
+    - "specificity"
+    - "precision"
+    - "recall"
+    - "f1"
+    - "mcc"

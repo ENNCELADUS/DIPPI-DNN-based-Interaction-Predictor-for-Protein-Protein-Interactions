@@ -1,280 +1,197 @@
-"""
-Generic Evaluator for DIPPI pipeline.
+"""Generic evaluator for validation and test stages."""
 
-This module provides a single Evaluator class that handles:
-- Single pass over a dataloader
-- Loss accumulation
-- Metric computation (AUROC, accuracy, precision, recall, F1, MCC, etc.)
+from __future__ import annotations
 
-It does NOT handle:
-- Model state management (model.eval() / torch.no_grad() owned by orchestrator)
-- Logging, checkpointing, or file I/O
-- Config parsing or device setup
-- Early stopping or loop control
-
-Design follows patterns from docs/evaluator.md.
-"""
-
-import logging
-from typing import Any, Dict, List, Optional
+import math
 
 import torch
-import torch.nn as nn
-from torchmetrics.classification import (
-    BinaryAccuracy,
-    BinaryAUROC,
-    BinaryAveragePrecision,
-    BinaryF1Score,
-    BinaryMatthewsCorrCoef,
-    BinaryPrecision,
-    BinaryRecall,
-    BinarySpecificity,
+from sklearn.metrics import (
+    accuracy_score,
+    average_precision_score,
+    confusion_matrix,
+    f1_score,
+    matthews_corrcoef,
+    precision_score,
+    recall_score,
+    roc_auc_score,
 )
+from torch import nn
+from torch.utils.data import DataLoader
 
-# Number of bins used for AUROC/AUPRC when no explicit config is provided.
-# Using thresholds bounds memory so evaluation on large splits does not OOM.
-DEFAULT_CURVE_THRESHOLDS = 512
+from src.utils.losses import LossConfig, binary_classification_loss
+
+
+def _safe_float(value: float) -> float:
+    """Convert metric value to a finite float.
+
+    Args:
+        value: Candidate numeric metric value.
+
+    Returns:
+        Original value if finite, otherwise ``0.0``.
+    """
+    if math.isnan(value) or math.isinf(value):
+        return 0.0
+    return float(value)
 
 
 class Evaluator:
+    """Metric computation for a single data loader pass.
+
+    Args:
+        metrics: Metric names to compute.
+        loss_config: Loss hyperparameters for consistent loss reporting.
     """
-    Generic evaluator for binary classification tasks.
 
-    Orchestrator (run.py) must wrap calls in model.eval() and torch.no_grad().
-    Evaluator only performs computation and returns a flat metrics dict.
-    """
+    def __init__(self, metrics: list[str], loss_config: LossConfig) -> None:
+        self.metrics = [metric.lower() for metric in metrics]
+        self.loss_config = loss_config
 
-    DEFAULT_CURVE_THRESHOLDS = DEFAULT_CURVE_THRESHOLDS
-
-    def __init__(
-        self,
-        metrics_list: List[str],
-        threshold: float = 0.5,
-        curve_thresholds: Optional[int] = DEFAULT_CURVE_THRESHOLDS,
-    ):
-        """
-        Initialize evaluator.
+    @staticmethod
+    def _forward_model(model: nn.Module, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+        """Execute model forward and validate output contract.
 
         Args:
-            metrics_list: List of metric names to compute, e.g.,
-                ["loss", "auroc", "accuracy", "precision", "recall", "f1",
-                 "sensitivity", "specificity", "mcc"]
-            threshold: Decision boundary for hard predictions (default 0.5).
-                Only affects accuracy/precision/recall/F1/sensitivity/specificity.
-                AUROC/AUPRC ignore this threshold.
-            curve_thresholds: Number of thresholds to use when computing AUROC/AUPRC.
-                Setting this bounds memory (O(num_thresholds) instead of O(num_samples)).
-                Set to None to fall back to exact accumulation (higher memory).
+            model: Model to evaluate.
+            batch: Model input batch on target device.
+
+        Returns:
+            Model output dictionary.
+
+        Raises:
+            ValueError: If model output is not a dictionary.
         """
-        self.metrics_list = metrics_list
-        self.threshold = threshold
+        try:
+            output = model(**batch)
+        except TypeError:
+            output = model(batch=batch)
+        if not isinstance(output, dict):
+            raise ValueError("Model forward output must be a dictionary")
+        return output
 
-        if curve_thresholds is not None:
-            if curve_thresholds < 2:
-                raise ValueError("curve_thresholds must be >= 2 when provided")
-            self.curve_thresholds: Optional[int] = int(curve_thresholds)
-        else:
-            self.curve_thresholds = None
+    @staticmethod
+    def _binary_stats(labels: torch.Tensor, predictions: torch.Tensor) -> tuple[float, float]:
+        """Compute sensitivity and specificity.
 
-        # Map metric names to torchmetrics classes and whether they support binned curves
-        # Note: sensitivity is an alias for recall
-        metric_map = {
-            "auroc": (
-                BinaryAUROC,
-                False,
-                True,
-            ),  # (class, needs_threshold, supports_curve_bins)
-            "auprc": (
-                BinaryAveragePrecision,
-                False,
-                True,
-            ),  # Area under precision-recall curve
-            "accuracy": (BinaryAccuracy, True, False),
-            "precision": (BinaryPrecision, True, False),
-            "recall": (BinaryRecall, True, False),
-            "sensitivity": (BinaryRecall, True, False),  # Alias
-            "f1": (BinaryF1Score, True, False),
-            "specificity": (BinarySpecificity, True, False),
-            "mcc": (BinaryMatthewsCorrCoef, True, False),
-        }
+        Args:
+            labels: Ground-truth binary labels.
+            predictions: Predicted binary labels.
 
-        # Instantiate only the requested metrics
-        self.metrics: Dict[str, Any] = {}
-        for metric_name in metrics_list:
-            if metric_name == "loss":
-                continue  # Loss is computed manually
-            if metric_name not in metric_map:
-                raise ValueError(f"Unsupported metric: {metric_name}")
+        Returns:
+            Tuple of ``(sensitivity, specificity)``.
+        """
+        matrix = confusion_matrix(
+            labels.cpu().numpy(),
+            predictions.cpu().numpy(),
+            labels=[0, 1],
+        )
+        tn, fp, fn, tp = matrix.ravel()
+        sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        specificity = tn / (tn + fp) if (tn + fp) > 0 else 0.0
+        return sensitivity, specificity
 
-            metric_class, needs_threshold, supports_bins = metric_map[metric_name]
-            metric_kwargs: Dict[str, Any] = {}
-            if needs_threshold:
-                metric_kwargs["threshold"] = threshold
-            if supports_bins and self.curve_thresholds:
-                metric_kwargs["thresholds"] = self.curve_thresholds
+    def _compute_metrics(
+        self,
+        labels: torch.Tensor,
+        probabilities: torch.Tensor,
+    ) -> dict[str, float]:
+        """Compute configured metrics for binary classification.
 
-            # Older torchmetrics versions may not accept thresholds; fall back gracefully
-            try:
-                self.metrics[metric_name] = metric_class(**metric_kwargs)
-            except TypeError as exc:
-                if "thresholds" in metric_kwargs:
-                    metric_kwargs.pop("thresholds", None)
-                    logging.warning(
-                        "Metric %s does not support 'thresholds' on this torchmetrics "
-                        "version; falling back to exact accumulation (higher memory). "
-                        "Error: %s",
-                        metric_name,
-                        exc,
-                    )
-                    self.metrics[metric_name] = metric_class(**metric_kwargs)
+        Args:
+            labels: Ground-truth binary labels.
+            probabilities: Predicted probabilities in ``[0, 1]``.
+
+        Returns:
+            Metric dictionary without split prefix.
+        """
+        results: dict[str, float] = {}
+        has_both_classes = torch.unique(labels).numel() > 1
+        predictions = (probabilities >= 0.5).long()
+        label_array = labels.cpu().numpy()
+        prob_array = probabilities.cpu().numpy()
+        pred_array = predictions.cpu().numpy()
+
+        for metric in self.metrics:
+            if metric == "auroc":
+                if not has_both_classes:
+                    results[metric] = 0.0
                 else:
-                    raise
+                    results[metric] = _safe_float(roc_auc_score(label_array, prob_array))
+            elif metric == "auprc":
+                if not has_both_classes:
+                    results[metric] = 0.0
+                else:
+                    results[metric] = _safe_float(average_precision_score(label_array, prob_array))
+            elif metric == "accuracy":
+                results[metric] = _safe_float(accuracy_score(label_array, pred_array))
+            elif metric == "sensitivity":
+                sensitivity, _ = self._binary_stats(labels=labels, predictions=predictions)
+                results[metric] = _safe_float(sensitivity)
+            elif metric == "specificity":
+                _, specificity = self._binary_stats(labels=labels, predictions=predictions)
+                results[metric] = _safe_float(specificity)
+            elif metric == "precision":
+                results[metric] = _safe_float(
+                    precision_score(label_array, pred_array, zero_division=0)
+                )
+            elif metric == "recall":
+                results[metric] = _safe_float(
+                    recall_score(label_array, pred_array, zero_division=0)
+                )
+            elif metric == "f1":
+                results[metric] = _safe_float(f1_score(label_array, pred_array, zero_division=0))
+            elif metric == "mcc":
+                results[metric] = _safe_float(matthews_corrcoef(label_array, pred_array))
+        return results
 
     def evaluate(
         self,
         model: nn.Module,
-        loader: torch.utils.data.DataLoader,
+        data_loader: DataLoader[dict[str, torch.Tensor]],
         device: torch.device,
-    ) -> Dict[str, float]:
-        """
-        Run a single evaluation pass over the dataloader, yielding per-batch progress.
+        prefix: str | None = "val",
+    ) -> dict[str, float]:
+        """Evaluate metrics on a loader.
 
-        Orchestrator must ensure model.eval() and torch.no_grad() are active.
+        The caller controls ``model.eval()`` and ``torch.no_grad()`` context.
 
         Args:
-            model: The model to evaluate (already in eval mode).
-            loader: DataLoader yielding batches.
-            device: Device to run on (cuda/cpu).
-        Yields:
-            Per-batch dict with keys: batch_idx, batch_size, loss
-            Final dict with aggregated metrics and _evaluation_end=True
+            model: Model to evaluate.
+            data_loader: Data loader for the split.
+            device: Device where evaluation runs.
+            prefix: Optional metric name prefix for output keys.
 
         Returns:
-            Flat dict of metric name -> value, e.g.,
-            {"loss": 0.345, "auroc": 0.876, "accuracy": 0.812, ...}
-            Only metrics in self.metrics_list are included (plus "loss" if available).
+            Metric dictionary with prefixed names.
         """
-        # Reset and move all metrics to target device
-        for metric in self.metrics.values():
-            metric.to(device)
-            metric.reset()
+        all_probs: list[torch.Tensor] = []
+        all_labels: list[torch.Tensor] = []
+        total_loss = 0.0
+        batch_count = 0
 
-        # Loss accumulation
-        loss_sum = 0.0
-        n_total = 0
-        threshold = self.threshold
-
-        for batch_idx, batch in enumerate(loader):
-            # Move batch tensors to device
-            batch = self._move_batch_to_device(batch, device)
-
-            # Extract labels before model forward
-            labels = batch["label"]
-
-            # Forward pass (model returns dict with "logits", may include "loss")
-            # Don't pass labels to model - it only needs inputs
-            model_inputs = {k: v for k, v in batch.items() if k != "label"}
-            out = model(model_inputs)
-
-            # Extract outputs
-            logits = out["logits"]
-
-            batch_size = labels.size(0)
-
-            # Compute loss if not provided by model
-            if "loss" in out:
-                loss = out["loss"]
-            else:
-                # Compute BCE loss for binary classification
-                logits_for_loss = self._normalize_logits(logits)
-                # Normalize labels shape to match logits: (N, 1) → (N,)
-                labels_for_loss = (
-                    labels.squeeze(-1)
-                    if labels.dim() > 1 and labels.size(-1) == 1
-                    else labels
-                )
-                loss = nn.functional.binary_cross_entropy_with_logits(
-                    logits_for_loss, labels_for_loss.float()
-                )
-
-            # Accumulate loss
-            batch_loss = loss.item()
-            loss_sum += batch_loss * batch_size
-            n_total += batch_size
-
-            # Normalize logits shape: handle (N, 1) or (N, 2) → (N,)
-            logits = self._normalize_logits(logits)
-            # Convert logits to probabilities for metrics
-            probs = torch.sigmoid(logits)
-
-            # Normalize labels shape for metrics: (N, 1) → (N,)
-            labels_for_metrics = (
-                labels.squeeze(-1)
-                if labels.dim() > 1 and labels.size(-1) == 1
-                else labels
+        for batch in data_loader:
+            batch_count += 1
+            prepared_batch = {key: value.to(device) for key, value in batch.items()}
+            output = self._forward_model(model=model, batch=prepared_batch)
+            logits = output["logits"]
+            labels = prepared_batch["label"].float()
+            loss = binary_classification_loss(
+                logits=logits,
+                labels=labels,
+                loss_config=self.loss_config,
+                reduction="mean",
             )
-            labels_for_metrics = labels_for_metrics.long()
+            total_loss += float(loss.detach().item())
+            reduced_logits = (
+                logits.squeeze(-1) if logits.dim() > 1 and logits.size(-1) == 1 else logits
+            )
+            all_probs.append(torch.sigmoid(reduced_logits).detach().cpu())
+            all_labels.append(labels.detach().cpu())
 
-            # Update all metrics using device-native tensors
-            for metric_name, metric in self.metrics.items():
-                if metric_name in ["auroc", "auprc"]:
-                    # AUROC and AUPRC use probabilities with integer labels
-                    metric.update(probs, labels_for_metrics)
-                else:
-                    # Other metrics use binary predictions
-                    preds = (probs > threshold).long()
-                    metric.update(preds, labels_for_metrics)
-
-            # Yield per-batch metrics for pipeline logging
-            yield {
-                "batch_idx": batch_idx,
-                "batch_size": batch_size,
-                "loss": batch_loss,
-            }
-
-        # Compute final results
-        results: Dict[str, float] = {}
-
-        # Add loss
-        if "loss" in self.metrics_list:
-            results["loss"] = loss_sum / n_total if n_total > 0 else 0.0
-
-        # Compute and add all other metrics
-        for metric_name, metric in self.metrics.items():
-            results[metric_name] = metric.compute().detach().cpu().item()
-
-        # Clear metric state to release memory before the next split/run
-        for metric in self.metrics.values():
-            metric.reset()
-
-        # Yield final aggregated metrics with sentinel
-        results["_evaluation_end"] = True
-        yield results
-        return results
-
-    def _move_batch_to_device(
-        self, batch: Dict[str, Any], device: torch.device
-    ) -> Dict[str, Any]:
-        """Move tensor values in batch dict to device."""
-        return {
-            k: v.to(device) if isinstance(v, torch.Tensor) else v
-            for k, v in batch.items()
-        }
-
-    def _normalize_logits(self, logits: torch.Tensor) -> torch.Tensor:
-        """
-        Normalize logits to shape (N,) for binary classification.
-
-        Handles:
-        - (N, 2): extract positive class logit [:, 1]
-        - (N, 1): squeeze to (N,)
-        - (N,): already correct
-        """
-        if logits.dim() == 2:
-            if logits.size(1) == 2:
-                # Two-class logits: take positive class
-                return logits[:, 1]
-            elif logits.size(1) == 1:
-                # Single logit: squeeze
-                return logits.squeeze(-1)
-        return logits
+        probs_tensor = torch.cat(all_probs, dim=0)
+        labels_tensor = torch.cat(all_labels, dim=0).long()
+        metric_values = self._compute_metrics(labels=labels_tensor, probabilities=probs_tensor)
+        metric_values["loss"] = total_loss / max(1, batch_count)
+        if prefix is None:
+            return metric_values
+        return {f"{prefix}_{key}": value for key, value in metric_values.items()}

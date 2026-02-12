@@ -1,0 +1,199 @@
+"""Integration tests for runtime logging and artifact schema contracts."""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+import pytest
+import src.run as run_module
+import torch
+from src.utils.config import ConfigDict
+from src.utils.distributed import DistributedContext
+from torch import nn
+from torch.utils.data import DataLoader, Dataset
+
+
+class _TinyPairDataset(Dataset[dict[str, torch.Tensor]]):
+    """Small deterministic dataset for train/valid/test loops."""
+
+    def __init__(self) -> None:
+        self._features = torch.tensor(
+            [
+                [0.2, 0.4, 0.8, 0.1],
+                [0.6, 0.1, 0.3, 0.9],
+                [0.7, 0.9, 0.2, 0.5],
+                [0.1, 0.3, 0.6, 0.7],
+            ],
+            dtype=torch.float32,
+        )
+        self._labels = torch.tensor([0.0, 1.0, 1.0, 0.0], dtype=torch.float32)
+
+    def __len__(self) -> int:
+        return int(self._features.size(0))
+
+    def __getitem__(self, index: int) -> dict[str, torch.Tensor]:
+        return {"x": self._features[index], "label": self._labels[index]}
+
+
+def _collate(batch: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
+    return {
+        "x": torch.stack([item["x"] for item in batch], dim=0),
+        "label": torch.stack([item["label"] for item in batch], dim=0),
+    }
+
+
+class _TinyModel(nn.Module):
+    """Minimal model compatible with trainer/evaluator output contract."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.linear = nn.Linear(4, 1)
+
+    def forward(self, x: torch.Tensor, label: torch.Tensor) -> dict[str, torch.Tensor]:
+        del label
+        return {"logits": self.linear(x)}
+
+
+def _base_config(mode: str = "full_pipeline") -> ConfigDict:
+    """Create a minimal valid config for pipeline stage artifact tests."""
+    return {
+        "run_config": {
+            "mode": mode,
+            "seed": 7,
+            "train_run_id": "train_case",
+            "eval_run_id": "eval_case",
+            "load_checkpoint_path": None,
+            "save_best_only": True,
+        },
+        "device_config": {
+            "device": "cpu",
+            "ddp_enabled": False,
+            "use_mixed_precision": False,
+        },
+        "data_config": {
+            "dataloader": {
+                "sampling": {"strategy": "none"},
+            },
+        },
+        "model_config": {"model": "v3"},
+        "training_config": {
+            "epochs": 1,
+            "early_stopping_patience": 2,
+            "monitor_metric": "auprc",
+            "logging": {
+                "validation_metrics": ["auprc", "auroc"],
+                "heartbeat_every_n_steps": 2,
+            },
+            "optimizer": {"type": "adamw", "lr": 1e-2},
+            "scheduler": {"type": "none"},
+            "loss": {"type": "bce_with_logits", "pos_weight": 1.0, "label_smoothing": 0.0},
+            "strategy": {"type": "none"},
+        },
+        "evaluate": {"metrics": ["auprc", "auroc"]},
+    }
+
+
+def _fake_dataloaders() -> dict[str, DataLoader[dict[str, torch.Tensor]]]:
+    dataset = _TinyPairDataset()
+    loader = DataLoader(dataset, batch_size=2, shuffle=False, collate_fn=_collate)
+    return {"train": loader, "valid": loader, "test": loader}
+
+
+def test_execute_pipeline_writes_stage_logs_and_strict_csv_headers(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    def fake_build_dataloaders(
+        config: ConfigDict,
+        distributed: bool = False,
+        rank: int = 0,
+        world_size: int = 1,
+    ) -> dict[str, DataLoader[dict[str, torch.Tensor]]]:
+        del config, distributed, rank, world_size
+        return _fake_dataloaders()
+
+    def fake_build_model(config: ConfigDict) -> nn.Module:
+        del config
+        return _TinyModel()
+
+    def fake_initialize_distributed(ddp_enabled: bool) -> DistributedContext:
+        del ddp_enabled
+        return DistributedContext(ddp_enabled=False, is_distributed=False)
+
+    def fake_cleanup_distributed(context: DistributedContext) -> None:
+        del context
+
+    def fake_resolve_device(device_name: str) -> torch.device:
+        del device_name
+        return torch.device("cpu")
+
+    monkeypatch.setattr(run_module, "build_dataloaders", fake_build_dataloaders)
+    monkeypatch.setattr(run_module, "build_model", fake_build_model)
+    monkeypatch.setattr(run_module, "initialize_distributed", fake_initialize_distributed)
+    monkeypatch.setattr(run_module, "cleanup_distributed", fake_cleanup_distributed)
+    monkeypatch.setattr(run_module, "resolve_device", fake_resolve_device)
+
+    run_module.execute_pipeline(_base_config(mode="full_pipeline"))
+
+    train_log = tmp_path / "logs" / "v3" / "train" / "train_case" / "log.log"
+    eval_log = tmp_path / "logs" / "v3" / "evaluate" / "eval_case" / "log.log"
+    assert train_log.exists()
+    assert eval_log.exists()
+
+    train_text = train_log.read_text(encoding="utf-8")
+    eval_text = eval_log.read_text(encoding="utf-8")
+    assert "Stage Start" in train_text
+    assert "Epoch Start" in train_text
+    assert "Epoch Done" in train_text
+    assert "Stage Done" in train_text
+    assert "Epoch 1 | Step 1/2" in train_text
+    assert "Evaluation Metrics" in eval_text
+    assert "CSV Written" in eval_text
+
+    training_csv = tmp_path / "logs" / "v3" / "train" / "train_case" / "training_step.csv"
+    evaluate_csv = tmp_path / "logs" / "v3" / "evaluate" / "eval_case" / "evaluate.csv"
+    assert training_csv.exists()
+    assert evaluate_csv.exists()
+
+    train_header = training_csv.read_text(encoding="utf-8").splitlines()[0]
+    eval_header = evaluate_csv.read_text(encoding="utf-8").splitlines()[0]
+    assert train_header == "Epoch,Epoch Time,Train Loss,Val Loss,Val auprc,Val auroc,Learning Rate"
+    assert eval_header == (
+        "split,auroc,auprc,accuracy,sensitivity,specificity,precision,recall,f1,mcc"
+    )
+
+
+def test_non_main_process_does_not_write_stage_artifacts(tmp_path: Path) -> None:
+    previous_cwd = Path.cwd()
+    try:
+        os.chdir(tmp_path)
+        config = _base_config(mode="train_only")
+        dataloaders = _fake_dataloaders()
+        model = _TinyModel()
+        distributed_context = DistributedContext(
+            ddp_enabled=True,
+            is_distributed=False,
+            rank=1,
+            local_rank=1,
+            world_size=2,
+        )
+        best_checkpoint = run_module.run_training_stage(
+            stage="train",
+            config=config,
+            model=model,
+            device=torch.device("cpu"),
+            dataloaders=dataloaders,
+            run_id="rank1_case",
+            distributed_context=distributed_context,
+        )
+    finally:
+        os.chdir(previous_cwd)
+
+    log_dir = tmp_path / "logs" / "v3" / "train" / "rank1_case"
+    assert log_dir.exists()
+    assert not (log_dir / "log.log").exists()
+    assert not (log_dir / "training_step.csv").exists()
+    assert not best_checkpoint.exists()

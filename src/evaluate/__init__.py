@@ -1,5 +1,5 @@
-"""Evaluation module for DIPPI pipeline."""
+"""Evaluation exports."""
 
-from .base import Evaluator
+from src.evaluate.base import Evaluator
 
 __all__ = ["Evaluator"]

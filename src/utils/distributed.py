@@ -1,144 +1,101 @@
-"""
-Minimal DDP init/teardown for torchrun (MVP).
+"""Distributed helpers for DDP-capable orchestration."""
 
-Provides pure bootstrap/cleanup for torch.distributed; no logging, no
-checkpointing, no early stopping. The orchestrator (run.py) owns DDP
-wrapping, model placement, data sampler creation, and all training/eval logic.
+from __future__ import annotations
 
-References:
-- https://docs.pytorch.org/tutorials/beginner/ddp_series_multigpu.html
-- https://docs.pytorch.org/tutorials/intermediate/ddp_tutorial.html
-- https://docs.pytorch.org/docs/stable/elastic/run.html (torchrun)
-- https://docs.pytorch.org/docs/stable/distributed.html
-- https://docs.pytorch.org/docs/stable/notes/ddp.html
-
-Typical usage in run.py:
-    from src.utils.device import get_device
-    from src.utils.distributed import init_if_enabled, is_main_process, cleanup
-
-    device = get_device(cfg["device"])
-    ddp_on = init_if_enabled(cfg["ddp"], device)
-    # ... build model, move to device
-    if ddp_on:
-        model = DDP(model, device_ids=[device.index] if device.type=="cuda" else None)
-    # ... training/eval loops
-    cleanup()
-"""
-
+import logging
 import os
-from datetime import timedelta
+from dataclasses import dataclass
 
 import torch
 import torch.distributed as dist
 
+LOGGER = logging.getLogger(__name__)
 
-def init_if_enabled(
-    ddp_cfg: dict,
-    device: torch.device,
-) -> bool:
+
+@dataclass(frozen=True)
+class DistributedContext:
+    """Process metadata for distributed execution.
+
+    Attributes:
+        ddp_enabled: Whether DDP was requested in config.
+        is_distributed: Whether process-group is initialized.
+        rank: Global process rank.
+        local_rank: Local process rank on node.
+        world_size: Number of processes in the job.
     """
-    Initialize torch.distributed process group if enabled.
+
+    ddp_enabled: bool
+    is_distributed: bool
+    rank: int = 0
+    local_rank: int = 0
+    world_size: int = 1
+
+    @property
+    def is_main_process(self) -> bool:
+        """Return whether this process is the main rank."""
+        return self.rank == 0
+
+
+def initialize_distributed(ddp_enabled: bool) -> DistributedContext:
+    """Initialize distributed context and return process metadata.
 
     Args:
-        ddp_cfg: dict with keys:
-            - "enabled": bool
-            - "backend": "nccl" | "gloo" | "mpi" | None (auto-selected)
-            - "timeout_sec": int (default 1800)
-        device: torch.device (used to auto-select backend if not specified)
-
-    Returns:
-        True if DDP was initialized in this process, False otherwise.
-
-    Environment variables (set by torchrun):
-        - RANK: global rank
-        - LOCAL_RANK: local rank (GPU index on this node)
-        - WORLD_SIZE: total number of processes
-
-    Note:
-        If device is CUDA, torch.cuda.set_device(LOCAL_RANK) should already
-        have been called by get_device() for proper DDP operation.
+        ddp_enabled: Whether distributed mode is enabled in config.
     """
-    if not ddp_cfg.get("enabled", False):
-        return False
+    if not ddp_enabled:
+        return DistributedContext(ddp_enabled=False, is_distributed=False)
 
-    # Verify torchrun envs exist
-    if "RANK" not in os.environ or "WORLD_SIZE" not in os.environ:
-        raise RuntimeError(
-            "DDP enabled but RANK/WORLD_SIZE not set. "
-            "Did you launch with torchrun? "
-            "Example: torchrun --nproc_per_node=2 src/run.py --config configs/v3.yaml"
-        )
+    world_size = int(os.environ.get("WORLD_SIZE", "1"))
+    rank = int(os.environ.get("RANK", "0"))
+    local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+    if world_size <= 1:
+        LOGGER.warning("DDP enabled but WORLD_SIZE<=1; running single-process mode.")
+        return DistributedContext(ddp_enabled=True, is_distributed=False)
 
-    # Select backend
-    backend = ddp_cfg.get("backend")
-    if backend is None:
-        # Auto-select: nccl for CUDA, gloo for CPU/MPS
-        backend = "nccl" if device.type == "cuda" else "gloo"
-
-    # Timeout
-    timeout_sec = ddp_cfg.get("timeout_sec", 1800)
-    timeout = timedelta(seconds=timeout_sec)
-
-    # Initialize process group
-    # init_method="env://" reads RANK, WORLD_SIZE, MASTER_ADDR, MASTER_PORT from env
+    backend = "nccl" if torch.cuda.is_available() else "gloo"
+    if backend == "nccl":
+        torch.cuda.set_device(local_rank)
     dist.init_process_group(
         backend=backend,
         init_method="env://",
-        timeout=timeout,
+        world_size=world_size,
+        rank=rank,
+    )
+    LOGGER.info(
+        "Initialized distributed process group (backend=%s rank=%d local_rank=%d world_size=%d).",
+        backend,
+        rank,
+        local_rank,
+        world_size,
+    )
+    return DistributedContext(
+        ddp_enabled=True,
+        is_distributed=True,
+        rank=rank,
+        local_rank=local_rank,
+        world_size=world_size,
     )
 
-    return True
 
+def distributed_barrier(context: DistributedContext) -> None:
+    """Synchronize processes when distributed mode is active.
 
-def is_main_process() -> bool:
+    Args:
+        context: Distributed process metadata.
     """
-    Check if current process is main (rank 0).
-
-    Returns True when distributed is not initialized (treat single-process as main).
-    """
-    if not dist.is_available() or not dist.is_initialized():
-        return True
-    return dist.get_rank() == 0
-
-
-def get_rank() -> int:
-    """
-    Get global rank of current process.
-
-    Returns 0 when distributed is not initialized (single-process mode).
-    """
-    if not dist.is_available() or not dist.is_initialized():
-        return 0
-    return dist.get_rank()
-
-
-def get_world_size() -> int:
-    """
-    Get total number of processes.
-
-    Returns 1 when distributed is not initialized (single-process mode).
-    """
-    if not dist.is_available() or not dist.is_initialized():
-        return 1
-    return dist.get_world_size()
-
-
-def barrier() -> None:
-    """
-    Synchronize all processes.
-
-    No-op when distributed is not initialized.
-    """
-    if dist.is_available() and dist.is_initialized():
+    if context.is_distributed and dist.is_initialized():
+        backend = dist.get_backend()
+        if backend == "nccl" and torch.cuda.is_available():
+            dist.barrier(device_ids=[context.local_rank])
+            return
         dist.barrier()
 
 
-def cleanup() -> None:
-    """
-    Destroy process group.
+def cleanup_distributed(context: DistributedContext) -> None:
+    """Tear down distributed process group if initialized.
 
-    Call once at end of main() to properly tear down distributed state.
-    No-op when distributed is not initialized.
+    Args:
+        context: Distributed process metadata.
     """
-    if dist.is_available() and dist.is_initialized():
+    if context.is_distributed and dist.is_initialized():
         dist.destroy_process_group()

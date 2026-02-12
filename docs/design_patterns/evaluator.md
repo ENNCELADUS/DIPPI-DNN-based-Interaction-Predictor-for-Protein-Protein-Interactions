@@ -6,13 +6,14 @@ The **Evaluator** module (`src/evaluate/base.py`) is responsible for assessing m
 
 **Does:**
 *   **Metric Calculation**: Computes performance metrics (e.g., AUROC, Accuracy, F1) based on model outputs.
+*   **Centralized Loss Reporting**: Computes loss with `training_config.loss` via `LossConfig` so train/val/test loss paths share the same objective configuration.
 *   **Inference Pass**: Runs a single pass over a data loader to collect logits/probabilities and labels.
 *   **Stateless Reporting**: Returns a simple dictionary of results (e.g., `{"val_loss": 0.5, "val_auroc": 0.85}`).
 
 **Does NOT:**
 *   **State Management**: It does *not* change the model's training mode. The orchestrator is responsible for setting `model.eval()` and `torch.no_grad()`.
 *   **Logging/I/O**: It does *not* write to files or logs. It simply returns data to the orchestrator.
-*   **Configuration**: It does *not* parse the global config. It receives a specific list of metrics to compute.
+*   **Global Configuration Parsing**: It does *not* parse the full run config; the orchestrator injects selected metric names and loss config.
 
 ## Configuration Schema
 
@@ -46,8 +47,8 @@ with torch.no_grad():
     # Evaluator performs the pass and computes metrics
     results = evaluator.evaluate(model, val_loader, device)
 
-# Orchestrator handles logging
-logger.log_metrics(results)
+# Orchestrator handles logging and CSV I/O
+append_csv_row(...)
 ```
 
 ### 2. Standalone Evaluation (Eval Only Mode)
@@ -65,5 +66,11 @@ The Evaluator returns a dictionary mapping metric names to values. The orchestra
 
 *   **Console/Log**: `INFO | Validation metrics: val_auroc=0.842, val_recall=0.877`
 *   **CSV**:
-    *   `training_step.csv`: Appends validation metrics alongside training loss.
-    *   `evaluate.csv`: Stores the final evaluation results.
+    *   `training_step.csv`: Appends `Val {Metric}` columns using `training_config.logging.validation_metrics` order.
+    *   `evaluate.csv`: Stores final metrics in strict order: `split,auroc,auprc,accuracy,sensitivity,specificity,precision,recall,f1,mcc`.
+
+## DDP and Prefix Behavior
+
+*   Evaluation may run under DDP orchestration, but rank 0 is responsible for persisted artifacts/logging.
+*   Validation keys are prefixed by the orchestrator (`val_*`) when `prefix="val"`.
+*   Final evaluation CSV values are persisted without `test_` prefixes.

@@ -1,0 +1,96 @@
+run_config:
+  mode: "full_pipeline"
+  seed: 47
+  train_run_id: "hpc_e2e_train"
+  eval_run_id: "hpc_e2e_eval"
+  load_checkpoint_path: null
+  save_best_only: true
+
+device_config:
+  device: "cuda"
+  ddp_enabled: true
+  use_mixed_precision: true
+
+data_config:
+  benchmark:
+    name: "PRING"
+    root_dir: "data/PRING"
+    species: "human"
+    split_strategy: "BFS"
+    processed_dir: "data/PRING/species_processed_data/human/BFS"
+  embeddings:
+    source: "esm3"
+    cache_dir: "data/embeddings/esm3"
+  max_sequence_length: 512
+  dataloader:
+    train_dataset: "data/PRING/species_processed_data/human/BFS/human_train_ppi.txt"
+    valid_dataset: "data/PRING/species_processed_data/human/BFS/human_val_ppi.txt"
+    test_dataset: "data/PRING/species_processed_data/human/BFS/human_test_ppi.txt"
+    num_workers: 2
+    pin_memory: true
+    drop_last: false
+    sampling:
+      strategy: "ohem"
+      warmup_epochs: 1
+      pool_multiplier: 4
+      cap_protein: 4
+
+model_config:
+  model: "v3"
+  input_dim: 1536
+  d_model: 64
+  encoder_layers: 1
+  cross_attn_layers: 1
+  n_heads: 4
+  mlp_head:
+    hidden_dims: [32, 16]
+    dropout: 0.20
+    activation: "gelu"
+    norm: "layernorm"
+  regularization:
+    dropout: 0.15
+    token_dropout: 0.10
+    cross_attention_dropout: 0.15
+    stochastic_depth: 0.10
+
+training_config:
+  epochs: 1
+  batch_size: 32
+  early_stopping_patience: 1
+  monitor_metric: "auprc"
+  logging:
+    validation_metrics: ["auprc", "auroc"]
+  optimizer:
+    type: "adamw"
+    lr: 0.00005
+    beta1: 0.9
+    beta2: 0.999
+    eps: 1.0e-8
+    weight_decay: 0.015
+  scheduler:
+    type: "onecycle"
+    max_lr: 0.00005
+    pct_start: 0.20
+    div_factor: 25
+    final_div_factor: 10000
+    anneal_strategy: "cos"
+  loss:
+    type: "bce_with_logits"
+    pos_weight: 1.0
+    label_smoothing: 0.02
+  strategy:
+    type: "staged_unfreeze"
+    unfreeze_epoch: 1
+    initial_trainable_prefixes: ["output_head"]
+
+evaluate:
+  metrics:
+    - "auroc"
+    - "auprc"
+    - "accuracy"
+    - "sensitivity"
+    - "specificity"
+    - "precision"
+    - "recall"
+    - "f1"
+    - "mcc"
