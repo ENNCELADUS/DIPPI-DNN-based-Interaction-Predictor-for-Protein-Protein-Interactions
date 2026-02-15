@@ -148,6 +148,17 @@ def _build_split_loader(
     num_workers = as_int(
         dataloader_cfg.get("num_workers", 0), "data_config.dataloader.num_workers"
     )
+    prefetch_factor = dataloader_cfg.get("prefetch_factor")
+    if prefetch_factor is not None:
+        prefetch_factor = as_int(
+            prefetch_factor, "data_config.dataloader.prefetch_factor"
+        )
+        if prefetch_factor <= 0:
+            raise ValueError("data_config.dataloader.prefetch_factor must be positive")
+    persistent_workers = as_bool(
+        dataloader_cfg.get("persistent_workers", False),
+        "data_config.dataloader.persistent_workers",
+    )
     pin_memory = as_bool(
         dataloader_cfg.get("pin_memory", False),
         "data_config.dataloader.pin_memory",
@@ -220,13 +231,24 @@ def _build_split_loader(
         should_shuffle = False
 
     if batch_sampler is not None:
+        loader_kwargs: dict[str, object] = {}
+        if num_workers > 0:
+            loader_kwargs["persistent_workers"] = persistent_workers
+            if prefetch_factor is not None:
+                loader_kwargs["prefetch_factor"] = prefetch_factor
         return DataLoader(
             dataset=dataset,
             batch_sampler=batch_sampler,
             num_workers=num_workers,
             pin_memory=pin_memory,
             collate_fn=_collate_batch,
+            **loader_kwargs,
         )
+    loader_kwargs = {}
+    if num_workers > 0:
+        loader_kwargs["persistent_workers"] = persistent_workers
+        if prefetch_factor is not None:
+            loader_kwargs["prefetch_factor"] = prefetch_factor
     return DataLoader(
         dataset=dataset,
         batch_size=batch_size,
@@ -236,6 +258,7 @@ def _build_split_loader(
         drop_last=drop_last,
         sampler=sampler,
         collate_fn=_collate_batch,
+        **loader_kwargs,
     )
 
 

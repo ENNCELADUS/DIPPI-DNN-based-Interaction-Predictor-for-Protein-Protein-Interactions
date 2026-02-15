@@ -27,8 +27,10 @@ data_config:
     finetune_train_dataset: "data/TMP/processed/finetune_train.csv"
     finetune_val_dataset: "data/TMP/processed/finetune_val.csv"
     test_dataset: "data/TMP/processed/test.csv"
-    num_workers: 4
-    pin_memory: true
+    num_workers: 2
+    pin_memory: false
+    persistent_workers: false
+    prefetch_factor: 1
     drop_last: true
     sampling:
       strategy: "ohem"  # none | ohem
@@ -47,9 +49,10 @@ model_config:
   cnn_dim: 64
   cnn_blocks: 2
   interaction_map:
-    include_pair_features: true
-    similarity: "cosine"
+    include_pair_features: false
+    similarity: "none"
     eps: 1.0e-8
+    max_tokens_per_protein: 512
   pooling:
     mode: "max_mean"
   mlp_head:

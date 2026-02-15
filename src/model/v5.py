@@ -196,46 +196,49 @@ class InteractionMapBuilder(nn.Module):
         z_a = self.activation(self.proj_a(h_a))  # [B, L_A, D_p]
         z_b = self.activation(self.proj_b(h_b))  # [B, L_B, D_p]
 
-        # Broadcast and expand
-        # z_a: [B, L_A, D_p] -> [B, L_A, 1, D_p] -> [B, L_A, L_B, D_p]
-        # z_b: [B, L_B, D_p] -> [B, 1, L_B, D_p] -> [B, L_A, L_B, D_p]
+        # Build channel-first interaction features directly to avoid allocating
+        # an additional full [B, L_A, L_B, C] buffer before permutation.
         L_A = z_a.size(1)
         L_B = z_b.size(1)
 
-        z_a_exp = z_a.unsqueeze(2).expand(-1, -1, L_B, -1)  # [B, L_A, L_B, D_p]
-        z_b_exp = z_b.unsqueeze(1).expand(-1, L_A, -1, -1)  # [B, L_A, L_B, D_p]
+        z_a_channels = z_a.transpose(1, 2).unsqueeze(-1).expand(-1, -1, -1, L_B)
+        z_b_channels = z_b.transpose(1, 2).unsqueeze(2).expand(-1, -1, L_A, -1)
 
-        features = [z_a_exp, z_b_exp]
+        features = [z_a_channels, z_b_channels]
         if self.include_pair_features:
-            diff = torch.abs(z_a_exp - z_b_exp)
-            prod = z_a_exp * z_b_exp
+            z_a_exp = z_a.unsqueeze(2)
+            z_b_exp = z_b.unsqueeze(1)
+            diff = torch.abs(z_a_exp - z_b_exp).permute(0, 3, 1, 2)
+            prod = (z_a_exp * z_b_exp).permute(0, 3, 1, 2)
             features.extend([diff, prod])
 
         if self.similarity != "none":
             if self.similarity == "cosine":
-                norm_a = torch.sqrt(
-                    torch.sum(z_a_exp * z_a_exp, dim=-1, keepdim=True) + self.eps
-                )
-                norm_b = torch.sqrt(
-                    torch.sum(z_b_exp * z_b_exp, dim=-1, keepdim=True) + self.eps
-                )
-                sim = torch.sum(z_a_exp * z_b_exp, dim=-1, keepdim=True) / (
-                    norm_a * norm_b
-                )
+                z_a_norm = nn.functional.normalize(z_a, p=2.0, dim=-1, eps=self.eps)
+                z_b_norm = nn.functional.normalize(z_b, p=2.0, dim=-1, eps=self.eps)
+                sim = torch.matmul(z_a_norm, z_b_norm.transpose(1, 2)).unsqueeze(1)
             else:
-                scale = float(z_a_exp.size(-1)) ** 0.5
-                sim = torch.sum(z_a_exp * z_b_exp, dim=-1, keepdim=True) / (
-                    scale + self.eps
-                )
+                scale = float(z_a.size(-1)) ** 0.5
+                sim = (
+                    torch.matmul(z_a, z_b.transpose(1, 2)) / (scale + self.eps)
+                ).unsqueeze(1)
             features.append(sim)
 
-        # Concatenate along feature dimension
-        M_raw = torch.cat(features, dim=-1)  # [B, L_A, L_B, C]
-
-        # Permute to channel-first for CNN: [B, 2*D_p, L_A, L_B]
-        M_in = M_raw.permute(0, 3, 1, 2).contiguous()
-
-        return M_in
+        interaction_map = torch.cat(features, dim=1)
+        if mask_a is not None or mask_b is not None:
+            valid_a = (
+                ~mask_a
+                if mask_a is not None
+                else torch.ones_like(h_a[..., 0], dtype=torch.bool)
+            )
+            valid_b = (
+                ~mask_b
+                if mask_b is not None
+                else torch.ones_like(h_b[..., 0], dtype=torch.bool)
+            )
+            valid_mask = (valid_a.unsqueeze(2) & valid_b.unsqueeze(1)).unsqueeze(1)
+            interaction_map = interaction_map.masked_fill(~valid_mask, 0.0)
+        return interaction_map
 
 
 class ResidualBlock(nn.Module):
@@ -388,6 +391,9 @@ class V5(nn.Module):
         )
         self.map_similarity = str(map_cfg.get("similarity", "cosine")).lower()
         self.map_eps = float(map_cfg.get("eps", 1.0e-8))
+        self.max_tokens_per_protein = int(map_cfg.get("max_tokens_per_protein", 0))
+        if self.max_tokens_per_protein < 0:
+            raise ValueError("interaction_map.max_tokens_per_protein must be >= 0")
 
         cnn_blocks = int(model_config.get("cnn_blocks", 2))
 
@@ -449,6 +455,19 @@ class V5(nn.Module):
             norm=self.mlp_norm,
         )
 
+    def _truncate_residues(
+        self, embeddings: torch.Tensor, lengths: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Clamp sequence length used by V5 to reduce quadratic map memory."""
+        if self.max_tokens_per_protein <= 0:
+            return embeddings, lengths
+        if embeddings.size(1) <= self.max_tokens_per_protein:
+            return embeddings, lengths
+        return (
+            embeddings[:, : self.max_tokens_per_protein, :],
+            lengths.clamp(max=self.max_tokens_per_protein),
+        )
+
     def forward(
         self,
         batch: dict[str, torch.Tensor] | None = None,
@@ -489,6 +508,9 @@ class V5(nn.Module):
         else:
             lengths_b = lengths_b.to(device=device, dtype=torch.long)
 
+        emb_a, lengths_a = self._truncate_residues(emb_a, lengths_a)
+        emb_b, lengths_b = self._truncate_residues(emb_b, lengths_b)
+
         # 1. Encode both proteins (shared weights)
         encoded_a = self.encoder(emb_a, lengths_a)  # [B, L_A, D_h]
         encoded_b = self.encoder(emb_b, lengths_b)  # [B, L_B, D_h]
@@ -497,7 +519,9 @@ class V5(nn.Module):
         h_a, h_b = self.cross_attention(encoded_a, encoded_b, lengths_a, lengths_b)
 
         # 3. Build interaction map
-        interaction_map = self.map_builder(h_a, h_b)  # [B, 2*D_p, L_A, L_B]
+        mask_a = _build_padding_mask(lengths_a, h_a.size(1))
+        mask_b = _build_padding_mask(lengths_b, h_b.size(1))
+        interaction_map = self.map_builder(h_a, h_b, mask_a=mask_a, mask_b=mask_b)
 
         # 4. Contact map CNN
         features = self.contact_cnn(interaction_map)  # [B, D_c, L_A, L_B]
