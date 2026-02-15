@@ -19,10 +19,10 @@ source ~/.bashrc
 conda activate esm
 
 # Automatically detect number of GPUs from SLURM allocation
-NGPUS=$(nvidia-smi -L | wc -l)
+NGPUS=$(nvidia-smi -L | wc -l | tr -d '[:space:]')
 echo "Detected $NGPUS GPUs"
 
 export PYTHONPATH="$PWD:${PYTHONPATH:-}"
 export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 
-torchrun --standalone --nproc_per_node=$NGPUS -m src.run --config configs/v3.yaml
+torchrun --standalone --nproc_per_node="${NGPUS}" -m src.run -- --config configs/v3.yaml
