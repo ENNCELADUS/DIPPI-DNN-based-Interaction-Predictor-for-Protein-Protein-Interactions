@@ -1,0 +1,691 @@
+W0215 17:40:19.800000 108871 site-packages/torch/distributed/run.py:774] 
+W0215 17:40:19.800000 108871 site-packages/torch/distributed/run.py:774] *****************************************
+W0215 17:40:19.800000 108871 site-packages/torch/distributed/run.py:774] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0215 17:40:19.800000 108871 site-packages/torch/distributed/run.py:774] *****************************************
+INFO:__main__:Loaded config: configs/v4.yaml
+INFO:src.utils.distributed:Initialized distributed process group (backend=nccl rank=0 local_rank=0 world_size=4).
+2026-02-15 17:40:25 INFO Startup | Mode: full_pipeline | Rank: 0 | Run Id: 20260215_174025 | Seed: 47 | Stages: pretrain,finetune,evaluate | World Size: 4
+2026-02-15 17:40:26 INFO Startup | Mode: full_pipeline | Rank: 0 | Run Id: 20260215_174025 | Seed: 47 | Stages: pretrain,finetune,evaluate | World Size: 4
+2026-02-15 17:40:26 INFO Startup | Mode: full_pipeline | Rank: 0 | Run Id: 20260215_174025 | Seed: 47 | Stages: pretrain,finetune,evaluate | World Size: 4
+2026-02-15 17:40:26 INFO Device | Resolved Device: cuda:0
+2026-02-15 17:40:26 INFO Device | Resolved Device: cuda:0
+2026-02-15 17:40:26 INFO Device | Resolved Device: cuda:0
+[rank1]:[W215 17:40:26.988086704 ProcessGroupNCCL.cpp:5023] [PG ID 0 PG GUID 0 Rank 1]  using GPU 1 as device used by this process is currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. You can specify device_id in init_process_group() to force use of a particular device.
+[rank2]:[W215 17:40:26.988104396 ProcessGroupNCCL.cpp:5023] [PG ID 0 PG GUID 0 Rank 2]  using GPU 2 as device used by this process is currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. You can specify device_id in init_process_group() to force use of a particular device.
+[rank3]:[W215 17:40:26.988420195 ProcessGroupNCCL.cpp:5023] [PG ID 0 PG GUID 0 Rank 3]  using GPU 3 as device used by this process is currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. You can specify device_id in init_process_group() to force use of a particular device.
+WARNING:py.warnings:/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/distributed/distributed_c10d.py:4807: UserWarning: No device id is provided via `init_process_group` or `barrier `. Using the current device set by the user. 
+  warnings.warn(  # warn only once
+
+[rank0]:[W215 17:40:26.997171350 ProcessGroupNCCL.cpp:5023] [PG ID 0 PG GUID 0 Rank 0]  using GPU 0 as device used by this process is currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. You can specify device_id in init_process_group() to force use of a particular device.
+2026-02-15 17:54:03 INFO Model Init | Model: v4 | Params: 5797953
+2026-02-15 17:54:07 INFO DDP Ready | Wrapped: True
+2026-02-15 17:54:07 INFO DDP Ready | Wrapped: True
+2026-02-15 17:54:07 INFO DDP Ready | Wrapped: True
+2026-02-15 17:54:15 INFO Data Ready | Test: 188697 | Train: 1367504 | Valid: 71974
+2026-02-15 17:54:15 INFO Begin Training
+2026-02-15 17:54:15 INFO Stage Start | Run Id: 20260215_174025
+2026-02-15 17:54:15 INFO Train Config | Epochs: 40 | Monitor: auprc | Patience: 5
+2026-02-15 17:54:15 INFO Epoch Start | Epoch: 1
+[rank3]:[W215 17:54:23.841938116 reducer.cpp:1457] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank0]:[W215 17:54:24.254960294 reducer.cpp:1457] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank1]:[W215 17:54:25.176118804 reducer.cpp:1457] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+[rank2]:[W215 17:54:26.873281414 reducer.cpp:1457] Warning: find_unused_parameters=True was specified in DDP constructor, but did not find any unused parameters in the forward pass. This flag results in an extra traversal of the autograd graph every iteration,  which can adversely affect performance. If your model indeed never has any unused parameters in the forward pass, consider turning this flag off. Note that this warning may be a false positive if your model has flow control causing later iterations to have unused parameters. (function operator())
+WARNING:py.warnings:/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/optim/lr_scheduler.py:192: UserWarning: Detected call of `lr_scheduler.step()` before `optimizer.step()`. In PyTorch 1.1.0 and later, you should call them in the opposite order: `optimizer.step()` before `lr_scheduler.step()`.  Failure to do this will result in PyTorch skipping the first value of the learning rate schedule. See more details at https://pytorch.org/docs/stable/optim.html#how-to-adjust-learning-rate
+  warnings.warn(
+
+2026-02-15 17:54:27 INFO Epoch 1 | Step 1/5341 | Loss 0.8670 | LR 2.4000e-06
+2026-02-15 17:54:43 INFO Epoch 1 | Step 20/5341 | Loss 0.8111 | LR 2.4000e-06
+2026-02-15 17:54:57 INFO Epoch 1 | Step 40/5341 | Loss 0.8052 | LR 2.4001e-06
+2026-02-15 17:55:10 INFO Epoch 1 | Step 60/5341 | Loss 0.8004 | LR 2.4003e-06
+2026-02-15 17:55:24 INFO Epoch 1 | Step 80/5341 | Loss 0.7924 | LR 2.4005e-06
+2026-02-15 17:55:38 INFO Epoch 1 | Step 100/5341 | Loss 0.7811 | LR 2.4008e-06
+2026-02-15 17:55:52 INFO Epoch 1 | Step 120/5341 | Loss 0.7757 | LR 2.4011e-06
+2026-02-15 17:56:06 INFO Epoch 1 | Step 140/5341 | Loss 0.7734 | LR 2.4015e-06
+2026-02-15 17:56:19 INFO Epoch 1 | Step 160/5341 | Loss 0.7671 | LR 2.4020e-06
+2026-02-15 17:56:33 INFO Epoch 1 | Step 180/5341 | Loss 0.7627 | LR 2.4025e-06
+2026-02-15 17:56:47 INFO Epoch 1 | Step 200/5341 | Loss 0.7589 | LR 2.4031e-06
+2026-02-15 17:57:01 INFO Epoch 1 | Step 220/5341 | Loss 0.7568 | LR 2.4038e-06
+2026-02-15 17:57:15 INFO Epoch 1 | Step 240/5341 | Loss 0.7548 | LR 2.4045e-06
+2026-02-15 17:57:28 INFO Epoch 1 | Step 260/5341 | Loss 0.7514 | LR 2.4053e-06
+2026-02-15 17:57:42 INFO Epoch 1 | Step 280/5341 | Loss 0.7477 | LR 2.4061e-06
+2026-02-15 17:57:56 INFO Epoch 1 | Step 300/5341 | Loss 0.7440 | LR 2.4070e-06
+2026-02-15 17:58:09 INFO Epoch 1 | Step 320/5341 | Loss 0.7409 | LR 2.4080e-06
+2026-02-15 17:58:23 INFO Epoch 1 | Step 340/5341 | Loss 0.7380 | LR 2.4090e-06
+2026-02-15 17:58:37 INFO Epoch 1 | Step 360/5341 | Loss 0.7346 | LR 2.4101e-06
+2026-02-15 17:58:51 INFO Epoch 1 | Step 380/5341 | Loss 0.7324 | LR 2.4112e-06
+2026-02-15 17:59:04 INFO Epoch 1 | Step 400/5341 | Loss 0.7302 | LR 2.4125e-06
+2026-02-15 17:59:18 INFO Epoch 1 | Step 420/5341 | Loss 0.7282 | LR 2.4137e-06
+2026-02-15 17:59:32 INFO Epoch 1 | Step 440/5341 | Loss 0.7267 | LR 2.4151e-06
+2026-02-15 17:59:45 INFO Epoch 1 | Step 460/5341 | Loss 0.7244 | LR 2.4165e-06
+2026-02-15 17:59:59 INFO Epoch 1 | Step 480/5341 | Loss 0.7211 | LR 2.4179e-06
+2026-02-15 18:00:13 INFO Epoch 1 | Step 500/5341 | Loss 0.7188 | LR 2.4195e-06
+2026-02-15 18:00:27 INFO Epoch 1 | Step 520/5341 | Loss 0.7171 | LR 2.4210e-06
+2026-02-15 18:00:40 INFO Epoch 1 | Step 540/5341 | Loss 0.7161 | LR 2.4227e-06
+2026-02-15 18:00:54 INFO Epoch 1 | Step 560/5341 | Loss 0.7147 | LR 2.4244e-06
+2026-02-15 18:01:08 INFO Epoch 1 | Step 580/5341 | Loss 0.7127 | LR 2.4262e-06
+2026-02-15 18:01:22 INFO Epoch 1 | Step 600/5341 | Loss 0.7112 | LR 2.4280e-06
+2026-02-15 18:01:35 INFO Epoch 1 | Step 620/5341 | Loss 0.7090 | LR 2.4299e-06
+2026-02-15 18:01:49 INFO Epoch 1 | Step 640/5341 | Loss 0.7084 | LR 2.4319e-06
+2026-02-15 18:02:03 INFO Epoch 1 | Step 660/5341 | Loss 0.7066 | LR 2.4339e-06
+2026-02-15 18:02:16 INFO Epoch 1 | Step 680/5341 | Loss 0.7056 | LR 2.4360e-06
+2026-02-15 18:02:30 INFO Epoch 1 | Step 700/5341 | Loss 0.7047 | LR 2.4381e-06
+2026-02-15 18:02:44 INFO Epoch 1 | Step 720/5341 | Loss 0.7034 | LR 2.4403e-06
+2026-02-15 18:02:57 INFO Epoch 1 | Step 740/5341 | Loss 0.7024 | LR 2.4426e-06
+2026-02-15 18:03:11 INFO Epoch 1 | Step 760/5341 | Loss 0.7014 | LR 2.4450e-06
+2026-02-15 18:03:25 INFO Epoch 1 | Step 780/5341 | Loss 0.7007 | LR 2.4474e-06
+2026-02-15 18:03:39 INFO Epoch 1 | Step 800/5341 | Loss 0.6999 | LR 2.4498e-06
+2026-02-15 18:03:52 INFO Epoch 1 | Step 820/5341 | Loss 0.6990 | LR 2.4523e-06
+2026-02-15 18:04:06 INFO Epoch 1 | Step 840/5341 | Loss 0.6979 | LR 2.4549e-06
+2026-02-15 18:04:20 INFO Epoch 1 | Step 860/5341 | Loss 0.6968 | LR 2.4576e-06
+2026-02-15 18:04:33 INFO Epoch 1 | Step 880/5341 | Loss 0.6964 | LR 2.4603e-06
+2026-02-15 18:04:47 INFO Epoch 1 | Step 900/5341 | Loss 0.6956 | LR 2.4630e-06
+2026-02-15 18:05:01 INFO Epoch 1 | Step 920/5341 | Loss 0.6947 | LR 2.4659e-06
+2026-02-15 18:05:15 INFO Epoch 1 | Step 940/5341 | Loss 0.6940 | LR 2.4688e-06
+2026-02-15 18:05:28 INFO Epoch 1 | Step 960/5341 | Loss 0.6928 | LR 2.4717e-06
+2026-02-15 18:05:42 INFO Epoch 1 | Step 980/5341 | Loss 0.6915 | LR 2.4747e-06
+2026-02-15 18:05:56 INFO Epoch 1 | Step 1000/5341 | Loss 0.6907 | LR 2.4778e-06
+2026-02-15 18:06:09 INFO Epoch 1 | Step 1020/5341 | Loss 0.6905 | LR 2.4810e-06
+2026-02-15 18:06:23 INFO Epoch 1 | Step 1040/5341 | Loss 0.6899 | LR 2.4842e-06
+2026-02-15 18:06:37 INFO Epoch 1 | Step 1060/5341 | Loss 0.6892 | LR 2.4874e-06
+2026-02-15 18:06:50 INFO Epoch 1 | Step 1080/5341 | Loss 0.6882 | LR 2.4908e-06
+2026-02-15 18:07:04 INFO Epoch 1 | Step 1100/5341 | Loss 0.6872 | LR 2.4941e-06
+2026-02-15 18:07:18 INFO Epoch 1 | Step 1120/5341 | Loss 0.6863 | LR 2.4976e-06
+2026-02-15 18:07:32 INFO Epoch 1 | Step 1140/5341 | Loss 0.6854 | LR 2.5011e-06
+2026-02-15 18:07:45 INFO Epoch 1 | Step 1160/5341 | Loss 0.6846 | LR 2.5047e-06
+2026-02-15 18:07:59 INFO Epoch 1 | Step 1180/5341 | Loss 0.6835 | LR 2.5083e-06
+2026-02-15 18:08:13 INFO Epoch 1 | Step 1200/5341 | Loss 0.6827 | LR 2.5120e-06
+2026-02-15 18:08:26 INFO Epoch 1 | Step 1220/5341 | Loss 0.6817 | LR 2.5158e-06
+2026-02-15 18:08:40 INFO Epoch 1 | Step 1240/5341 | Loss 0.6806 | LR 2.5196e-06
+2026-02-15 18:08:54 INFO Epoch 1 | Step 1260/5341 | Loss 0.6797 | LR 2.5235e-06
+2026-02-15 18:09:08 INFO Epoch 1 | Step 1280/5341 | Loss 0.6789 | LR 2.5275e-06
+2026-02-15 18:09:21 INFO Epoch 1 | Step 1300/5341 | Loss 0.6782 | LR 2.5315e-06
+2026-02-15 18:09:35 INFO Epoch 1 | Step 1320/5341 | Loss 0.6775 | LR 2.5355e-06
+2026-02-15 18:09:49 INFO Epoch 1 | Step 1340/5341 | Loss 0.6770 | LR 2.5397e-06
+2026-02-15 18:10:02 INFO Epoch 1 | Step 1360/5341 | Loss 0.6761 | LR 2.5439e-06
+2026-02-15 18:10:16 INFO Epoch 1 | Step 1380/5341 | Loss 0.6754 | LR 2.5481e-06
+2026-02-15 18:10:30 INFO Epoch 1 | Step 1400/5341 | Loss 0.6750 | LR 2.5525e-06
+2026-02-15 18:10:43 INFO Epoch 1 | Step 1420/5341 | Loss 0.6740 | LR 2.5568e-06
+2026-02-15 18:10:57 INFO Epoch 1 | Step 1440/5341 | Loss 0.6733 | LR 2.5613e-06
+2026-02-15 18:11:11 INFO Epoch 1 | Step 1460/5341 | Loss 0.6724 | LR 2.5658e-06
+2026-02-15 18:11:24 INFO Epoch 1 | Step 1480/5341 | Loss 0.6716 | LR 2.5704e-06
+2026-02-15 18:11:38 INFO Epoch 1 | Step 1500/5341 | Loss 0.6709 | LR 2.5750e-06
+2026-02-15 18:11:52 INFO Epoch 1 | Step 1520/5341 | Loss 0.6701 | LR 2.5797e-06
+2026-02-15 18:12:06 INFO Epoch 1 | Step 1540/5341 | Loss 0.6697 | LR 2.5844e-06
+2026-02-15 18:12:19 INFO Epoch 1 | Step 1560/5341 | Loss 0.6690 | LR 2.5892e-06
+2026-02-15 18:12:33 INFO Epoch 1 | Step 1580/5341 | Loss 0.6684 | LR 2.5941e-06
+2026-02-15 18:12:47 INFO Epoch 1 | Step 1600/5341 | Loss 0.6680 | LR 2.5991e-06
+2026-02-15 18:13:01 INFO Epoch 1 | Step 1620/5341 | Loss 0.6675 | LR 2.6041e-06
+2026-02-15 18:13:14 INFO Epoch 1 | Step 1640/5341 | Loss 0.6672 | LR 2.6091e-06
+2026-02-15 18:13:28 INFO Epoch 1 | Step 1660/5341 | Loss 0.6667 | LR 2.6143e-06
+2026-02-15 18:13:42 INFO Epoch 1 | Step 1680/5341 | Loss 0.6658 | LR 2.6194e-06
+2026-02-15 18:13:55 INFO Epoch 1 | Step 1700/5341 | Loss 0.6652 | LR 2.6247e-06
+2026-02-15 18:14:09 INFO Epoch 1 | Step 1720/5341 | Loss 0.6648 | LR 2.6300e-06
+2026-02-15 18:14:23 INFO Epoch 1 | Step 1740/5341 | Loss 0.6641 | LR 2.6354e-06
+2026-02-15 18:14:37 INFO Epoch 1 | Step 1760/5341 | Loss 0.6636 | LR 2.6408e-06
+2026-02-15 18:14:50 INFO Epoch 1 | Step 1780/5341 | Loss 0.6632 | LR 2.6463e-06
+2026-02-15 18:15:04 INFO Epoch 1 | Step 1800/5341 | Loss 0.6625 | LR 2.6519e-06
+2026-02-15 18:15:18 INFO Epoch 1 | Step 1820/5341 | Loss 0.6621 | LR 2.6575e-06
+2026-02-15 18:15:31 INFO Epoch 1 | Step 1840/5341 | Loss 0.6617 | LR 2.6632e-06
+2026-02-15 18:15:45 INFO Epoch 1 | Step 1860/5341 | Loss 0.6612 | LR 2.6689e-06
+2026-02-15 18:15:59 INFO Epoch 1 | Step 1880/5341 | Loss 0.6607 | LR 2.6747e-06
+2026-02-15 18:16:12 INFO Epoch 1 | Step 1900/5341 | Loss 0.6604 | LR 2.6806e-06
+2026-02-15 18:16:26 INFO Epoch 1 | Step 1920/5341 | Loss 0.6599 | LR 2.6865e-06
+2026-02-15 18:16:40 INFO Epoch 1 | Step 1940/5341 | Loss 0.6593 | LR 2.6925e-06
+2026-02-15 18:16:53 INFO Epoch 1 | Step 1960/5341 | Loss 0.6588 | LR 2.6986e-06
+2026-02-15 18:17:07 INFO Epoch 1 | Step 1980/5341 | Loss 0.6582 | LR 2.7047e-06
+2026-02-15 18:17:21 INFO Epoch 1 | Step 2000/5341 | Loss 0.6576 | LR 2.7108e-06
+2026-02-15 18:17:34 INFO Epoch 1 | Step 2020/5341 | Loss 0.6570 | LR 2.7171e-06
+2026-02-15 18:17:48 INFO Epoch 1 | Step 2040/5341 | Loss 0.6563 | LR 2.7234e-06
+2026-02-15 18:18:02 INFO Epoch 1 | Step 2060/5341 | Loss 0.6558 | LR 2.7297e-06
+2026-02-15 18:18:15 INFO Epoch 1 | Step 2080/5341 | Loss 0.6553 | LR 2.7362e-06
+2026-02-15 18:18:29 INFO Epoch 1 | Step 2100/5341 | Loss 0.6549 | LR 2.7426e-06
+2026-02-15 18:18:43 INFO Epoch 1 | Step 2120/5341 | Loss 0.6544 | LR 2.7492e-06
+2026-02-15 18:18:56 INFO Epoch 1 | Step 2140/5341 | Loss 0.6541 | LR 2.7558e-06
+2026-02-15 18:19:10 INFO Epoch 1 | Step 2160/5341 | Loss 0.6537 | LR 2.7625e-06
+2026-02-15 18:19:24 INFO Epoch 1 | Step 2180/5341 | Loss 0.6532 | LR 2.7692e-06
+2026-02-15 18:19:37 INFO Epoch 1 | Step 2200/5341 | Loss 0.6530 | LR 2.7760e-06
+2026-02-15 18:19:51 INFO Epoch 1 | Step 2220/5341 | Loss 0.6524 | LR 2.7828e-06
+2026-02-15 18:20:05 INFO Epoch 1 | Step 2240/5341 | Loss 0.6520 | LR 2.7897e-06
+2026-02-15 18:20:18 INFO Epoch 1 | Step 2260/5341 | Loss 0.6515 | LR 2.7967e-06
+2026-02-15 18:20:32 INFO Epoch 1 | Step 2280/5341 | Loss 0.6510 | LR 2.8037e-06
+2026-02-15 18:20:46 INFO Epoch 1 | Step 2300/5341 | Loss 0.6505 | LR 2.8108e-06
+2026-02-15 18:20:59 INFO Epoch 1 | Step 2320/5341 | Loss 0.6500 | LR 2.8180e-06
+2026-02-15 18:21:13 INFO Epoch 1 | Step 2340/5341 | Loss 0.6497 | LR 2.8252e-06
+2026-02-15 18:21:27 INFO Epoch 1 | Step 2360/5341 | Loss 0.6493 | LR 2.8325e-06
+2026-02-15 18:21:40 INFO Epoch 1 | Step 2380/5341 | Loss 0.6488 | LR 2.8398e-06
+2026-02-15 18:21:54 INFO Epoch 1 | Step 2400/5341 | Loss 0.6484 | LR 2.8473e-06
+2026-02-15 18:22:08 INFO Epoch 1 | Step 2420/5341 | Loss 0.6480 | LR 2.8547e-06
+2026-02-15 18:22:21 INFO Epoch 1 | Step 2440/5341 | Loss 0.6477 | LR 2.8622e-06
+2026-02-15 18:22:35 INFO Epoch 1 | Step 2460/5341 | Loss 0.6474 | LR 2.8698e-06
+2026-02-15 18:22:49 INFO Epoch 1 | Step 2480/5341 | Loss 0.6471 | LR 2.8775e-06
+2026-02-15 18:23:02 INFO Epoch 1 | Step 2500/5341 | Loss 0.6467 | LR 2.8852e-06
+2026-02-15 18:23:16 INFO Epoch 1 | Step 2520/5341 | Loss 0.6465 | LR 2.8930e-06
+2026-02-15 18:23:30 INFO Epoch 1 | Step 2540/5341 | Loss 0.6461 | LR 2.9008e-06
+2026-02-15 18:23:43 INFO Epoch 1 | Step 2560/5341 | Loss 0.6458 | LR 2.9087e-06
+2026-02-15 18:23:57 INFO Epoch 1 | Step 2580/5341 | Loss 0.6454 | LR 2.9166e-06
+2026-02-15 18:24:11 INFO Epoch 1 | Step 2600/5341 | Loss 0.6449 | LR 2.9247e-06
+2026-02-15 18:24:25 INFO Epoch 1 | Step 2620/5341 | Loss 0.6446 | LR 2.9327e-06
+2026-02-15 18:24:38 INFO Epoch 1 | Step 2640/5341 | Loss 0.6442 | LR 2.9409e-06
+2026-02-15 18:24:52 INFO Epoch 1 | Step 2660/5341 | Loss 0.6439 | LR 2.9491e-06
+2026-02-15 18:25:06 INFO Epoch 1 | Step 2680/5341 | Loss 0.6437 | LR 2.9573e-06
+2026-02-15 18:25:19 INFO Epoch 1 | Step 2700/5341 | Loss 0.6433 | LR 2.9657e-06
+2026-02-15 18:25:33 INFO Epoch 1 | Step 2720/5341 | Loss 0.6428 | LR 2.9740e-06
+2026-02-15 18:25:47 INFO Epoch 1 | Step 2740/5341 | Loss 0.6424 | LR 2.9825e-06
+2026-02-15 18:26:00 INFO Epoch 1 | Step 2760/5341 | Loss 0.6421 | LR 2.9910e-06
+2026-02-15 18:26:14 INFO Epoch 1 | Step 2780/5341 | Loss 0.6418 | LR 2.9996e-06
+2026-02-15 18:26:28 INFO Epoch 1 | Step 2800/5341 | Loss 0.6416 | LR 3.0082e-06
+2026-02-15 18:26:41 INFO Epoch 1 | Step 2820/5341 | Loss 0.6411 | LR 3.0169e-06
+2026-02-15 18:26:55 INFO Epoch 1 | Step 2840/5341 | Loss 0.6408 | LR 3.0256e-06
+2026-02-15 18:27:09 INFO Epoch 1 | Step 2860/5341 | Loss 0.6403 | LR 3.0344e-06
+2026-02-15 18:27:22 INFO Epoch 1 | Step 2880/5341 | Loss 0.6401 | LR 3.0433e-06
+2026-02-15 18:27:36 INFO Epoch 1 | Step 2900/5341 | Loss 0.6399 | LR 3.0522e-06
+2026-02-15 18:27:50 INFO Epoch 1 | Step 2920/5341 | Loss 0.6395 | LR 3.0612e-06
+2026-02-15 18:28:03 INFO Epoch 1 | Step 2940/5341 | Loss 0.6391 | LR 3.0703e-06
+2026-02-15 18:28:17 INFO Epoch 1 | Step 2960/5341 | Loss 0.6386 | LR 3.0794e-06
+2026-02-15 18:28:31 INFO Epoch 1 | Step 2980/5341 | Loss 0.6383 | LR 3.0886e-06
+2026-02-15 18:28:44 INFO Epoch 1 | Step 3000/5341 | Loss 0.6379 | LR 3.0978e-06
+2026-02-15 18:28:58 INFO Epoch 1 | Step 3020/5341 | Loss 0.6376 | LR 3.1071e-06
+2026-02-15 18:29:12 INFO Epoch 1 | Step 3040/5341 | Loss 0.6372 | LR 3.1165e-06
+2026-02-15 18:29:25 INFO Epoch 1 | Step 3060/5341 | Loss 0.6368 | LR 3.1259e-06
+2026-02-15 18:29:39 INFO Epoch 1 | Step 3080/5341 | Loss 0.6365 | LR 3.1354e-06
+2026-02-15 18:29:53 INFO Epoch 1 | Step 3100/5341 | Loss 0.6362 | LR 3.1449e-06
+2026-02-15 18:30:06 INFO Epoch 1 | Step 3120/5341 | Loss 0.6359 | LR 3.1545e-06
+2026-02-15 18:30:20 INFO Epoch 1 | Step 3140/5341 | Loss 0.6357 | LR 3.1642e-06
+2026-02-15 18:30:34 INFO Epoch 1 | Step 3160/5341 | Loss 0.6352 | LR 3.1739e-06
+2026-02-15 18:30:47 INFO Epoch 1 | Step 3180/5341 | Loss 0.6347 | LR 3.1837e-06
+2026-02-15 18:31:01 INFO Epoch 1 | Step 3200/5341 | Loss 0.6345 | LR 3.1935e-06
+2026-02-15 18:31:15 INFO Epoch 1 | Step 3220/5341 | Loss 0.6341 | LR 3.2034e-06
+2026-02-15 18:31:28 INFO Epoch 1 | Step 3240/5341 | Loss 0.6337 | LR 3.2134e-06
+2026-02-15 18:31:42 INFO Epoch 1 | Step 3260/5341 | Loss 0.6333 | LR 3.2234e-06
+2026-02-15 18:31:56 INFO Epoch 1 | Step 3280/5341 | Loss 0.6332 | LR 3.2335e-06
+2026-02-15 18:32:09 INFO Epoch 1 | Step 3300/5341 | Loss 0.6328 | LR 3.2436e-06
+2026-02-15 18:32:23 INFO Epoch 1 | Step 3320/5341 | Loss 0.6325 | LR 3.2538e-06
+2026-02-15 18:32:37 INFO Epoch 1 | Step 3340/5341 | Loss 0.6322 | LR 3.2641e-06
+2026-02-15 18:32:50 INFO Epoch 1 | Step 3360/5341 | Loss 0.6317 | LR 3.2744e-06
+2026-02-15 18:33:04 INFO Epoch 1 | Step 3380/5341 | Loss 0.6315 | LR 3.2848e-06
+2026-02-15 18:33:18 INFO Epoch 1 | Step 3400/5341 | Loss 0.6311 | LR 3.2953e-06
+2026-02-15 18:33:32 INFO Epoch 1 | Step 3420/5341 | Loss 0.6308 | LR 3.3058e-06
+2026-02-15 18:33:45 INFO Epoch 1 | Step 3440/5341 | Loss 0.6306 | LR 3.3163e-06
+2026-02-15 18:33:59 INFO Epoch 1 | Step 3460/5341 | Loss 0.6304 | LR 3.3270e-06
+2026-02-15 18:34:13 INFO Epoch 1 | Step 3480/5341 | Loss 0.6300 | LR 3.3377e-06
+2026-02-15 18:34:26 INFO Epoch 1 | Step 3500/5341 | Loss 0.6296 | LR 3.3484e-06
+2026-02-15 18:34:40 INFO Epoch 1 | Step 3520/5341 | Loss 0.6292 | LR 3.3592e-06
+2026-02-15 18:34:54 INFO Epoch 1 | Step 3540/5341 | Loss 0.6290 | LR 3.3701e-06
+2026-02-15 18:35:07 INFO Epoch 1 | Step 3560/5341 | Loss 0.6287 | LR 3.3810e-06
+2026-02-15 18:35:21 INFO Epoch 1 | Step 3580/5341 | Loss 0.6283 | LR 3.3920e-06
+2026-02-15 18:35:35 INFO Epoch 1 | Step 3600/5341 | Loss 0.6280 | LR 3.4031e-06
+2026-02-15 18:35:48 INFO Epoch 1 | Step 3620/5341 | Loss 0.6277 | LR 3.4142e-06
+2026-02-15 18:36:02 INFO Epoch 1 | Step 3640/5341 | Loss 0.6273 | LR 3.4253e-06
+2026-02-15 18:36:16 INFO Epoch 1 | Step 3660/5341 | Loss 0.6271 | LR 3.4366e-06
+2026-02-15 18:36:29 INFO Epoch 1 | Step 3680/5341 | Loss 0.6268 | LR 3.4479e-06
+2026-02-15 18:36:43 INFO Epoch 1 | Step 3700/5341 | Loss 0.6264 | LR 3.4592e-06
+2026-02-15 18:36:57 INFO Epoch 1 | Step 3720/5341 | Loss 0.6261 | LR 3.4706e-06
+2026-02-15 18:37:10 INFO Epoch 1 | Step 3740/5341 | Loss 0.6258 | LR 3.4821e-06
+2026-02-15 18:37:24 INFO Epoch 1 | Step 3760/5341 | Loss 0.6256 | LR 3.4936e-06
+2026-02-15 18:37:38 INFO Epoch 1 | Step 3780/5341 | Loss 0.6253 | LR 3.5052e-06
+2026-02-15 18:37:51 INFO Epoch 1 | Step 3800/5341 | Loss 0.6250 | LR 3.5169e-06
+2026-02-15 18:38:05 INFO Epoch 1 | Step 3820/5341 | Loss 0.6247 | LR 3.5286e-06
+2026-02-15 18:38:19 INFO Epoch 1 | Step 3840/5341 | Loss 0.6245 | LR 3.5403e-06
+2026-02-15 18:38:32 INFO Epoch 1 | Step 3860/5341 | Loss 0.6243 | LR 3.5522e-06
+2026-02-15 18:38:46 INFO Epoch 1 | Step 3880/5341 | Loss 0.6240 | LR 3.5641e-06
+2026-02-15 18:39:00 INFO Epoch 1 | Step 3900/5341 | Loss 0.6237 | LR 3.5760e-06
+2026-02-15 18:39:13 INFO Epoch 1 | Step 3920/5341 | Loss 0.6235 | LR 3.5880e-06
+2026-02-15 18:39:27 INFO Epoch 1 | Step 3940/5341 | Loss 0.6232 | LR 3.6001e-06
+2026-02-15 18:39:41 INFO Epoch 1 | Step 3960/5341 | Loss 0.6229 | LR 3.6122e-06
+2026-02-15 18:39:54 INFO Epoch 1 | Step 3980/5341 | Loss 0.6228 | LR 3.6244e-06
+2026-02-15 18:40:08 INFO Epoch 1 | Step 4000/5341 | Loss 0.6225 | LR 3.6366e-06
+2026-02-15 18:40:22 INFO Epoch 1 | Step 4020/5341 | Loss 0.6222 | LR 3.6490e-06
+2026-02-15 18:40:35 INFO Epoch 1 | Step 4040/5341 | Loss 0.6219 | LR 3.6613e-06
+2026-02-15 18:40:49 INFO Epoch 1 | Step 4060/5341 | Loss 0.6217 | LR 3.6737e-06
+2026-02-15 18:41:03 INFO Epoch 1 | Step 4080/5341 | Loss 0.6215 | LR 3.6862e-06
+2026-02-15 18:41:16 INFO Epoch 1 | Step 4100/5341 | Loss 0.6212 | LR 3.6988e-06
+2026-02-15 18:41:30 INFO Epoch 1 | Step 4120/5341 | Loss 0.6209 | LR 3.7114e-06
+2026-02-15 18:41:44 INFO Epoch 1 | Step 4140/5341 | Loss 0.6206 | LR 3.7240e-06
+2026-02-15 18:41:57 INFO Epoch 1 | Step 4160/5341 | Loss 0.6202 | LR 3.7368e-06
+2026-02-15 18:42:11 INFO Epoch 1 | Step 4180/5341 | Loss 0.6200 | LR 3.7495e-06
+2026-02-15 18:42:25 INFO Epoch 1 | Step 4200/5341 | Loss 0.6198 | LR 3.7624e-06
+2026-02-15 18:42:38 INFO Epoch 1 | Step 4220/5341 | Loss 0.6194 | LR 3.7753e-06
+2026-02-15 18:42:52 INFO Epoch 1 | Step 4240/5341 | Loss 0.6191 | LR 3.7883e-06
+2026-02-15 18:43:06 INFO Epoch 1 | Step 4260/5341 | Loss 0.6189 | LR 3.8013e-06
+2026-02-15 18:43:19 INFO Epoch 1 | Step 4280/5341 | Loss 0.6186 | LR 3.8144e-06
+2026-02-15 18:43:33 INFO Epoch 1 | Step 4300/5341 | Loss 0.6185 | LR 3.8275e-06
+2026-02-15 18:43:47 INFO Epoch 1 | Step 4320/5341 | Loss 0.6182 | LR 3.8407e-06
+2026-02-15 18:44:00 INFO Epoch 1 | Step 4340/5341 | Loss 0.6178 | LR 3.8539e-06
+2026-02-15 18:44:14 INFO Epoch 1 | Step 4360/5341 | Loss 0.6176 | LR 3.8673e-06
+2026-02-15 18:44:28 INFO Epoch 1 | Step 4380/5341 | Loss 0.6173 | LR 3.8806e-06
+2026-02-15 18:44:41 INFO Epoch 1 | Step 4400/5341 | Loss 0.6170 | LR 3.8941e-06
+2026-02-15 18:44:55 INFO Epoch 1 | Step 4420/5341 | Loss 0.6166 | LR 3.9076e-06
+2026-02-15 18:45:09 INFO Epoch 1 | Step 4440/5341 | Loss 0.6163 | LR 3.9211e-06
+2026-02-15 18:45:22 INFO Epoch 1 | Step 4460/5341 | Loss 0.6160 | LR 3.9347e-06
+2026-02-15 18:45:36 INFO Epoch 1 | Step 4480/5341 | Loss 0.6157 | LR 3.9484e-06
+2026-02-15 18:45:50 INFO Epoch 1 | Step 4500/5341 | Loss 0.6154 | LR 3.9621e-06
+2026-02-15 18:46:03 INFO Epoch 1 | Step 4520/5341 | Loss 0.6151 | LR 3.9759e-06
+2026-02-15 18:46:17 INFO Epoch 1 | Step 4540/5341 | Loss 0.6149 | LR 3.9898e-06
+2026-02-15 18:46:31 INFO Epoch 1 | Step 4560/5341 | Loss 0.6145 | LR 4.0037e-06
+2026-02-15 18:46:44 INFO Epoch 1 | Step 4580/5341 | Loss 0.6143 | LR 4.0176e-06
+2026-02-15 18:46:58 INFO Epoch 1 | Step 4600/5341 | Loss 0.6140 | LR 4.0317e-06
+2026-02-15 18:47:12 INFO Epoch 1 | Step 4620/5341 | Loss 0.6138 | LR 4.0457e-06
+2026-02-15 18:47:25 INFO Epoch 1 | Step 4640/5341 | Loss 0.6134 | LR 4.0599e-06
+2026-02-15 18:47:39 INFO Epoch 1 | Step 4660/5341 | Loss 0.6131 | LR 4.0741e-06
+2026-02-15 18:47:53 INFO Epoch 1 | Step 4680/5341 | Loss 0.6130 | LR 4.0883e-06
+2026-02-15 18:48:06 INFO Epoch 1 | Step 4700/5341 | Loss 0.6127 | LR 4.1027e-06
+2026-02-15 18:48:20 INFO Epoch 1 | Step 4720/5341 | Loss 0.6126 | LR 4.1170e-06
+2026-02-15 18:48:34 INFO Epoch 1 | Step 4740/5341 | Loss 0.6122 | LR 4.1315e-06
+2026-02-15 18:48:47 INFO Epoch 1 | Step 4760/5341 | Loss 0.6120 | LR 4.1460e-06
+2026-02-15 18:49:01 INFO Epoch 1 | Step 4780/5341 | Loss 0.6118 | LR 4.1605e-06
+2026-02-15 18:49:15 INFO Epoch 1 | Step 4800/5341 | Loss 0.6115 | LR 4.1751e-06
+2026-02-15 18:49:28 INFO Epoch 1 | Step 4820/5341 | Loss 0.6114 | LR 4.1898e-06
+2026-02-15 18:49:42 INFO Epoch 1 | Step 4840/5341 | Loss 0.6111 | LR 4.2045e-06
+2026-02-15 18:49:56 INFO Epoch 1 | Step 4860/5341 | Loss 0.6108 | LR 4.2193e-06
+2026-02-15 18:50:09 INFO Epoch 1 | Step 4880/5341 | Loss 0.6104 | LR 4.2341e-06
+2026-02-15 18:50:23 INFO Epoch 1 | Step 4900/5341 | Loss 0.6103 | LR 4.2490e-06
+2026-02-15 18:50:37 INFO Epoch 1 | Step 4920/5341 | Loss 0.6100 | LR 4.2640e-06
+2026-02-15 18:50:50 INFO Epoch 1 | Step 4940/5341 | Loss 0.6098 | LR 4.2790e-06
+2026-02-15 18:51:04 INFO Epoch 1 | Step 4960/5341 | Loss 0.6095 | LR 4.2941e-06
+2026-02-15 18:51:18 INFO Epoch 1 | Step 4980/5341 | Loss 0.6094 | LR 4.3092e-06
+2026-02-15 18:51:31 INFO Epoch 1 | Step 5000/5341 | Loss 0.6091 | LR 4.3244e-06
+2026-02-15 18:51:45 INFO Epoch 1 | Step 5020/5341 | Loss 0.6088 | LR 4.3397e-06
+2026-02-15 18:51:59 INFO Epoch 1 | Step 5040/5341 | Loss 0.6085 | LR 4.3550e-06
+2026-02-15 18:52:12 INFO Epoch 1 | Step 5060/5341 | Loss 0.6083 | LR 4.3703e-06
+2026-02-15 18:52:26 INFO Epoch 1 | Step 5080/5341 | Loss 0.6080 | LR 4.3858e-06
+2026-02-15 18:52:40 INFO Epoch 1 | Step 5100/5341 | Loss 0.6078 | LR 4.4013e-06
+2026-02-15 18:52:53 INFO Epoch 1 | Step 5120/5341 | Loss 0.6075 | LR 4.4168e-06
+2026-02-15 18:53:07 INFO Epoch 1 | Step 5140/5341 | Loss 0.6072 | LR 4.4324e-06
+2026-02-15 18:53:21 INFO Epoch 1 | Step 5160/5341 | Loss 0.6069 | LR 4.4481e-06
+2026-02-15 18:53:34 INFO Epoch 1 | Step 5180/5341 | Loss 0.6067 | LR 4.4638e-06
+2026-02-15 18:53:48 INFO Epoch 1 | Step 5200/5341 | Loss 0.6064 | LR 4.4795e-06
+2026-02-15 18:54:02 INFO Epoch 1 | Step 5220/5341 | Loss 0.6062 | LR 4.4954e-06
+2026-02-15 18:54:15 INFO Epoch 1 | Step 5240/5341 | Loss 0.6059 | LR 4.5113e-06
+2026-02-15 18:54:29 INFO Epoch 1 | Step 5260/5341 | Loss 0.6056 | LR 4.5272e-06
+2026-02-15 18:54:43 INFO Epoch 1 | Step 5280/5341 | Loss 0.6053 | LR 4.5432e-06
+2026-02-15 18:54:56 INFO Epoch 1 | Step 5300/5341 | Loss 0.6050 | LR 4.5593e-06
+2026-02-15 18:55:10 INFO Epoch 1 | Step 5320/5341 | Loss 0.6048 | LR 4.5754e-06
+2026-02-15 18:55:24 INFO Epoch 1 | Step 5340/5341 | Loss 0.6046 | LR 4.5916e-06
+2026-02-15 18:55:24 INFO Epoch 1 | Step 5341/5341 | Loss 0.6046 | LR 4.5924e-06
+2026-02-15 19:07:20 INFO CSV Written | Epoch: 1
+2026-02-15 19:07:20 INFO Best Saved | Epoch: 1 | Monitor: val_auprc | Value: 0.7245
+2026-02-15 19:07:20 INFO Epoch Done | Epoch: 1 | Time: 4385.1152 | Train Loss: 0.6046 | Val Accuracy: 0.6485 | Val AUPRC: 0.7245 | Val Auroc: 0.7105 | Val F1: 0.6599 | Val Loss: 0.6348
+2026-02-15 19:07:20 INFO Epoch Start | Epoch: 2
+2026-02-15 19:07:27 INFO Epoch 2 | Step 1/5341 | Loss 0.5835 | LR 4.5932e-06
+2026-02-15 19:07:40 INFO Epoch 2 | Step 20/5341 | Loss 0.5332 | LR 4.6086e-06
+2026-02-15 19:07:54 INFO Epoch 2 | Step 40/5341 | Loss 0.5428 | LR 4.6249e-06
+2026-02-15 19:08:08 INFO Epoch 2 | Step 60/5341 | Loss 0.5437 | LR 4.6413e-06
+2026-02-15 19:08:21 INFO Epoch 2 | Step 80/5341 | Loss 0.5389 | LR 4.6577e-06
+2026-02-15 19:08:35 INFO Epoch 2 | Step 100/5341 | Loss 0.5432 | LR 4.6741e-06
+2026-02-15 19:08:49 INFO Epoch 2 | Step 120/5341 | Loss 0.5418 | LR 4.6907e-06
+2026-02-15 19:09:03 INFO Epoch 2 | Step 140/5341 | Loss 0.5427 | LR 4.7072e-06
+2026-02-15 19:09:16 INFO Epoch 2 | Step 160/5341 | Loss 0.5432 | LR 4.7239e-06
+2026-02-15 19:09:30 INFO Epoch 2 | Step 180/5341 | Loss 0.5410 | LR 4.7406e-06
+2026-02-15 19:09:44 INFO Epoch 2 | Step 200/5341 | Loss 0.5389 | LR 4.7573e-06
+2026-02-15 19:09:58 INFO Epoch 2 | Step 220/5341 | Loss 0.5378 | LR 4.7741e-06
+2026-02-15 19:10:11 INFO Epoch 2 | Step 240/5341 | Loss 0.5367 | LR 4.7910e-06
+2026-02-15 19:10:25 INFO Epoch 2 | Step 260/5341 | Loss 0.5357 | LR 4.8079e-06
+2026-02-15 19:10:39 INFO Epoch 2 | Step 280/5341 | Loss 0.5360 | LR 4.8249e-06
+2026-02-15 19:10:53 INFO Epoch 2 | Step 300/5341 | Loss 0.5360 | LR 4.8419e-06
+2026-02-15 19:11:06 INFO Epoch 2 | Step 320/5341 | Loss 0.5359 | LR 4.8590e-06
+2026-02-15 19:11:20 INFO Epoch 2 | Step 340/5341 | Loss 0.5356 | LR 4.8762e-06
+2026-02-15 19:11:34 INFO Epoch 2 | Step 360/5341 | Loss 0.5343 | LR 4.8934e-06
+2026-02-15 19:11:48 INFO Epoch 2 | Step 380/5341 | Loss 0.5345 | LR 4.9107e-06
+2026-02-15 19:12:01 INFO Epoch 2 | Step 400/5341 | Loss 0.5345 | LR 4.9280e-06
+2026-02-15 19:12:15 INFO Epoch 2 | Step 420/5341 | Loss 0.5347 | LR 4.9454e-06
+2026-02-15 19:12:29 INFO Epoch 2 | Step 440/5341 | Loss 0.5341 | LR 4.9628e-06
+2026-02-15 19:12:42 INFO Epoch 2 | Step 460/5341 | Loss 0.5337 | LR 4.9803e-06
+2026-02-15 19:12:56 INFO Epoch 2 | Step 480/5341 | Loss 0.5335 | LR 4.9978e-06
+2026-02-15 19:13:10 INFO Epoch 2 | Step 500/5341 | Loss 0.5335 | LR 5.0154e-06
+2026-02-15 19:13:24 INFO Epoch 2 | Step 520/5341 | Loss 0.5340 | LR 5.0331e-06
+2026-02-15 19:13:37 INFO Epoch 2 | Step 540/5341 | Loss 0.5336 | LR 5.0508e-06
+2026-02-15 19:13:51 INFO Epoch 2 | Step 560/5341 | Loss 0.5329 | LR 5.0686e-06
+2026-02-15 19:14:05 INFO Epoch 2 | Step 580/5341 | Loss 0.5329 | LR 5.0864e-06
+2026-02-15 19:14:18 INFO Epoch 2 | Step 600/5341 | Loss 0.5330 | LR 5.1043e-06
+2026-02-15 19:14:32 INFO Epoch 2 | Step 620/5341 | Loss 0.5327 | LR 5.1223e-06
+2026-02-15 19:14:46 INFO Epoch 2 | Step 640/5341 | Loss 0.5323 | LR 5.1403e-06
+2026-02-15 19:15:00 INFO Epoch 2 | Step 660/5341 | Loss 0.5319 | LR 5.1583e-06
+2026-02-15 19:15:13 INFO Epoch 2 | Step 680/5341 | Loss 0.5316 | LR 5.1765e-06
+2026-02-15 19:15:27 INFO Epoch 2 | Step 700/5341 | Loss 0.5309 | LR 5.1946e-06
+2026-02-15 19:15:41 INFO Epoch 2 | Step 720/5341 | Loss 0.5312 | LR 5.2128e-06
+2026-02-15 19:15:54 INFO Epoch 2 | Step 740/5341 | Loss 0.5309 | LR 5.2311e-06
+2026-02-15 19:16:08 INFO Epoch 2 | Step 760/5341 | Loss 0.5303 | LR 5.2495e-06
+2026-02-15 19:16:22 INFO Epoch 2 | Step 780/5341 | Loss 0.5302 | LR 5.2679e-06
+2026-02-15 19:16:35 INFO Epoch 2 | Step 800/5341 | Loss 0.5302 | LR 5.2863e-06
+2026-02-15 19:16:49 INFO Epoch 2 | Step 820/5341 | Loss 0.5298 | LR 5.3048e-06
+2026-02-15 19:17:03 INFO Epoch 2 | Step 840/5341 | Loss 0.5300 | LR 5.3234e-06
+2026-02-15 19:17:17 INFO Epoch 2 | Step 860/5341 | Loss 0.5300 | LR 5.3420e-06
+2026-02-15 19:17:30 INFO Epoch 2 | Step 880/5341 | Loss 0.5305 | LR 5.3607e-06
+2026-02-15 19:17:44 INFO Epoch 2 | Step 900/5341 | Loss 0.5305 | LR 5.3794e-06
+2026-02-15 19:17:58 INFO Epoch 2 | Step 920/5341 | Loss 0.5304 | LR 5.3982e-06
+2026-02-15 19:18:11 INFO Epoch 2 | Step 940/5341 | Loss 0.5300 | LR 5.4170e-06
+2026-02-15 19:18:25 INFO Epoch 2 | Step 960/5341 | Loss 0.5291 | LR 5.4359e-06
+2026-02-15 19:18:39 INFO Epoch 2 | Step 980/5341 | Loss 0.5287 | LR 5.4549e-06
+2026-02-15 19:18:53 INFO Epoch 2 | Step 1000/5341 | Loss 0.5286 | LR 5.4739e-06
+2026-02-15 19:19:06 INFO Epoch 2 | Step 1020/5341 | Loss 0.5286 | LR 5.4930e-06
+2026-02-15 19:19:20 INFO Epoch 2 | Step 1040/5341 | Loss 0.5287 | LR 5.5121e-06
+2026-02-15 19:19:34 INFO Epoch 2 | Step 1060/5341 | Loss 0.5286 | LR 5.5313e-06
+2026-02-15 19:19:47 INFO Epoch 2 | Step 1080/5341 | Loss 0.5280 | LR 5.5505e-06
+2026-02-15 19:20:01 INFO Epoch 2 | Step 1100/5341 | Loss 0.5279 | LR 5.5698e-06
+2026-02-15 19:20:15 INFO Epoch 2 | Step 1120/5341 | Loss 0.5277 | LR 5.5891e-06
+2026-02-15 19:20:28 INFO Epoch 2 | Step 1140/5341 | Loss 0.5276 | LR 5.6085e-06
+2026-02-15 19:20:42 INFO Epoch 2 | Step 1160/5341 | Loss 0.5276 | LR 5.6280e-06
+2026-02-15 19:20:56 INFO Epoch 2 | Step 1180/5341 | Loss 0.5280 | LR 5.6475e-06
+2026-02-15 19:21:09 INFO Epoch 2 | Step 1200/5341 | Loss 0.5277 | LR 5.6671e-06
+2026-02-15 19:21:23 INFO Epoch 2 | Step 1220/5341 | Loss 0.5277 | LR 5.6867e-06
+2026-02-15 19:21:37 INFO Epoch 2 | Step 1240/5341 | Loss 0.5277 | LR 5.7064e-06
+2026-02-15 19:21:51 INFO Epoch 2 | Step 1260/5341 | Loss 0.5275 | LR 5.7261e-06
+2026-02-15 19:22:04 INFO Epoch 2 | Step 1280/5341 | Loss 0.5276 | LR 5.7459e-06
+2026-02-15 19:22:18 INFO Epoch 2 | Step 1300/5341 | Loss 0.5272 | LR 5.7657e-06
+2026-02-15 19:22:32 INFO Epoch 2 | Step 1320/5341 | Loss 0.5271 | LR 5.7856e-06
+2026-02-15 19:22:45 INFO Epoch 2 | Step 1340/5341 | Loss 0.5268 | LR 5.8056e-06
+2026-02-15 19:22:59 INFO Epoch 2 | Step 1360/5341 | Loss 0.5270 | LR 5.8256e-06
+2026-02-15 19:23:13 INFO Epoch 2 | Step 1380/5341 | Loss 0.5271 | LR 5.8456e-06
+2026-02-15 19:23:27 INFO Epoch 2 | Step 1400/5341 | Loss 0.5270 | LR 5.8657e-06
+2026-02-15 19:23:40 INFO Epoch 2 | Step 1420/5341 | Loss 0.5269 | LR 5.8859e-06
+2026-02-15 19:23:54 INFO Epoch 2 | Step 1440/5341 | Loss 0.5266 | LR 5.9061e-06
+2026-02-15 19:24:08 INFO Epoch 2 | Step 1460/5341 | Loss 0.5267 | LR 5.9264e-06
+2026-02-15 19:24:21 INFO Epoch 2 | Step 1480/5341 | Loss 0.5268 | LR 5.9468e-06
+2026-02-15 19:24:35 INFO Epoch 2 | Step 1500/5341 | Loss 0.5265 | LR 5.9671e-06
+2026-02-15 19:24:49 INFO Epoch 2 | Step 1520/5341 | Loss 0.5264 | LR 5.9876e-06
+2026-02-15 19:25:02 INFO Epoch 2 | Step 1540/5341 | Loss 0.5264 | LR 6.0081e-06
+2026-02-15 19:25:16 INFO Epoch 2 | Step 1560/5341 | Loss 0.5264 | LR 6.0286e-06
+2026-02-15 19:25:30 INFO Epoch 2 | Step 1580/5341 | Loss 0.5260 | LR 6.0492e-06
+2026-02-15 19:25:44 INFO Epoch 2 | Step 1600/5341 | Loss 0.5262 | LR 6.0699e-06
+2026-02-15 19:25:57 INFO Epoch 2 | Step 1620/5341 | Loss 0.5260 | LR 6.0906e-06
+2026-02-15 19:26:11 INFO Epoch 2 | Step 1640/5341 | Loss 0.5255 | LR 6.1114e-06
+2026-02-15 19:26:25 INFO Epoch 2 | Step 1660/5341 | Loss 0.5253 | LR 6.1322e-06
+2026-02-15 19:26:38 INFO Epoch 2 | Step 1680/5341 | Loss 0.5250 | LR 6.1531e-06
+2026-02-15 19:26:52 INFO Epoch 2 | Step 1700/5341 | Loss 0.5249 | LR 6.1740e-06
+2026-02-15 19:27:06 INFO Epoch 2 | Step 1720/5341 | Loss 0.5249 | LR 6.1950e-06
+2026-02-15 19:27:19 INFO Epoch 2 | Step 1740/5341 | Loss 0.5249 | LR 6.2160e-06
+2026-02-15 19:27:33 INFO Epoch 2 | Step 1760/5341 | Loss 0.5249 | LR 6.2371e-06
+2026-02-15 19:27:47 INFO Epoch 2 | Step 1780/5341 | Loss 0.5246 | LR 6.2583e-06
+2026-02-15 19:28:00 INFO Epoch 2 | Step 1800/5341 | Loss 0.5244 | LR 6.2795e-06
+2026-02-15 19:28:14 INFO Epoch 2 | Step 1820/5341 | Loss 0.5243 | LR 6.3008e-06
+2026-02-15 19:28:28 INFO Epoch 2 | Step 1840/5341 | Loss 0.5244 | LR 6.3221e-06
+2026-02-15 19:28:42 INFO Epoch 2 | Step 1860/5341 | Loss 0.5245 | LR 6.3434e-06
+2026-02-15 19:28:55 INFO Epoch 2 | Step 1880/5341 | Loss 0.5244 | LR 6.3648e-06
+2026-02-15 19:29:09 INFO Epoch 2 | Step 1900/5341 | Loss 0.5243 | LR 6.3863e-06
+2026-02-15 19:29:23 INFO Epoch 2 | Step 1920/5341 | Loss 0.5242 | LR 6.4078e-06
+2026-02-15 19:29:36 INFO Epoch 2 | Step 1940/5341 | Loss 0.5240 | LR 6.4294e-06
+2026-02-15 19:29:50 INFO Epoch 2 | Step 1960/5341 | Loss 0.5239 | LR 6.4510e-06
+2026-02-15 19:30:04 INFO Epoch 2 | Step 1980/5341 | Loss 0.5237 | LR 6.4727e-06
+2026-02-15 19:30:17 INFO Epoch 2 | Step 2000/5341 | Loss 0.5234 | LR 6.4945e-06
+2026-02-15 19:30:31 INFO Epoch 2 | Step 2020/5341 | Loss 0.5231 | LR 6.5163e-06
+2026-02-15 19:30:45 INFO Epoch 2 | Step 2040/5341 | Loss 0.5228 | LR 6.5381e-06
+2026-02-15 19:30:58 INFO Epoch 2 | Step 2060/5341 | Loss 0.5227 | LR 6.5600e-06
+2026-02-15 19:31:12 INFO Epoch 2 | Step 2080/5341 | Loss 0.5225 | LR 6.5820e-06
+2026-02-15 19:31:26 INFO Epoch 2 | Step 2100/5341 | Loss 0.5226 | LR 6.6040e-06
+2026-02-15 19:31:39 INFO Epoch 2 | Step 2120/5341 | Loss 0.5226 | LR 6.6260e-06
+2026-02-15 19:31:53 INFO Epoch 2 | Step 2140/5341 | Loss 0.5225 | LR 6.6481e-06
+2026-02-15 19:32:07 INFO Epoch 2 | Step 2160/5341 | Loss 0.5224 | LR 6.6703e-06
+2026-02-15 19:32:20 INFO Epoch 2 | Step 2180/5341 | Loss 0.5220 | LR 6.6925e-06
+2026-02-15 19:32:34 INFO Epoch 2 | Step 2200/5341 | Loss 0.5217 | LR 6.7148e-06
+2026-02-15 19:32:48 INFO Epoch 2 | Step 2220/5341 | Loss 0.5216 | LR 6.7371e-06
+2026-02-15 19:33:01 INFO Epoch 2 | Step 2240/5341 | Loss 0.5213 | LR 6.7595e-06
+2026-02-15 19:33:15 INFO Epoch 2 | Step 2260/5341 | Loss 0.5212 | LR 6.7819e-06
+2026-02-15 19:33:29 INFO Epoch 2 | Step 2280/5341 | Loss 0.5210 | LR 6.8044e-06
+2026-02-15 19:33:42 INFO Epoch 2 | Step 2300/5341 | Loss 0.5208 | LR 6.8269e-06
+2026-02-15 19:33:56 INFO Epoch 2 | Step 2320/5341 | Loss 0.5206 | LR 6.8495e-06
+2026-02-15 19:34:10 INFO Epoch 2 | Step 2340/5341 | Loss 0.5203 | LR 6.8722e-06
+2026-02-15 19:34:23 INFO Epoch 2 | Step 2360/5341 | Loss 0.5200 | LR 6.8949e-06
+2026-02-15 19:34:37 INFO Epoch 2 | Step 2380/5341 | Loss 0.5197 | LR 6.9176e-06
+2026-02-15 19:34:51 INFO Epoch 2 | Step 2400/5341 | Loss 0.5195 | LR 6.9404e-06
+2026-02-15 19:35:04 INFO Epoch 2 | Step 2420/5341 | Loss 0.5195 | LR 6.9633e-06
+2026-02-15 19:35:18 INFO Epoch 2 | Step 2440/5341 | Loss 0.5194 | LR 6.9862e-06
+2026-02-15 19:35:32 INFO Epoch 2 | Step 2460/5341 | Loss 0.5192 | LR 7.0091e-06
+2026-02-15 19:35:45 INFO Epoch 2 | Step 2480/5341 | Loss 0.5190 | LR 7.0321e-06
+2026-02-15 19:35:59 INFO Epoch 2 | Step 2500/5341 | Loss 0.5190 | LR 7.0552e-06
+2026-02-15 19:36:13 INFO Epoch 2 | Step 2520/5341 | Loss 0.5190 | LR 7.0783e-06
+2026-02-15 19:36:27 INFO Epoch 2 | Step 2540/5341 | Loss 0.5186 | LR 7.1015e-06
+2026-02-15 19:36:40 INFO Epoch 2 | Step 2560/5341 | Loss 0.5183 | LR 7.1247e-06
+2026-02-15 19:36:54 INFO Epoch 2 | Step 2580/5341 | Loss 0.5181 | LR 7.1480e-06
+2026-02-15 19:37:08 INFO Epoch 2 | Step 2600/5341 | Loss 0.5180 | LR 7.1713e-06
+2026-02-15 19:37:21 INFO Epoch 2 | Step 2620/5341 | Loss 0.5178 | LR 7.1946e-06
+2026-02-15 19:37:35 INFO Epoch 2 | Step 2640/5341 | Loss 0.5178 | LR 7.2181e-06
+2026-02-15 19:37:49 INFO Epoch 2 | Step 2660/5341 | Loss 0.5175 | LR 7.2415e-06
+2026-02-15 19:38:02 INFO Epoch 2 | Step 2680/5341 | Loss 0.5175 | LR 7.2651e-06
+2026-02-15 19:38:16 INFO Epoch 2 | Step 2700/5341 | Loss 0.5172 | LR 7.2887e-06
+2026-02-15 19:38:30 INFO Epoch 2 | Step 2720/5341 | Loss 0.5171 | LR 7.3123e-06
+2026-02-15 19:38:43 INFO Epoch 2 | Step 2740/5341 | Loss 0.5168 | LR 7.3360e-06
+2026-02-15 19:38:57 INFO Epoch 2 | Step 2760/5341 | Loss 0.5166 | LR 7.3597e-06
+2026-02-15 19:39:11 INFO Epoch 2 | Step 2780/5341 | Loss 0.5164 | LR 7.3835e-06
+2026-02-15 19:39:24 INFO Epoch 2 | Step 2800/5341 | Loss 0.5163 | LR 7.4073e-06
+2026-02-15 19:39:38 INFO Epoch 2 | Step 2820/5341 | Loss 0.5162 | LR 7.4312e-06
+2026-02-15 19:39:52 INFO Epoch 2 | Step 2840/5341 | Loss 0.5160 | LR 7.4552e-06
+2026-02-15 19:40:05 INFO Epoch 2 | Step 2860/5341 | Loss 0.5159 | LR 7.4792e-06
+2026-02-15 19:40:19 INFO Epoch 2 | Step 2880/5341 | Loss 0.5159 | LR 7.5032e-06
+2026-02-15 19:40:33 INFO Epoch 2 | Step 2900/5341 | Loss 0.5157 | LR 7.5273e-06
+2026-02-15 19:40:47 INFO Epoch 2 | Step 2920/5341 | Loss 0.5155 | LR 7.5514e-06
+2026-02-15 19:41:00 INFO Epoch 2 | Step 2940/5341 | Loss 0.5154 | LR 7.5756e-06
+2026-02-15 19:41:14 INFO Epoch 2 | Step 2960/5341 | Loss 0.5153 | LR 7.5999e-06
+2026-02-15 19:41:28 INFO Epoch 2 | Step 2980/5341 | Loss 0.5152 | LR 7.6242e-06
+2026-02-15 19:41:41 INFO Epoch 2 | Step 3000/5341 | Loss 0.5150 | LR 7.6485e-06
+2026-02-15 19:41:55 INFO Epoch 2 | Step 3020/5341 | Loss 0.5149 | LR 7.6729e-06
+2026-02-15 19:42:09 INFO Epoch 2 | Step 3040/5341 | Loss 0.5149 | LR 7.6974e-06
+2026-02-15 19:42:22 INFO Epoch 2 | Step 3060/5341 | Loss 0.5147 | LR 7.7219e-06
+2026-02-15 19:42:36 INFO Epoch 2 | Step 3080/5341 | Loss 0.5145 | LR 7.7464e-06
+2026-02-15 19:42:50 INFO Epoch 2 | Step 3100/5341 | Loss 0.5143 | LR 7.7711e-06
+2026-02-15 19:43:03 INFO Epoch 2 | Step 3120/5341 | Loss 0.5143 | LR 7.7957e-06
+2026-02-15 19:43:17 INFO Epoch 2 | Step 3140/5341 | Loss 0.5140 | LR 7.8204e-06
+2026-02-15 19:43:31 INFO Epoch 2 | Step 3160/5341 | Loss 0.5138 | LR 7.8452e-06
+2026-02-15 19:43:44 INFO Epoch 2 | Step 3180/5341 | Loss 0.5136 | LR 7.8700e-06
+2026-02-15 19:43:58 INFO Epoch 2 | Step 3200/5341 | Loss 0.5134 | LR 7.8948e-06
+2026-02-15 19:44:12 INFO Epoch 2 | Step 3220/5341 | Loss 0.5134 | LR 7.9197e-06
+2026-02-15 19:44:25 INFO Epoch 2 | Step 3240/5341 | Loss 0.5133 | LR 7.9447e-06
+2026-02-15 19:44:39 INFO Epoch 2 | Step 3260/5341 | Loss 0.5132 | LR 7.9697e-06
+2026-02-15 19:44:53 INFO Epoch 2 | Step 3280/5341 | Loss 0.5131 | LR 7.9948e-06
+2026-02-15 19:45:06 INFO Epoch 2 | Step 3300/5341 | Loss 0.5129 | LR 8.0199e-06
+2026-02-15 19:45:20 INFO Epoch 2 | Step 3320/5341 | Loss 0.5127 | LR 8.0450e-06
+2026-02-15 19:45:34 INFO Epoch 2 | Step 3340/5341 | Loss 0.5126 | LR 8.0702e-06
+2026-02-15 19:45:47 INFO Epoch 2 | Step 3360/5341 | Loss 0.5124 | LR 8.0955e-06
+2026-02-15 19:46:01 INFO Epoch 2 | Step 3380/5341 | Loss 0.5124 | LR 8.1208e-06
+2026-02-15 19:46:15 INFO Epoch 2 | Step 3400/5341 | Loss 0.5122 | LR 8.1462e-06
+2026-02-15 19:46:28 INFO Epoch 2 | Step 3420/5341 | Loss 0.5121 | LR 8.1716e-06
+2026-02-15 19:46:42 INFO Epoch 2 | Step 3440/5341 | Loss 0.5121 | LR 8.1970e-06
+2026-02-15 19:46:56 INFO Epoch 2 | Step 3460/5341 | Loss 0.5120 | LR 8.2225e-06
+2026-02-15 19:47:09 INFO Epoch 2 | Step 3480/5341 | Loss 0.5119 | LR 8.2481e-06
+2026-02-15 19:47:23 INFO Epoch 2 | Step 3500/5341 | Loss 0.5118 | LR 8.2737e-06
+2026-02-15 19:47:37 INFO Epoch 2 | Step 3520/5341 | Loss 0.5117 | LR 8.2994e-06
+2026-02-15 19:47:50 INFO Epoch 2 | Step 3540/5341 | Loss 0.5116 | LR 8.3251e-06
+2026-02-15 19:48:04 INFO Epoch 2 | Step 3560/5341 | Loss 0.5115 | LR 8.3508e-06
+2026-02-15 19:48:18 INFO Epoch 2 | Step 3580/5341 | Loss 0.5113 | LR 8.3766e-06
+2026-02-15 19:48:32 INFO Epoch 2 | Step 3600/5341 | Loss 0.5112 | LR 8.4025e-06
+2026-02-15 19:48:45 INFO Epoch 2 | Step 3620/5341 | Loss 0.5111 | LR 8.4284e-06
+2026-02-15 19:48:59 INFO Epoch 2 | Step 3640/5341 | Loss 0.5109 | LR 8.4544e-06
+2026-02-15 19:49:13 INFO Epoch 2 | Step 3660/5341 | Loss 0.5107 | LR 8.4804e-06
+2026-02-15 19:49:26 INFO Epoch 2 | Step 3680/5341 | Loss 0.5107 | LR 8.5064e-06
+2026-02-15 19:49:40 INFO Epoch 2 | Step 3700/5341 | Loss 0.5106 | LR 8.5325e-06
+2026-02-15 19:49:54 INFO Epoch 2 | Step 3720/5341 | Loss 0.5105 | LR 8.5587e-06
+2026-02-15 19:50:07 INFO Epoch 2 | Step 3740/5341 | Loss 0.5104 | LR 8.5849e-06
+2026-02-15 19:50:21 INFO Epoch 2 | Step 3760/5341 | Loss 0.5101 | LR 8.6111e-06
+2026-02-15 19:50:35 INFO Epoch 2 | Step 3780/5341 | Loss 0.5101 | LR 8.6374e-06
+2026-02-15 19:50:48 INFO Epoch 2 | Step 3800/5341 | Loss 0.5099 | LR 8.6637e-06
+2026-02-15 19:51:02 INFO Epoch 2 | Step 3820/5341 | Loss 0.5097 | LR 8.6901e-06
+2026-02-15 19:51:16 INFO Epoch 2 | Step 3840/5341 | Loss 0.5096 | LR 8.7166e-06
+2026-02-15 19:51:29 INFO Epoch 2 | Step 3860/5341 | Loss 0.5095 | LR 8.7431e-06
+2026-02-15 19:51:43 INFO Epoch 2 | Step 3880/5341 | Loss 0.5093 | LR 8.7696e-06
+2026-02-15 19:51:57 INFO Epoch 2 | Step 3900/5341 | Loss 0.5092 | LR 8.7962e-06
+2026-02-15 19:52:10 INFO Epoch 2 | Step 3920/5341 | Loss 0.5090 | LR 8.8228e-06
+2026-02-15 19:52:24 INFO Epoch 2 | Step 3940/5341 | Loss 0.5087 | LR 8.8495e-06
+2026-02-15 19:52:38 INFO Epoch 2 | Step 3960/5341 | Loss 0.5085 | LR 8.8763e-06
+2026-02-15 19:52:51 INFO Epoch 2 | Step 3980/5341 | Loss 0.5083 | LR 8.9030e-06
+2026-02-15 19:53:05 INFO Epoch 2 | Step 4000/5341 | Loss 0.5082 | LR 8.9299e-06
+2026-02-15 19:53:19 INFO Epoch 2 | Step 4020/5341 | Loss 0.5081 | LR 8.9567e-06
+2026-02-15 19:53:32 INFO Epoch 2 | Step 4040/5341 | Loss 0.5079 | LR 8.9837e-06
+2026-02-15 19:53:46 INFO Epoch 2 | Step 4060/5341 | Loss 0.5077 | LR 9.0106e-06
+2026-02-15 19:54:00 INFO Epoch 2 | Step 4080/5341 | Loss 0.5076 | LR 9.0377e-06
+2026-02-15 19:54:13 INFO Epoch 2 | Step 4100/5341 | Loss 0.5075 | LR 9.0647e-06
+2026-02-15 19:54:27 INFO Epoch 2 | Step 4120/5341 | Loss 0.5073 | LR 9.0919e-06
+2026-02-15 19:54:41 INFO Epoch 2 | Step 4140/5341 | Loss 0.5071 | LR 9.1190e-06
+2026-02-15 19:54:54 INFO Epoch 2 | Step 4160/5341 | Loss 0.5070 | LR 9.1462e-06
+2026-02-15 19:55:08 INFO Epoch 2 | Step 4180/5341 | Loss 0.5068 | LR 9.1735e-06
+2026-02-15 19:55:22 INFO Epoch 2 | Step 4200/5341 | Loss 0.5067 | LR 9.2008e-06
+2026-02-15 19:55:35 INFO Epoch 2 | Step 4220/5341 | Loss 0.5065 | LR 9.2282e-06
+2026-02-15 19:55:49 INFO Epoch 2 | Step 4240/5341 | Loss 0.5064 | LR 9.2556e-06
+2026-02-15 19:56:03 INFO Epoch 2 | Step 4260/5341 | Loss 0.5064 | LR 9.2830e-06
+2026-02-15 19:56:16 INFO Epoch 2 | Step 4280/5341 | Loss 0.5063 | LR 9.3105e-06
+2026-02-15 19:56:30 INFO Epoch 2 | Step 4300/5341 | Loss 0.5061 | LR 9.3381e-06
+2026-02-15 19:56:44 INFO Epoch 2 | Step 4320/5341 | Loss 0.5059 | LR 9.3657e-06
+2026-02-15 19:56:57 INFO Epoch 2 | Step 4340/5341 | Loss 0.5057 | LR 9.3933e-06
+2026-02-15 19:57:11 INFO Epoch 2 | Step 4360/5341 | Loss 0.5056 | LR 9.4210e-06
+2026-02-15 19:57:25 INFO Epoch 2 | Step 4380/5341 | Loss 0.5054 | LR 9.4487e-06
+2026-02-15 19:57:38 INFO Epoch 2 | Step 4400/5341 | Loss 0.5054 | LR 9.4765e-06
+2026-02-15 19:57:52 INFO Epoch 2 | Step 4420/5341 | Loss 0.5052 | LR 9.5043e-06
+2026-02-15 19:58:06 INFO Epoch 2 | Step 4440/5341 | Loss 0.5050 | LR 9.5322e-06
+2026-02-15 19:58:19 INFO Epoch 2 | Step 4460/5341 | Loss 0.5049 | LR 9.5601e-06
+2026-02-15 19:58:33 INFO Epoch 2 | Step 4480/5341 | Loss 0.5047 | LR 9.5881e-06
+2026-02-15 19:58:47 INFO Epoch 2 | Step 4500/5341 | Loss 0.5046 | LR 9.6161e-06
+2026-02-15 19:59:00 INFO Epoch 2 | Step 4520/5341 | Loss 0.5044 | LR 9.6442e-06
+2026-02-15 19:59:14 INFO Epoch 2 | Step 4540/5341 | Loss 0.5042 | LR 9.6723e-06
+2026-02-15 19:59:28 INFO Epoch 2 | Step 4560/5341 | Loss 0.5042 | LR 9.7005e-06
+2026-02-15 19:59:41 INFO Epoch 2 | Step 4580/5341 | Loss 0.5040 | LR 9.7287e-06
+2026-02-15 19:59:55 INFO Epoch 2 | Step 4600/5341 | Loss 0.5038 | LR 9.7569e-06
+2026-02-15 20:00:09 INFO Epoch 2 | Step 4620/5341 | Loss 0.5037 | LR 9.7852e-06
+2026-02-15 20:00:22 INFO Epoch 2 | Step 4640/5341 | Loss 0.5035 | LR 9.8135e-06
+2026-02-15 20:00:36 INFO Epoch 2 | Step 4660/5341 | Loss 0.5034 | LR 9.8419e-06
+2026-02-15 20:00:50 INFO Epoch 2 | Step 4680/5341 | Loss 0.5033 | LR 9.8704e-06
+2026-02-15 20:01:03 INFO Epoch 2 | Step 4700/5341 | Loss 0.5032 | LR 9.8988e-06
+2026-02-15 20:01:17 INFO Epoch 2 | Step 4720/5341 | Loss 0.5031 | LR 9.9274e-06
+2026-02-15 20:01:31 INFO Epoch 2 | Step 4740/5341 | Loss 0.5031 | LR 9.9559e-06
+2026-02-15 20:01:44 INFO Epoch 2 | Step 4760/5341 | Loss 0.5029 | LR 9.9846e-06
+2026-02-15 20:01:58 INFO Epoch 2 | Step 4780/5341 | Loss 0.5028 | LR 1.0013e-05
+2026-02-15 20:02:12 INFO Epoch 2 | Step 4800/5341 | Loss 0.5026 | LR 1.0042e-05
+2026-02-15 20:02:25 INFO Epoch 2 | Step 4820/5341 | Loss 0.5024 | LR 1.0071e-05
+2026-02-15 20:02:39 INFO Epoch 2 | Step 4840/5341 | Loss 0.5022 | LR 1.0099e-05
+2026-02-15 20:02:53 INFO Epoch 2 | Step 4860/5341 | Loss 0.5020 | LR 1.0128e-05
+2026-02-15 20:03:06 INFO Epoch 2 | Step 4880/5341 | Loss 0.5019 | LR 1.0157e-05
+2026-02-15 20:03:20 INFO Epoch 2 | Step 4900/5341 | Loss 0.5018 | LR 1.0186e-05
+2026-02-15 20:03:34 INFO Epoch 2 | Step 4920/5341 | Loss 0.5016 | LR 1.0215e-05
+2026-02-15 20:03:47 INFO Epoch 2 | Step 4940/5341 | Loss 0.5015 | LR 1.0244e-05
+2026-02-15 20:04:01 INFO Epoch 2 | Step 4960/5341 | Loss 0.5014 | LR 1.0273e-05
+2026-02-15 20:04:15 INFO Epoch 2 | Step 4980/5341 | Loss 0.5014 | LR 1.0302e-05
+2026-02-15 20:04:28 INFO Epoch 2 | Step 5000/5341 | Loss 0.5012 | LR 1.0332e-05
+2026-02-15 20:04:42 INFO Epoch 2 | Step 5020/5341 | Loss 0.5011 | LR 1.0361e-05
+2026-02-15 20:04:56 INFO Epoch 2 | Step 5040/5341 | Loss 0.5010 | LR 1.0390e-05
+2026-02-15 20:05:09 INFO Epoch 2 | Step 5060/5341 | Loss 0.5008 | LR 1.0419e-05
+2026-02-15 20:05:23 INFO Epoch 2 | Step 5080/5341 | Loss 0.5007 | LR 1.0449e-05
+2026-02-15 20:05:37 INFO Epoch 2 | Step 5100/5341 | Loss 0.5006 | LR 1.0478e-05
+2026-02-15 20:05:50 INFO Epoch 2 | Step 5120/5341 | Loss 0.5004 | LR 1.0507e-05
+2026-02-15 20:06:04 INFO Epoch 2 | Step 5140/5341 | Loss 0.5004 | LR 1.0537e-05
+2026-02-15 20:06:18 INFO Epoch 2 | Step 5160/5341 | Loss 0.5003 | LR 1.0566e-05
+2026-02-15 20:06:31 INFO Epoch 2 | Step 5180/5341 | Loss 0.5002 | LR 1.0596e-05
+2026-02-15 20:06:45 INFO Epoch 2 | Step 5200/5341 | Loss 0.5000 | LR 1.0626e-05
+2026-02-15 20:06:59 INFO Epoch 2 | Step 5220/5341 | Loss 0.4999 | LR 1.0655e-05
+2026-02-15 20:07:12 INFO Epoch 2 | Step 5240/5341 | Loss 0.4997 | LR 1.0685e-05
+2026-02-15 20:07:26 INFO Epoch 2 | Step 5260/5341 | Loss 0.4995 | LR 1.0715e-05
+2026-02-15 20:07:40 INFO Epoch 2 | Step 5280/5341 | Loss 0.4994 | LR 1.0745e-05
+2026-02-15 20:07:54 INFO Epoch 2 | Step 5300/5341 | Loss 0.4992 | LR 1.0774e-05
+2026-02-15 20:08:07 INFO Epoch 2 | Step 5320/5341 | Loss 0.4991 | LR 1.0804e-05
+2026-02-15 20:08:21 INFO Epoch 2 | Step 5340/5341 | Loss 0.4990 | LR 1.0834e-05
+2026-02-15 20:08:22 INFO Epoch 2 | Step 5341/5341 | Loss 0.4990 | LR 1.0836e-05
+2026-02-15 20:20:41 INFO CSV Written | Epoch: 2
+2026-02-15 20:20:41 INFO Best Saved | Epoch: 2 | Monitor: val_auprc | Value: 0.7931
+2026-02-15 20:20:41 INFO Epoch Done | Epoch: 2 | Time: 4400.6239 | Train Loss: 0.4990 | Val Accuracy: 0.7036 | Val AUPRC: 0.7931 | Val Auroc: 0.7837 | Val F1: 0.7215 | Val Loss: 0.5837
+2026-02-15 20:20:41 INFO Epoch Start | Epoch: 3
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+[rank2]:     return _run_code(code, main_globals, None,
+[rank2]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/runpy.py", line 86, in _run_code
+[rank2]:     exec(code, run_globals)
+[rank2]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/run.py", line 1139, in <module>
+[rank2]:     main()
+[rank2]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/run.py", line 1135, in main
+[rank2]:     execute_pipeline(config=config)
+[rank2]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/run.py", line 1073, in execute_pipeline
+[rank2]:     active_checkpoint = run_training_stage(
+[rank2]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/run.py", line 732, in run_training_stage
+[rank2]:     train_stats = trainer.train_one_epoch(dataloaders["train"], epoch_index=epoch)
+[rank2]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/train/base.py", line 241, in train_one_epoch
+[rank2]:     for batch in train_loader:
+[rank2]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 734, in __next__
+[rank2]:     data = self._next_data()
+[rank2]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1516, in _next_data
+[rank2]:     return self._process_data(data, worker_id)
+[rank2]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1551, in _process_data
+[rank2]:     data.reraise()
+[rank2]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/_utils.py", line 769, in reraise
+[rank2]:     raise exception
+[rank2]: torch.AcceleratorError: Caught AcceleratorError in pin memory thread for device 2.
+[rank2]: Original Traceback (most recent call last):
+[rank2]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/utils/data/_utils/pin_memory.py", line 43, in do_one_step
+[rank2]:     data = pin_memory(data, device)
+[rank2]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/utils/data/_utils/pin_memory.py", line 77, in pin_memory
+[rank2]:     {k: pin_memory(sample, device) for k, sample in data.items()}
+[rank2]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/utils/data/_utils/pin_memory.py", line 77, in <dictcomp>
+[rank2]:     {k: pin_memory(sample, device) for k, sample in data.items()}
+[rank2]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/utils/data/_utils/pin_memory.py", line 66, in pin_memory
+[rank2]:     return data.pin_memory(device)
+[rank2]: torch.AcceleratorError: CUDA error: invalid argument
+[rank2]: CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+[rank2]: For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+[rank2]: Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+
+[rank3]: Traceback (most recent call last):
+[rank3]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1285, in _try_get_data
+[rank3]:     data = self._data_queue.get(timeout=timeout)
+[rank3]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/queue.py", line 180, in get
+[rank3]:     self.not_empty.wait(remaining)
+[rank3]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/threading.py", line 324, in wait
+[rank3]:     gotit = waiter.acquire(True, timeout)
+[rank3]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/utils/data/_utils/signal_handling.py", line 73, in handler
+[rank3]:     _error_if_any_worker_fails()
+[rank3]: RuntimeError: DataLoader worker (pid 157412) is killed by signal: Killed. 
+
+[rank3]: The above exception was the direct cause of the following exception:
+
+[rank3]: Traceback (most recent call last):
+[rank3]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+[rank3]:     return _run_code(code, main_globals, None,
+[rank3]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/runpy.py", line 86, in _run_code
+[rank3]:     exec(code, run_globals)
+[rank3]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/run.py", line 1139, in <module>
+[rank3]:     main()
+[rank3]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/run.py", line 1135, in main
+[rank3]:     execute_pipeline(config=config)
+[rank3]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/run.py", line 1073, in execute_pipeline
+[rank3]:     active_checkpoint = run_training_stage(
+[rank3]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/run.py", line 732, in run_training_stage
+[rank3]:     train_stats = trainer.train_one_epoch(dataloaders["train"], epoch_index=epoch)
+[rank3]:   File "/public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions/src/train/base.py", line 241, in train_one_epoch
+[rank3]:     for batch in train_loader:
+[rank3]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 734, in __next__
+[rank3]:     data = self._next_data()
+[rank3]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1492, in _next_data
+[rank3]:     idx, data = self._get_data()
+[rank3]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1444, in _get_data
+[rank3]:     success, data = self._try_get_data()
+[rank3]:   File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1298, in _try_get_data
+[rank3]:     raise RuntimeError(
+[rank3]: RuntimeError: DataLoader worker (pid(s) 157412) exited unexpectedly
+W0215 20:30:43.308000 108871 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 109024 closing signal SIGTERM
+W0215 20:30:44.174000 108871 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 109025 closing signal SIGTERM
+W0215 20:30:44.195000 108871 site-packages/torch/distributed/elastic/multiprocessing/api.py:900] Sending process 109027 closing signal SIGTERM
+E0215 20:31:06.860000 108871 site-packages/torch/distributed/elastic/multiprocessing/api.py:874] failed (exitcode: 1) local_rank: 2 (pid: 109026) of binary: /public/home/wangar2023/.conda/envs/esm/bin/python3.1
+Traceback (most recent call last):
+  File "/public/home/wangar2023/.conda/envs/esm/bin/torchrun", line 7, in <module>
+    sys.exit(main())
+  File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 357, in wrapper
+    return f(*args, **kwargs)
+  File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/distributed/run.py", line 901, in main
+    run(args)
+  File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/distributed/run.py", line 892, in run
+    elastic_launch(
+  File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 143, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+  File "/public/home/wangar2023/.conda/envs/esm/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 277, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+src.run FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-02-15_20:30:43
+  host      : hexm01
+  rank      : 2 (local_rank: 2)
+  exitcode  : 1 (pid: 109026)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+slurmstepd: error: Detected 8901 oom-kill event(s) in step 816928.batch cgroup. Some of your processes may have been killed by the cgroup out-of-memory handler.
