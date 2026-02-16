@@ -14,13 +14,11 @@
 
 set -euo pipefail
 
-if [ "$#" -lt 1 ]; then
-  echo "Usage: $0 <pretrain-checkpoint-path> [extra-optuna-args...]"
+CHECKPOINT_PATH="models/v4/pretrain/20260201_123832/best_model.pth"
+if [ ! -f "${CHECKPOINT_PATH}" ]; then
+  echo "Checkpoint not found: ${CHECKPOINT_PATH}"
   exit 1
 fi
-
-CHECKPOINT_PATH="$1"
-shift
 
 cd /public/home/wangar2023/DIPPI-DNN-based-Interaction-Predictor-for-Protein-Protein-Interactions
 source ~/.bashrc
@@ -28,5 +26,7 @@ conda activate esm
 
 export PYTHONPATH="$PWD:${PYTHONPATH:-}"
 export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
+
+echo "Using finetune seed checkpoint: ${CHECKPOINT_PATH}"
 
 python -m src.tune.finetune_optuna --config configs/v4.yaml --checkpoint "${CHECKPOINT_PATH}" "$@"
