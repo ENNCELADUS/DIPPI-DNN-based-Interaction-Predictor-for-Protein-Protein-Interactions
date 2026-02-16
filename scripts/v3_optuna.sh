@@ -1,14 +1,14 @@
 #!/bin/bash
 #SBATCH -J V3_OPTUNA
-#SBATCH -p hexm_l40
-#SBATCH -A hexm
+#SBATCH -p critical
+#SBATCH -A hexm-critical
 #SBATCH -N 1
 #SBATCH -t 4-00:00:00
 #SBATCH --mem=300G
 #SBATCH --cpus-per-task=32
-#SBATCH --gres=gpu:NVIDIAL40:1
-#SBATCH --output=logs/v3_optuna/slurm_%j.out
-#SBATCH --error=logs/v3_optuna/slurm_%j.err
+#SBATCH --gres=gpu:NVIDIAA40:4
+#SBATCH --output=logs/v3/slurm_%j.out
+#SBATCH --error=logs/v3/slurm_%j.err
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=2162352828@qq.com
 

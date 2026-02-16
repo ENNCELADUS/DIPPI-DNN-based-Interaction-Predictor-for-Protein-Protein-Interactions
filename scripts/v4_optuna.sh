@@ -6,7 +6,7 @@
 #SBATCH -t 4-00:00:00
 #SBATCH --mem=300G
 #SBATCH --cpus-per-task=32
-#SBATCH --gres=gpu:NVIDIAA40:1
+#SBATCH --gres=gpu:NVIDIAA40:4
 #SBATCH --output=logs/v4_optuna/slurm_%j.out
 #SBATCH --error=logs/v4_optuna/slurm_%j.err
 #SBATCH --mail-type=ALL
