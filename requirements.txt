@@ -17,6 +17,7 @@ torchtune
 torchmetrics
 transformers
 lightning-utilities
+optuna
 
 # ============================================================================
 # ESM Models & Language Models

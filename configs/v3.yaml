@@ -85,7 +85,7 @@ training_config:
     type: "none"
   finetune:
     batch_size: 16
-    epochs: 30
+    epochs: 20
     monitor_metric: "auprc"
     optimizer:
       lr: 0.00005
@@ -96,6 +96,41 @@ training_config:
       type: "staged_unfreeze"
       unfreeze_epoch: 3
       initial_trainable_prefixes: ["output_head"]
+    optuna:
+      enabled: false
+      study_name: "v3_finetune"
+      storage: "sqlite:///logs/optuna/v3_finetune.db"
+      direction: "maximize"
+      metric: "auprc"
+      n_trials: 6
+      timeout_sec: null
+      sampler:
+        type: "tpe"
+        seed: 47
+      pruner:
+        type: "median"
+        n_startup_trials: 3
+        n_warmup_steps: 1
+        interval_steps: 1
+      parameters:
+        lr:
+          distribution:
+            type: "float"
+            low: 1.0e-6
+            high: 5.0e-5
+            log: true
+          apply_to: ["optimizer.lr", "scheduler.max_lr"]
+        batch_size:
+          distribution:
+            type: "categorical"
+            choices: [8, 16]
+          apply_to: ["batch_size"]
+        strategy_unfreeze_epoch:
+          distribution:
+            type: "int"
+            low: 1
+            high: 5
+          apply_to: ["strategy.unfreeze_epoch"]
 
 evaluate:
   metrics:

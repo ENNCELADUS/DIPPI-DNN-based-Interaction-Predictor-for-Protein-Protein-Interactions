@@ -63,6 +63,7 @@ ROOT_LOGGER = logging.getLogger(__name__)
 AnnealStrategy = Literal["cos", "linear"]
 PipelineStage = Literal["pretrain", "finetune", "evaluate"]
 ModelFactory = Callable[[ConfigDict], nn.Module]
+TrainingEpochCallback = Callable[[TrainingStage, int, float], bool]
 DEFAULT_TRAINING_VAL_METRICS = ["auprc", "auroc"]
 DEFAULT_HEARTBEAT_EVERY_N_STEPS = 20
 TRAINING_STAGE_SEQUENCE: tuple[TrainingStage, ...] = ("pretrain", "finetune")
@@ -657,6 +658,7 @@ def run_training_stage(
     dataloaders: dict[str, torch.utils.data.DataLoader[dict[str, object]]],
     run_id: str,
     distributed_context: DistributedContext,
+    epoch_callback: Callable[[int, float], bool] | None = None,
 ) -> Path:
     """Run stage training loop.
 
@@ -668,6 +670,8 @@ def run_training_stage(
         dataloaders: Split dataloaders keyed by `train`, `valid`, and `test`.
         run_id: Stage run identifier.
         distributed_context: Distributed process metadata.
+        epoch_callback: Optional callback receiving ``(epoch_index, monitor_value)``.
+            Return ``True`` to request early stop for the current stage.
 
     Returns:
         Path to the best checkpoint produced during the stage.
@@ -777,6 +781,8 @@ def run_training_stage(
         should_stop = False
         if distributed_context.is_main_process:
             improved, should_stop = early_stopping.update(monitor_value)
+            if epoch_callback is not None:
+                should_stop = bool(epoch_callback(epoch, monitor_value)) or should_stop
             if improved:
                 _save_checkpoint(model=model, checkpoint_path=best_checkpoint_path)
                 log_stage_event(
@@ -913,11 +919,17 @@ def run_evaluation_stage(
     return metrics
 
 
-def execute_pipeline(config: ConfigDict) -> None:
+def execute_pipeline(
+    config: ConfigDict,
+    training_epoch_callback: TrainingEpochCallback | None = None,
+) -> None:
     """Execute pipeline according to configured run mode.
 
     Args:
         config: Global run configuration dictionary.
+        training_epoch_callback: Optional callback invoked for each training epoch
+            on the main process with ``(stage, epoch_index, monitor_value)``.
+            Return ``True`` to request stage stop.
 
     Raises:
         ValueError: If mode is unsupported or required checkpoint is missing.
@@ -1088,15 +1100,33 @@ def execute_pipeline(config: ConfigDict) -> None:
                 )
                 log_stage_event(stage_loggers[training_stage], "begin_training")
 
-            active_checkpoint = run_training_stage(
-                stage=training_stage,
-                config=stage_config,
-                model=model,
-                device=device,
-                dataloaders=dataloaders,
-                run_id=stage_run_map[training_stage],
-                distributed_context=distributed_context,
-            )
+            if training_epoch_callback is None:
+                active_checkpoint = run_training_stage(
+                    stage=training_stage,
+                    config=stage_config,
+                    model=model,
+                    device=device,
+                    dataloaders=dataloaders,
+                    run_id=stage_run_map[training_stage],
+                    distributed_context=distributed_context,
+                )
+            else:
+                active_checkpoint = run_training_stage(
+                    stage=training_stage,
+                    config=stage_config,
+                    model=model,
+                    device=device,
+                    dataloaders=dataloaders,
+                    run_id=stage_run_map[training_stage],
+                    distributed_context=distributed_context,
+                    epoch_callback=(
+                        lambda epoch,
+                        metric,
+                        stage_name=training_stage: training_epoch_callback(
+                            stage_name, epoch, metric
+                        )
+                    ),
+                )
             last_training_stage = training_stage
             if distributed_context.is_main_process:
                 log_stage_event(
