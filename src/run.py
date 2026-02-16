@@ -465,11 +465,30 @@ def build_model(config: ConfigDict) -> nn.Module:
     raise ValueError(f"Unknown model: {model_name}")
 
 
+def _sampling_config_for_stage(
+    dataloader_cfg: ConfigDict, stage: TrainingStage
+) -> ConfigDict:
+    """Resolve sampling config for a specific training stage."""
+    sampling_raw = dataloader_cfg.get("sampling", {})
+    if not isinstance(sampling_raw, dict):
+        raise ValueError("data_config.dataloader.sampling must be a mapping")
+    stage_key = f"{stage}_sampling"
+    stage_sampling_raw = dataloader_cfg.get(stage_key)
+    if stage_sampling_raw is None:
+        return cast(ConfigDict, sampling_raw)
+    if not isinstance(stage_sampling_raw, dict):
+        raise ValueError(f"data_config.dataloader.{stage_key} must be a mapping")
+    merged = dict(cast(ConfigDict, sampling_raw))
+    merged.update(cast(ConfigDict, stage_sampling_raw))
+    return merged
+
+
 def build_trainer(
     config: ConfigDict,
     model: nn.Module,
     device: torch.device,
     steps_per_epoch: int,
+    stage: TrainingStage = "pretrain",
     logger: logging.Logger | None = None,
 ) -> tuple[Trainer, LossConfig]:
     """Instantiate trainer with optimizer/scheduler configs.
@@ -479,6 +498,7 @@ def build_trainer(
         model: Instantiated model.
         device: Target torch device.
         steps_per_epoch: Number of training steps per epoch.
+        stage: Training stage name.
         logger: Optional stage logger for heartbeat messages.
 
     Returns:
@@ -489,10 +509,7 @@ def build_trainer(
     dataloader_cfg = get_section(data_cfg, "dataloader")
     optimizer_cfg = get_section(training_cfg, "optimizer")
     scheduler_cfg = get_section(training_cfg, "scheduler")
-    sampling_raw = dataloader_cfg.get("sampling", {})
-    if not isinstance(sampling_raw, dict):
-        raise ValueError("data_config.dataloader.sampling must be a mapping")
-    sampling_cfg = sampling_raw
+    sampling_cfg = _sampling_config_for_stage(dataloader_cfg, stage)
 
     optimizer_config = OptimizerConfig(
         optimizer_type=as_str(
@@ -633,7 +650,7 @@ def _load_checkpoint(
 
 
 def run_training_stage(
-    stage: str,
+    stage: TrainingStage,
     config: ConfigDict,
     model: nn.Module,
     device: torch.device,
@@ -676,6 +693,7 @@ def run_training_stage(
         model=model,
         device=device,
         steps_per_epoch=len(dataloaders["train"]),
+        stage=stage,
         logger=stage_logger,
     )
     strategy = build_strategy(config)

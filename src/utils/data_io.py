@@ -138,6 +138,7 @@ def _build_split_loader(
     distributed: bool,
     rank: int,
     world_size: int,
+    train_stage: TrainingStage,
 ) -> DataLoader[dict[str, torch.Tensor]]:
     """Build a split-specific data loader."""
     training_cfg = get_section(config, "training_config")
@@ -178,10 +179,9 @@ def _build_split_loader(
     sampler: DistributedSampler[dict[str, torch.Tensor]] | None = None
     batch_sampler: StagedOHEMBatchSampler | None = None
     should_shuffle = shuffle
-    sampling_raw = dataloader_cfg.get("sampling", {})
-    if not isinstance(sampling_raw, dict):
-        raise ValueError("data_config.dataloader.sampling must be a mapping")
-    sampling_cfg = sampling_raw
+    sampling_cfg = _sampling_config_for_stage(
+        dataloader_cfg=dataloader_cfg, train_stage=train_stage
+    )
     sampling_strategy = as_str(
         sampling_cfg.get("strategy", "none"),
         "data_config.dataloader.sampling.strategy",
@@ -276,6 +276,24 @@ def _resolve_training_stage(stage: str) -> TrainingStage:
     if stage_name == "finetune":
         return "finetune"
     raise ValueError(f"Unsupported training stage: {stage}")
+
+
+def _sampling_config_for_stage(
+    dataloader_cfg: ConfigDict, train_stage: TrainingStage
+) -> ConfigDict:
+    """Resolve stage-specific sampling with fallback to global defaults."""
+    sampling_raw = dataloader_cfg.get("sampling", {})
+    if not isinstance(sampling_raw, dict):
+        raise ValueError("data_config.dataloader.sampling must be a mapping")
+    stage_key = f"{train_stage}_sampling"
+    stage_sampling_raw = dataloader_cfg.get(stage_key)
+    if stage_sampling_raw is None:
+        return sampling_raw
+    if not isinstance(stage_sampling_raw, dict):
+        raise ValueError(f"data_config.dataloader.{stage_key} must be a mapping")
+    merged = dict(sampling_raw)
+    merged.update(stage_sampling_raw)
+    return merged
 
 
 def _split_path_from_key(
@@ -472,6 +490,7 @@ def build_dataloaders(
         "data_config.max_sequence_length",
     )
     seed = as_int(run_cfg.get("seed", 0), "run_config.seed")
+    stage_name = _resolve_training_stage(train_stage)
 
     resolved_embedding_cache = embedding_cache
     if resolved_embedding_cache is None:
@@ -496,6 +515,7 @@ def build_dataloaders(
             distributed=distributed,
             rank=rank,
             world_size=world_size,
+            train_stage=stage_name,
         ),
         "valid": _build_split_loader(
             split_path=valid_path,
@@ -508,6 +528,7 @@ def build_dataloaders(
             distributed=False,
             rank=rank,
             world_size=world_size,
+            train_stage=stage_name,
         ),
         "test": _build_split_loader(
             split_path=test_path,
@@ -520,5 +541,6 @@ def build_dataloaders(
             distributed=False,
             rank=rank,
             world_size=world_size,
+            train_stage=stage_name,
         ),
     }

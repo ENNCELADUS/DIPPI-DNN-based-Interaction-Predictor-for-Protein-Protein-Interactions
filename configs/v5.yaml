@@ -37,6 +37,8 @@ data_config:
       warmup_epochs: 2
       pool_multiplier: 16
       cap_protein: 2
+    pretrain_sampling:
+      strategy: "none"  # none | ohem
 
 model_config:
   model: "v5"
@@ -69,7 +71,7 @@ model_config:
 
 training_config:
   epochs: 20
-  batch_size: 16
+  batch_size: 32
   early_stopping_patience: 5
   monitor_metric: "auprc"
   logging:
@@ -95,6 +97,7 @@ training_config:
   strategy:
     type: "none"
   finetune:
+    batch_size: 16
     epochs: 30
     monitor_metric: "auprc"
     optimizer:

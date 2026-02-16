@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import torch
 from torch.utils.data import DataLoader, Dataset
@@ -112,6 +113,7 @@ def _build_split_loader_v6(
     distributed: bool,
     rank: int,
     world_size: int,
+    train_stage: TrainingStage,
 ) -> DataLoader[dict[str, object]]:
     """Build one split dataloader for sequence-native training/evaluation."""
     training_cfg = get_section(config, "training_config")
@@ -135,10 +137,9 @@ def _build_split_loader_v6(
     batch_sampler: StagedOHEMBatchSampler | None = None
     should_shuffle = shuffle
 
-    sampling_raw = dataloader_cfg.get("sampling", {})
-    if not isinstance(sampling_raw, dict):
-        raise ValueError("data_config.dataloader.sampling must be a mapping")
-    sampling_cfg = sampling_raw
+    sampling_cfg = _sampling_config_for_stage(
+        dataloader_cfg=dataloader_cfg, train_stage=train_stage
+    )
     sampling_strategy = as_str(
         sampling_cfg.get("strategy", "none"),
         "data_config.dataloader.sampling.strategy",
@@ -209,6 +210,24 @@ def _build_split_loader_v6(
     )
 
 
+def _sampling_config_for_stage(
+    dataloader_cfg: ConfigDict, train_stage: TrainingStage
+) -> ConfigDict:
+    """Resolve stage-specific sampling with fallback to global defaults."""
+    sampling_raw = dataloader_cfg.get("sampling", {})
+    if not isinstance(sampling_raw, dict):
+        raise ValueError("data_config.dataloader.sampling must be a mapping")
+    stage_key = f"{train_stage}_sampling"
+    stage_sampling_raw = dataloader_cfg.get(stage_key)
+    if stage_sampling_raw is None:
+        return sampling_raw
+    if not isinstance(stage_sampling_raw, dict):
+        raise ValueError(f"data_config.dataloader.{stage_key} must be a mapping")
+    merged = dict(sampling_raw)
+    merged.update(stage_sampling_raw)
+    return merged
+
+
 def build_dataloaders_v6(
     config: ConfigDict,
     distributed: bool = False,
@@ -222,6 +241,10 @@ def build_dataloaders_v6(
     required_ids = collect_required_protein_ids(split_path_map.values())
     sequences = load_required_sequences(config=config, required_ids=required_ids)
     seed = as_int(run_cfg.get("seed", 0), "run_config.seed")
+    stage_name = train_stage.lower()
+    if stage_name not in {"pretrain", "finetune"}:
+        raise ValueError(f"Unsupported training stage: {train_stage}")
+    typed_stage = cast(TrainingStage, stage_name)
 
     return {
         "train": _build_split_loader_v6(
@@ -233,6 +256,7 @@ def build_dataloaders_v6(
             distributed=distributed,
             rank=rank,
             world_size=world_size,
+            train_stage=typed_stage,
         ),
         "valid": _build_split_loader_v6(
             split_path=split_path_map["valid"],
@@ -243,6 +267,7 @@ def build_dataloaders_v6(
             distributed=False,
             rank=rank,
             world_size=world_size,
+            train_stage=typed_stage,
         ),
         "test": _build_split_loader_v6(
             split_path=split_path_map["test"],
@@ -253,5 +278,6 @@ def build_dataloaders_v6(
             distributed=False,
             rank=rank,
             world_size=world_size,
+            train_stage=typed_stage,
         ),
     }

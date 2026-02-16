@@ -64,6 +64,8 @@ def _build_config(
     finetune_train_path: Path | None = None,
     finetune_valid_path: Path | None = None,
     sampling: dict[str, object] | None = None,
+    pretrain_sampling: dict[str, object] | None = None,
+    finetune_sampling: dict[str, object] | None = None,
 ) -> ConfigDict:
     dataloader_config: dict[str, object] = {
         "train_dataset": str(train_path),
@@ -79,6 +81,10 @@ def _build_config(
         dataloader_config["finetune_val_dataset"] = str(finetune_valid_path)
     if sampling is not None:
         dataloader_config["sampling"] = sampling
+    if pretrain_sampling is not None:
+        dataloader_config["pretrain_sampling"] = pretrain_sampling
+    if finetune_sampling is not None:
+        dataloader_config["finetune_sampling"] = finetune_sampling
 
     return {
         "run_config": {"seed": 11},
@@ -209,6 +215,68 @@ def test_build_dataloaders_ohem_uses_pool_batch_sampler(tmp_path: Path) -> None:
     dataloaders = data_io.build_dataloaders(config=config)
     train_batch = next(iter(dataloaders["train"]))
     assert tuple(train_batch["label"].shape) == (4,)
+
+
+def test_build_dataloaders_supports_stage_specific_sampling_overrides(
+    tmp_path: Path,
+) -> None:
+    benchmark_root = tmp_path / "benchmark"
+    benchmark_root.mkdir(parents=True, exist_ok=True)
+
+    train_path = tmp_path / "train.txt"
+    valid_path = tmp_path / "valid.txt"
+    test_path = tmp_path / "test.txt"
+    rows = [("P1", "P2", 1), ("P3", "P4", 1), ("P5", "P6", 0), ("P7", "P8", 0)]
+    _write_split(train_path, rows)
+    _write_split(valid_path, [("P1", "P2", 1)])
+    _write_split(test_path, [("P5", "P6", 0)])
+
+    cache_dir = tmp_path / "cache"
+    input_dim = 4
+    max_sequence_length = 8
+    _write_cache(
+        cache_dir=cache_dir,
+        embeddings={
+            "P1": torch.ones((2, input_dim), dtype=torch.float32),
+            "P2": torch.full((2, input_dim), 2.0, dtype=torch.float32),
+            "P3": torch.full((2, input_dim), 3.0, dtype=torch.float32),
+            "P4": torch.full((2, input_dim), 4.0, dtype=torch.float32),
+            "P5": torch.full((2, input_dim), 5.0, dtype=torch.float32),
+            "P6": torch.full((2, input_dim), 6.0, dtype=torch.float32),
+            "P7": torch.full((2, input_dim), 7.0, dtype=torch.float32),
+            "P8": torch.full((2, input_dim), 8.0, dtype=torch.float32),
+        },
+        input_dim=input_dim,
+        max_sequence_length=max_sequence_length,
+    )
+
+    config = _build_config(
+        benchmark_root=benchmark_root,
+        cache_dir=cache_dir,
+        train_path=train_path,
+        valid_path=valid_path,
+        test_path=test_path,
+        input_dim=input_dim,
+        max_sequence_length=max_sequence_length,
+        sampling={"strategy": "none"},
+        pretrain_sampling={"strategy": "none"},
+        finetune_sampling={
+            "strategy": "ohem",
+            "warmup_epochs": 0,
+            "pool_multiplier": 2,
+            "cap_protein": 4,
+        },
+    )
+
+    pretrain_loaders = data_io.build_dataloaders(config=config, train_stage="pretrain")
+    assert not isinstance(
+        pretrain_loaders["train"].batch_sampler, data_io.StagedOHEMBatchSampler
+    )
+
+    finetune_loaders = data_io.build_dataloaders(config=config, train_stage="finetune")
+    assert isinstance(
+        finetune_loaders["train"].batch_sampler, data_io.StagedOHEMBatchSampler
+    )
 
 
 def test_build_dataloaders_supports_csv_pair_files(tmp_path: Path) -> None:

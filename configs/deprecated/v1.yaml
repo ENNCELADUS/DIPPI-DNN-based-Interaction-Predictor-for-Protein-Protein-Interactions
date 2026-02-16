@@ -33,6 +33,8 @@ data_config:
   pretrain:
     train_csv: "data/TMP/processed/pretrain_train_balanced.csv"
     valid_csv: "data/TMP/processed/pretrain_val_balanced.csv"
+    sampling:
+      strategy: "none"
   finetune:
     train_csv: "data/TMP/processed/finetune_train.csv"
     valid_csv: "data/TMP/processed/finetune_val.csv"
