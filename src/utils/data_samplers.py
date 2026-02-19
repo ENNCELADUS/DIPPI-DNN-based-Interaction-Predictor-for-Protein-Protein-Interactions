@@ -197,6 +197,12 @@ class StagedOHEMBatchSampler:
         full_neg_indices = [
             idx for idx, label in enumerate(processed_labels) if not label
         ]
+        self.rank = rank
+        self.world_size = world_size
+        self._global_pos_count = len(full_pos_indices)
+        self._global_neg_count = len(full_neg_indices)
+        self._min_pos_per_rank = self._global_pos_count // self.world_size
+        self._min_neg_per_rank = self._global_neg_count // self.world_size
 
         self.pos_indices = full_pos_indices[rank::world_size]
         self.neg_indices = full_neg_indices[rank::world_size]
@@ -254,6 +260,25 @@ class StagedOHEMBatchSampler:
             self._rng.shuffle(pos_indices)
             self._rng.shuffle(neg_indices)
 
+        if self.world_size > 1:
+            pos_budget, neg_budget = self._shared_rank_class_budget()
+            pos_indices = pos_indices[:pos_budget]
+            neg_indices = neg_indices[:neg_budget]
+            num_batches = self._warmup_length()
+            for batch_index in range(num_batches):
+                pos_start = batch_index * self.pos_per_batch
+                neg_start = batch_index * self.neg_per_batch
+                pos_batch = pos_indices[pos_start : pos_start + self.pos_per_batch]
+                neg_batch = neg_indices[neg_start : neg_start + self.neg_per_batch]
+                if len(pos_batch) < self.pos_per_batch:
+                    break
+                if len(neg_batch) < self.neg_per_batch:
+                    break
+                batch = pos_batch + neg_batch
+                self._rng.shuffle(batch)
+                yield batch
+            return
+
         neg_offset = 0
         batch_size = self.pos_per_batch
 
@@ -277,6 +302,10 @@ class StagedOHEMBatchSampler:
         if self.shuffle:
             self._rng.shuffle(pos_indices)
             self._rng.shuffle(neg_indices)
+        if self.world_size > 1:
+            pos_budget, neg_budget = self._shared_rank_class_budget()
+            pos_indices = pos_indices[:pos_budget]
+            neg_indices = neg_indices[:neg_budget]
 
         pos_in_pool, neg_in_pool = self._pool_class_counts()
         num_pools = self._mining_length()
@@ -320,6 +349,9 @@ class StagedOHEMBatchSampler:
         return max(0, scaled)
 
     def _pool_class_counts(self) -> tuple[int, int]:
+        if self.world_size > 1:
+            return self._distributed_pool_class_counts()
+
         pos_fraction = len(self.pos_indices) / float(len(self.labels))
         pos_in_pool = int(round(self.mining_batch_size * pos_fraction))
         pos_in_pool = max(0, min(pos_in_pool, len(self.pos_indices)))
@@ -335,20 +367,52 @@ class StagedOHEMBatchSampler:
                 pos_in_pool += remaining
         return pos_in_pool, neg_in_pool
 
+    def _distributed_pool_class_counts(self) -> tuple[int, int]:
+        pos_budget, neg_budget = self._shared_rank_class_budget()
+        total_labels = len(self.labels)
+        pos_fraction = self._global_pos_count / float(total_labels)
+        pos_in_pool = int(round(self.mining_batch_size * pos_fraction))
+        pos_in_pool = max(0, min(pos_in_pool, pos_budget))
+        neg_in_pool = self.mining_batch_size - pos_in_pool
+        neg_in_pool = max(0, min(neg_in_pool, neg_budget))
+
+        if pos_in_pool + neg_in_pool == 0:
+            return 0, 0
+
+        target_pool_size = min(self.mining_batch_size, pos_budget + neg_budget)
+        if pos_in_pool + neg_in_pool < target_pool_size:
+            remaining = target_pool_size - (pos_in_pool + neg_in_pool)
+            neg_spare = max(0, neg_budget - neg_in_pool)
+            fill_neg = min(remaining, neg_spare)
+            neg_in_pool += fill_neg
+            remaining -= fill_neg
+            if remaining > 0:
+                pos_spare = max(0, pos_budget - pos_in_pool)
+                fill_pos = min(remaining, pos_spare)
+                pos_in_pool += fill_pos
+        return pos_in_pool, neg_in_pool
+
+    def _shared_rank_class_budget(self) -> tuple[int, int]:
+        if self.world_size == 1:
+            return len(self.pos_indices), len(self.neg_indices)
+        return self._min_pos_per_rank, self._min_neg_per_rank
+
     def _warmup_length(self) -> int:
         if self.pos_per_batch <= 0 or self.neg_per_batch <= 0:
             return 0
-        pos_batches = len(self.pos_indices) // self.pos_per_batch
-        neg_batches = len(self.neg_indices) // self.neg_per_batch
+        pos_count, neg_count = self._shared_rank_class_budget()
+        pos_batches = pos_count // self.pos_per_batch
+        neg_batches = neg_count // self.neg_per_batch
         return min(pos_batches, neg_batches)
 
     def _mining_length(self) -> int:
         pos_in_pool, neg_in_pool = self._pool_class_counts()
+        pos_count, neg_count = self._shared_rank_class_budget()
         pos_limit = (
-            math.inf if pos_in_pool == 0 else len(self.pos_indices) // pos_in_pool
+            math.inf if pos_in_pool == 0 else pos_count // pos_in_pool
         )
         neg_limit = (
-            math.inf if neg_in_pool == 0 else len(self.neg_indices) // neg_in_pool
+            math.inf if neg_in_pool == 0 else neg_count // neg_in_pool
         )
         if pos_limit is math.inf and neg_limit is math.inf:
             return 0

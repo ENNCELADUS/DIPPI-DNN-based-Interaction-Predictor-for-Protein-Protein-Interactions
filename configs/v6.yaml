@@ -1,5 +1,5 @@
 run_config:
-  mode: "full_pipeline"  # full_pipeline | train_only | eval_only
+  stages: ["finetune", "evaluate"]
   seed: 47
   train_run_id: null
   finetune_run_id: null
