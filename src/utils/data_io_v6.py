@@ -9,7 +9,15 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.distributed import DistributedSampler
 
-from src.utils.config import ConfigDict, as_bool, as_float, as_int, as_str, get_section
+from src.utils.config import (
+    ConfigDict,
+    as_bool,
+    as_float,
+    as_int,
+    as_str,
+    get_section,
+    resolve_training_batch_size,
+)
 from src.utils.data_io import TrainingStage, resolve_split_paths
 from src.utils.data_samplers import StagedOHEMBatchSampler
 from src.utils.pair_io import (
@@ -120,7 +128,6 @@ def _build_split_loader_v6(
     data_cfg = get_section(config, "data_config")
     dataloader_cfg = get_section(data_cfg, "dataloader")
 
-    batch_size = as_int(training_cfg.get("batch_size", 8), "training_config.batch_size")
     num_workers = as_int(
         dataloader_cfg.get("num_workers", 0), "data_config.dataloader.num_workers"
     )
@@ -144,6 +151,10 @@ def _build_split_loader_v6(
         sampling_cfg.get("strategy", "none"),
         "data_config.dataloader.sampling.strategy",
     ).lower()
+    batch_size = resolve_training_batch_size(
+        training_cfg=training_cfg,
+        sampling_strategy=sampling_strategy,
+    )
     is_train_loader = shuffle
 
     if is_train_loader and sampling_strategy == "ohem":

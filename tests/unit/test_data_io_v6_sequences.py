@@ -164,6 +164,10 @@ def test_build_dataloaders_v6_supports_stage_specific_sampling(
             "cap_protein": 4,
         },
     )
+    training_cfg = config.get("training_config")
+    assert isinstance(training_cfg, dict)
+    training_cfg["strategy"] = {"batch_size": 1}
+
     pretrain_loaders = data_io_v6.build_dataloaders_v6(
         config=config, train_stage="pretrain"
     )
@@ -177,3 +181,7 @@ def test_build_dataloaders_v6_supports_stage_specific_sampling(
     assert isinstance(
         finetune_loaders["train"].batch_sampler, data_io_v6.StagedOHEMBatchSampler
     )
+    finetune_batch = next(iter(finetune_loaders["train"]))
+    labels = finetune_batch["label"]
+    assert isinstance(labels, torch.Tensor)
+    assert tuple(labels.shape) == (2,)

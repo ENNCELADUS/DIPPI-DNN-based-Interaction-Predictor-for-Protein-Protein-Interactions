@@ -17,7 +17,15 @@ from src.embed import (
     ensure_embeddings_ready,
     load_cached_embedding,
 )
-from src.utils.config import ConfigDict, as_bool, as_float, as_int, as_str, get_section
+from src.utils.config import (
+    ConfigDict,
+    as_bool,
+    as_float,
+    as_int,
+    as_str,
+    get_section,
+    resolve_training_batch_size,
+)
 from src.utils.pair_io import PairRecord, read_pair_records
 from src.utils.data_samplers import StagedOHEMBatchSampler
 
@@ -144,8 +152,6 @@ def _build_split_loader(
     training_cfg = get_section(config, "training_config")
     data_cfg = get_section(config, "data_config")
     dataloader_cfg = get_section(data_cfg, "dataloader")
-
-    batch_size = as_int(training_cfg.get("batch_size", 8), "training_config.batch_size")
     num_workers = as_int(
         dataloader_cfg.get("num_workers", 0), "data_config.dataloader.num_workers"
     )
@@ -186,6 +192,10 @@ def _build_split_loader(
         sampling_cfg.get("strategy", "none"),
         "data_config.dataloader.sampling.strategy",
     ).lower()
+    batch_size = resolve_training_batch_size(
+        training_cfg=training_cfg,
+        sampling_strategy=sampling_strategy,
+    )
     is_train_loader = shuffle
 
     if is_train_loader and sampling_strategy == "ohem":
