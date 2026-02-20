@@ -28,7 +28,7 @@ def test_hpc_config_artifact_is_valid() -> None:
     assert isinstance(training_cfg, dict)
     assert isinstance(evaluate_cfg, dict)
     assert isinstance(device_cfg, dict)
-    assert run_cfg["mode"] == "full_pipeline"
+    assert run_cfg["stages"] == ["pretrain", "finetune", "evaluate"]
     assert device_cfg["ddp_enabled"] is True
 
     logging_cfg = training_cfg["logging"]

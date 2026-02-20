@@ -68,7 +68,7 @@ def test_local_cpu_config_artifact_is_valid() -> None:
     assert isinstance(run_cfg, dict)
     assert isinstance(device_cfg, dict)
     assert isinstance(training_cfg, dict)
-    assert run_cfg["mode"] == "full_pipeline"
+    assert run_cfg["stages"] == ["pretrain", "finetune", "evaluate"]
     assert device_cfg["device"] == "cpu"
     assert device_cfg["ddp_enabled"] is False
     assert device_cfg["use_mixed_precision"] is False

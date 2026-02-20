@@ -1,4 +1,4 @@
-"""Integration tests for pipeline modes using fixtures and mocks."""
+"""Integration tests for stage-based pipeline orchestration."""
 
 from __future__ import annotations
 
@@ -50,7 +50,7 @@ def base_config() -> ConfigDict:
     """Build minimal valid config for execute_pipeline orchestration."""
     return {
         "run_config": {
-            "mode": "full_pipeline",
+            "stages": ["pretrain", "finetune", "evaluate"],
             "seed": 7,
             "train_run_id": "train_run",
             "finetune_run_id": "finetune_run",
@@ -199,13 +199,13 @@ def test_execute_pipeline_full_pipeline(
     ]
 
 
-def test_execute_pipeline_train_only(
+def test_execute_pipeline_pretrain_only(
     base_config: ConfigDict,
     patched_pipeline: PipelineCalls,
 ) -> None:
     run_cfg = base_config["run_config"]
     assert isinstance(run_cfg, dict)
-    run_cfg["mode"] = "train_only"
+    run_cfg["stages"] = ["pretrain"]
 
     run_module.execute_pipeline(base_config)
 
@@ -213,13 +213,13 @@ def test_execute_pipeline_train_only(
     assert patched_pipeline.evaluation == []
 
 
-def test_execute_pipeline_eval_only(
+def test_execute_pipeline_evaluate_only(
     base_config: ConfigDict,
     patched_pipeline: PipelineCalls,
 ) -> None:
     run_cfg = base_config["run_config"]
     assert isinstance(run_cfg, dict)
-    run_cfg["mode"] = "eval_only"
+    run_cfg["stages"] = ["evaluate"]
     run_cfg["load_checkpoint_path"] = "artifacts/eval_input_model.pth"
 
     run_module.execute_pipeline(base_config)
@@ -264,16 +264,15 @@ def test_execute_pipeline_finetune_without_checkpoint_raises(
         run_module.execute_pipeline(base_config)
 
 
-@pytest.mark.parametrize("deprecated_mode", ["pretrain_only", "finetune_from_pretrain"])
-def test_execute_pipeline_removed_modes_raise(
+def test_execute_pipeline_mode_key_is_rejected(
     base_config: ConfigDict,
     patched_pipeline: PipelineCalls,
-    deprecated_mode: str,
 ) -> None:
+    del patched_pipeline
     run_cfg = base_config["run_config"]
     assert isinstance(run_cfg, dict)
-    run_cfg["mode"] = deprecated_mode
-    with pytest.raises(ValueError, match="Unsupported run mode"):
+    run_cfg["mode"] = "full_pipeline"
+    with pytest.raises(ValueError, match="run_config.mode is deprecated"):
         run_module.execute_pipeline(base_config)
 
 
@@ -283,7 +282,7 @@ def test_execute_pipeline_staged_unfreeze_enables_ddp_find_unused(
 ) -> None:
     run_cfg = base_config["run_config"]
     assert isinstance(run_cfg, dict)
-    run_cfg["mode"] = "train_only"
+    run_cfg["stages"] = ["pretrain"]
 
     device_cfg = base_config["device_config"]
     assert isinstance(device_cfg, dict)

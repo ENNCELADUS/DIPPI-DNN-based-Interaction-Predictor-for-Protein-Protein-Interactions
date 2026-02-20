@@ -6,7 +6,7 @@ The DIPPI pipeline is a centralized, config-driven orchestration system controll
 
 1. **Centralized Orchestration**: The `run.py` module acts as the chief orchestrator. It manages the global state (configuration, seeds, devices) and drives the execution flow. Cross-module interactions are mediated by the orchestrator, not by direct calls between components.
 2. **Config-Driven Execution**: All behaviors—model hyperparameters, training duration, optimization strategies, and data paths—are defined in a YAML configuration file.
-3. **Stage-Based Workflow**: The pipeline supports pretrain, finetune, and evaluate stages, selected by run mode or explicit stage list.
+3. **Stage-Based Workflow**: The pipeline supports pretrain, finetune, and evaluate stages, selected by explicit `run_config.stages`.
 
 ## Pipeline Stages
 
@@ -59,15 +59,14 @@ The orchestrator selects and instantiates the model architecture based on the `m
   * `split,auroc,auprc,accuracy,sensitivity,specificity,precision,recall,f1,mcc`
 * No `test_` prefixes are used in persisted eval CSV columns.
 
-## Run Modes
+## Stage Selection
 
-The pipeline supports three execution modes defined in `run_config.mode`:
+The pipeline executes stages declared in `run_config.stages`:
 
-*   `full_pipeline`: Runs `pretrain -> finetune -> evaluate`.
-*   `train_only`: Runs `pretrain` only.
-*   `eval_only`: Runs `evaluate` only and requires `run_config.load_checkpoint_path`.
-
-Advanced users can override mode defaults with `run_config.stages`, e.g. `["finetune", "evaluate"]`.
+*   Full pipeline: `["pretrain", "finetune", "evaluate"]`
+*   Pretrain only: `["pretrain"]`
+*   Eval only: `["evaluate"]` (requires `run_config.load_checkpoint_path`)
+*   Finetune + eval from a seed checkpoint: `["finetune", "evaluate"]` (requires `run_config.load_checkpoint_path`)
 
 ## Launcher Disposition
 

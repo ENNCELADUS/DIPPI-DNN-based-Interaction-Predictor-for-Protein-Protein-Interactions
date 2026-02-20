@@ -315,24 +315,16 @@ def _validate_stage_order(stages: Sequence[PipelineStage]) -> None:
 def _resolve_stage_sequence(run_cfg: ConfigDict) -> list[PipelineStage]:
     """Resolve execution stages from config."""
     raw_stages = run_cfg.get("stages")
-    if raw_stages is not None:
-        if not isinstance(raw_stages, Sequence) or isinstance(raw_stages, (str, bytes)):
-            raise ValueError("run_config.stages must be a sequence")
-        parsed = [_normalize_stage_name(stage) for stage in raw_stages]
-        if not parsed:
-            raise ValueError("run_config.stages must not be empty")
-        stages = _ordered_unique_stages(parsed)
-        _validate_stage_order(stages)
-        return stages
-
-    mode = as_str(run_cfg.get("mode", "full_pipeline"), "run_config.mode").lower()
-    if mode == "train_only":
-        return ["pretrain"]
-    if mode == "full_pipeline":
-        return ["pretrain", "finetune", "evaluate"]
-    if mode == "eval_only":
-        return ["evaluate"]
-    raise ValueError(f"Unsupported run mode: {mode}")
+    if raw_stages is None:
+        raise ValueError("run_config.stages is required")
+    if not isinstance(raw_stages, Sequence) or isinstance(raw_stages, (str, bytes)):
+        raise ValueError("run_config.stages must be a sequence")
+    parsed = [_normalize_stage_name(stage) for stage in raw_stages]
+    if not parsed:
+        raise ValueError("run_config.stages must not be empty")
+    stages = _ordered_unique_stages(parsed)
+    _validate_stage_order(stages)
+    return stages
 
 
 def _stage_run_ids(run_cfg: ConfigDict) -> dict[PipelineStage, str]:
@@ -923,7 +915,7 @@ def execute_pipeline(
     config: ConfigDict,
     training_epoch_callback: TrainingEpochCallback | None = None,
 ) -> None:
-    """Execute pipeline according to configured run mode.
+    """Execute pipeline according to configured stage list.
 
     Args:
         config: Global run configuration dictionary.
@@ -932,7 +924,7 @@ def execute_pipeline(
             Return ``True`` to request stage stop.
 
     Raises:
-        ValueError: If mode is unsupported or required checkpoint is missing.
+        ValueError: If stage config is invalid or required checkpoint is missing.
     """
     run_cfg = get_section(config, "run_config")
     device_cfg = get_section(config, "device_config")
@@ -945,8 +937,6 @@ def execute_pipeline(
     )
     ddp_find_unused_parameters = _ddp_find_unused_parameters(config)
     try:
-        mode_value = run_cfg.get("mode", "full_pipeline")
-        mode_label = mode_value if isinstance(mode_value, str) else "custom_stages"
         selected_stages = _resolve_stage_sequence(run_cfg=run_cfg)
         stage_run_map = _stage_run_ids(run_cfg=run_cfg)
         load_checkpoint_value = run_cfg.get("load_checkpoint_path")
@@ -969,7 +959,6 @@ def execute_pipeline(
                 log_stage_event(
                     stage_logger,
                     "startup",
-                    mode=mode_label,
                     run_id=stage_run_map[stage],
                     seed=seed,
                     rank=distributed_context.rank,
@@ -1120,10 +1109,8 @@ def execute_pipeline(
                     run_id=stage_run_map[training_stage],
                     distributed_context=distributed_context,
                     epoch_callback=(
-                        lambda epoch,
-                        metric,
-                        stage_name=training_stage: training_epoch_callback(
-                            stage_name, epoch, metric
+                        lambda epoch, metric, stage_name=training_stage: (
+                            training_epoch_callback(stage_name, epoch, metric)
                         )
                     ),
                 )

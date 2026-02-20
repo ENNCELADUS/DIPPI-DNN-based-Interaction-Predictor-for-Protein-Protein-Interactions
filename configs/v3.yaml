@@ -1,5 +1,5 @@
 run_config:
-  stages: ["train", "finetune", "evaluate"]
+  stages: ["pretrain", "finetune", "evaluate"]
   seed: 47
   train_run_id: null
   finetune_run_id: null

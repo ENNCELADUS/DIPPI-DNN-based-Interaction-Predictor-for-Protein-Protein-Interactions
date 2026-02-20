@@ -56,11 +56,14 @@ class _TinyModel(nn.Module):
         return {"logits": self.linear(x)}
 
 
-def _base_config(mode: str = "full_pipeline") -> ConfigDict:
+def _base_config(stages: list[str] | None = None) -> ConfigDict:
     """Create a minimal valid config for pipeline stage artifact tests."""
+    resolved_stages = (
+        stages if stages is not None else ["pretrain", "finetune", "evaluate"]
+    )
     return {
         "run_config": {
-            "mode": mode,
+            "stages": resolved_stages,
             "seed": 7,
             "train_run_id": "pretrain_case",
             "finetune_run_id": "finetune_case",
@@ -180,7 +183,7 @@ def test_execute_pipeline_writes_stage_logs_and_strict_csv_headers(
         run_module, "ensure_embedding_cache", fake_ensure_embedding_cache
     )
 
-    run_module.execute_pipeline(_base_config(mode="full_pipeline"))
+    run_module.execute_pipeline(_base_config())
 
     pretrain_log = tmp_path / "logs" / "v3" / "pretrain" / "pretrain_case" / "log.log"
     finetune_log = tmp_path / "logs" / "v3" / "finetune" / "finetune_case" / "log.log"
@@ -233,7 +236,7 @@ def test_non_main_process_does_not_write_stage_artifacts(tmp_path: Path) -> None
     previous_cwd = Path.cwd()
     try:
         os.chdir(tmp_path)
-        config = _base_config(mode="train_only")
+        config = _base_config(stages=["pretrain"])
         dataloaders = _fake_dataloaders()
         model = _TinyModel()
         distributed_context = DistributedContext(

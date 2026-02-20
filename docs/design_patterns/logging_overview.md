@@ -4,7 +4,7 @@ This document details the logging strategy and artifact structure for DIPPI. It 
 
 ## Execution Context
 
-* Run modes: `full_pipeline`, `train_only`, `eval_only`.
+* Run stages are selected with `run_config.stages`.
 * Canonical HPC launcher: `scripts/v3.sh`.
 * Centralized loss path: both trainer and evaluator use `training_config.loss` (same `LossConfig` contract).
 * DDP behavior: rank 0 writes artifacts/logs; all ranks still participate in compute/synchronization.
