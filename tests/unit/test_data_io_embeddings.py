@@ -217,66 +217,6 @@ def test_build_dataloaders_ohem_uses_pool_batch_sampler(tmp_path: Path) -> None:
     assert tuple(train_batch["label"].shape) == (4,)
 
 
-def test_build_dataloaders_ohem_uses_strategy_batch_size_override(
-    tmp_path: Path,
-) -> None:
-    benchmark_root = tmp_path / "benchmark"
-    benchmark_root.mkdir(parents=True, exist_ok=True)
-
-    train_path = tmp_path / "train.txt"
-    valid_path = tmp_path / "valid.txt"
-    test_path = tmp_path / "test.txt"
-    _write_split(
-        train_path,
-        [("P1", "P2", 1), ("P3", "P4", 1), ("P5", "P6", 0), ("P7", "P8", 0)],
-    )
-    _write_split(valid_path, [("P1", "P2", 1)])
-    _write_split(test_path, [("P5", "P6", 0)])
-
-    cache_dir = tmp_path / "cache"
-    input_dim = 4
-    max_sequence_length = 8
-    _write_cache(
-        cache_dir=cache_dir,
-        embeddings={
-            "P1": torch.ones((2, input_dim), dtype=torch.float32),
-            "P2": torch.full((2, input_dim), 2.0, dtype=torch.float32),
-            "P3": torch.full((2, input_dim), 3.0, dtype=torch.float32),
-            "P4": torch.full((2, input_dim), 4.0, dtype=torch.float32),
-            "P5": torch.full((2, input_dim), 5.0, dtype=torch.float32),
-            "P6": torch.full((2, input_dim), 6.0, dtype=torch.float32),
-            "P7": torch.full((2, input_dim), 7.0, dtype=torch.float32),
-            "P8": torch.full((2, input_dim), 8.0, dtype=torch.float32),
-        },
-        input_dim=input_dim,
-        max_sequence_length=max_sequence_length,
-    )
-
-    config = _build_config(
-        benchmark_root=benchmark_root,
-        cache_dir=cache_dir,
-        train_path=train_path,
-        valid_path=valid_path,
-        test_path=test_path,
-        input_dim=input_dim,
-        max_sequence_length=max_sequence_length,
-        sampling={
-            "strategy": "ohem",
-            "warmup_epochs": 0,
-            "pool_multiplier": 2,
-            "cap_protein": 4,
-        },
-    )
-    training_cfg = config.get("training_config")
-    assert isinstance(training_cfg, dict)
-    training_cfg["batch_size"] = 2
-    training_cfg["strategy"] = {"batch_size": 1}
-
-    dataloaders = data_io.build_dataloaders(config=config)
-    train_batch = next(iter(dataloaders["train"]))
-    assert tuple(train_batch["label"].shape) == (2,)
-
-
 def test_build_dataloaders_supports_stage_specific_sampling_overrides(
     tmp_path: Path,
 ) -> None:

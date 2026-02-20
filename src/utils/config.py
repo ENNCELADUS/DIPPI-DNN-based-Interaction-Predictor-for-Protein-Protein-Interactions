@@ -158,40 +158,6 @@ def get_section(config: ConfigDict, section_name: str) -> ConfigDict:
     return cast(ConfigDict, value)
 
 
-def resolve_training_batch_size(
-    training_cfg: ConfigDict,
-    sampling_strategy: str,
-    field_prefix: str = "training_config",
-) -> int:
-    """Resolve effective training batch size.
-
-    Uses ``<field_prefix>.batch_size`` by default. When OHEM is active,
-    ``<field_prefix>.strategy.batch_size`` can override the default.
-
-    Args:
-        training_cfg: Stage-resolved training configuration mapping.
-        sampling_strategy: Active sampling strategy name.
-        field_prefix: Prefix used in validation error paths.
-
-    Returns:
-        Effective batch size for loaders and OHEM selection.
-    """
-    default_batch_size = as_int(
-        training_cfg.get("batch_size", 8), f"{field_prefix}.batch_size"
-    )
-    if sampling_strategy.lower() != "ohem":
-        return default_batch_size
-
-    strategy_cfg = training_cfg.get("strategy", {})
-    if not isinstance(strategy_cfg, dict):
-        raise ValueError(f"{field_prefix}.strategy must be a mapping")
-
-    ohem_batch_size = strategy_cfg.get("batch_size")
-    if ohem_batch_size is None:
-        return default_batch_size
-    return as_int(ohem_batch_size, f"{field_prefix}.strategy.batch_size")
-
-
 def extract_model_kwargs(config: ConfigDict) -> tuple[str, ConfigDict]:
     """Extract model name and model kwargs from global config.
 

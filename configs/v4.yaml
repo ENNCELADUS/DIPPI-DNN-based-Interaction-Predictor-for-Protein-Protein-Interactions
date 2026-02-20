@@ -96,7 +96,6 @@ training_config:
       label_smoothing: 0.005
     strategy:
       type: "staged_unfreeze"
-      batch_size: 16
       unfreeze_epoch: 3
       initial_trainable_prefixes: ["output_head"]
     optuna:

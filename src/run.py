@@ -33,7 +33,6 @@ from src.utils.config import (
     extract_model_kwargs,
     get_section,
     load_config,
-    resolve_training_batch_size,
 )
 from src.utils.data_io import (
     TrainingStage,
@@ -560,9 +559,8 @@ def build_trainer(
     ).lower()
     ohem_strategy = None
     if sampling_strategy == "ohem":
-        batch_size = resolve_training_batch_size(
-            training_cfg=training_cfg,
-            sampling_strategy=sampling_strategy,
+        batch_size = as_int(
+            training_cfg.get("batch_size", 8), "training_config.batch_size"
         )
         ohem_strategy = OHEMSampleStrategy(
             target_batch_size=batch_size,
