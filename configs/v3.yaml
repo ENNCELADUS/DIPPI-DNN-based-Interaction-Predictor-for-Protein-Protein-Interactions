@@ -1,5 +1,5 @@
 run_config:
-  stages: ["finetune", "evaluate"]
+  stages: ["train", "finetune", "evaluate"]
   seed: 47
   train_run_id: null
   finetune_run_id: null
@@ -27,13 +27,15 @@ data_config:
     finetune_train_dataset: "data/TMP/processed/finetune_train.csv"
     finetune_val_dataset: "data/TMP/processed/finetune_val.csv"
     test_dataset: "data/TMP/processed/test.csv"
-    num_workers: 4
-    pin_memory: true
+    num_workers: 2
+    pin_memory: false
+    persistent_workers: false
+    prefetch_factor: 1
     drop_last: true
     sampling:
       strategy: "ohem"  # none | ohem
-      warmup_epochs: 5
-      pool_multiplier: 32
+      warmup_epochs: 0
+      pool_multiplier: 8
       cap_protein: 4
     pretrain_sampling:
       strategy: "none"  # none | ohem
@@ -42,8 +44,8 @@ model_config:
   model: "v3"
   input_dim: 1536
   d_model: 512
-  encoder_layers: 2
-  cross_attn_layers: 2
+  encoder_layers: 3
+  cross_attn_layers: 3
   n_heads: 8
   mlp_head:
     hidden_dims: [512, 256, 128]
@@ -90,7 +92,7 @@ training_config:
     optimizer:
       lr: 0.00005
     loss:
-      pos_weight: 7.7
+      pos_weight: 7.0
       label_smoothing: 0.01
     strategy:
       type: "staged_unfreeze"

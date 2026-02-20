@@ -2,9 +2,9 @@ run_config:
   stages: ["finetune", "evaluate"]
   seed: 47
   train_run_id: null
-  finetune_run_id: null
-  eval_run_id: null
-  load_checkpoint_path: null
+  finetune_run_id: "20260216_170130"
+  eval_run_id: "20260216_170130"
+  load_checkpoint_path: "models/v5/pretrain/20260216_170130/best_model.pth"
   save_best_only: true
 
 device_config:
@@ -35,7 +35,7 @@ data_config:
     sampling:
       strategy: "ohem"  # none | ohem
       warmup_epochs: 2
-      pool_multiplier: 16
+      pool_multiplier: 8
       cap_protein: 2
     pretrain_sampling:
       strategy: "none"  # none | ohem
@@ -98,7 +98,7 @@ training_config:
     type: "none"
   finetune:
     batch_size: 16
-    epochs: 20
+    epochs: 30
     monitor_metric: "auprc"
     optimizer:
       lr: 0.000006
