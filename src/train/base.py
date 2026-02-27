@@ -169,12 +169,28 @@ class Trainer:
         output: dict[str, torch.Tensor],
         batch: dict[str, object],
         epoch_index: int,
+        apply_ohem: bool = True,
+        ohem_selected: bool = False,
     ) -> torch.Tensor:
         logits = output["logits"]
         labels_raw = batch.get("label")
         if not isinstance(labels_raw, torch.Tensor):
             raise ValueError("Batch must include tensor field 'label'")
         labels = labels_raw.float()
+
+        if ohem_selected:
+            ohem_loss_config = LossConfig(
+                loss_type=self.loss_config.loss_type,
+                pos_weight=1.0,
+                label_smoothing=self.loss_config.label_smoothing,
+            )
+            return binary_classification_loss(
+                logits=logits,
+                labels=labels,
+                loss_config=ohem_loss_config,
+                reduction="mean",
+            )
+
         loss = binary_classification_loss(
             logits=logits,
             labels=labels,
@@ -182,6 +198,8 @@ class Trainer:
             reduction="mean",
         )
 
+        if not apply_ohem:
+            return loss
         if self.ohem_strategy is None:
             return loss
         if epoch_index < self.ohem_strategy.warmup_epochs:
@@ -219,6 +237,80 @@ class Trainer:
         )
         return per_sample[selected_indices].mean()
 
+    def _select_ohem_indices(
+        self,
+        batch: dict[str, object],
+        epoch_index: int,
+    ) -> torch.Tensor:
+        """Select hard-example indices from a no-grad mining forward pass."""
+        if self.ohem_strategy is None:
+            raise ValueError("OHEM strategy is not configured")
+
+        labels_raw = batch.get("label")
+        if not isinstance(labels_raw, torch.Tensor):
+            raise ValueError("Batch must include tensor field 'label'")
+        labels = labels_raw.float()
+
+        mining_loss_config = LossConfig(
+            loss_type=self.loss_config.loss_type,
+            pos_weight=1.0,
+            label_smoothing=0.0,
+        )
+        mining_chunk_size = max(1, int(self.ohem_strategy.target_batch_size))
+        batch_size = int(labels.size(0))
+        mining_logits_chunks: list[torch.Tensor] = []
+        with torch.no_grad():
+            for start in range(0, batch_size, mining_chunk_size):
+                stop = min(batch_size, start + mining_chunk_size)
+                chunk_indices = torch.arange(
+                    start,
+                    stop,
+                    device=labels.device,
+                    dtype=torch.long,
+                )
+                chunk_batch = self._slice_batch_for_indices(
+                    batch=batch,
+                    indices=chunk_indices,
+                )
+                with torch.autocast(device_type=self.device.type, enabled=self.use_amp):
+                    output = self._forward_model(chunk_batch)
+                mining_logits_chunks.append(output["logits"])
+            mining_logits = torch.cat(mining_logits_chunks, dim=0)
+            mining_loss = binary_classification_loss(
+                logits=mining_logits,
+                labels=labels,
+                loss_config=mining_loss_config,
+                reduction="none",
+            )
+        return self.ohem_strategy.select(
+            losses=mining_loss,
+            epoch_index=epoch_index,
+            protein_a_ids=batch.get("protein_a_id"),
+            protein_b_ids=batch.get("protein_b_id"),
+        )
+
+    def _slice_batch_for_indices(
+        self,
+        batch: dict[str, object],
+        indices: torch.Tensor,
+    ) -> dict[str, object]:
+        """Slice all batch-aligned tensors to selected OHEM indices."""
+        labels_raw = batch.get("label")
+        if not isinstance(labels_raw, torch.Tensor):
+            raise ValueError("Batch must include tensor field 'label'")
+        batch_size = int(labels_raw.size(0))
+        selected_batch: dict[str, object] = {}
+        for key, value in batch.items():
+            if (
+                isinstance(value, torch.Tensor)
+                and value.dim() > 0
+                and int(value.size(0)) == batch_size
+            ):
+                selected_batch[key] = value.index_select(0, indices)
+                continue
+            selected_batch[key] = value
+        return selected_batch
+
     def train_one_epoch(
         self,
         train_loader: DataLoader[dict[str, object]],
@@ -241,6 +333,20 @@ class Trainer:
         for batch in train_loader:
             batch_count += 1
             prepared_batch = self._move_batch_to_device(batch)
+            ohem_selected = False
+            if (
+                self.ohem_strategy is not None
+                and epoch_index >= self.ohem_strategy.warmup_epochs
+            ):
+                selected_indices = self._select_ohem_indices(
+                    batch=prepared_batch,
+                    epoch_index=epoch_index,
+                )
+                prepared_batch = self._slice_batch_for_indices(
+                    batch=prepared_batch,
+                    indices=selected_indices,
+                )
+                ohem_selected = True
             self.optimizer.zero_grad(set_to_none=True)
 
             with torch.autocast(device_type=self.device.type, enabled=self.use_amp):
@@ -249,6 +355,8 @@ class Trainer:
                     output=output,
                     batch=prepared_batch,
                     epoch_index=epoch_index,
+                    apply_ohem=False,
+                    ohem_selected=ohem_selected,
                 )
 
             if self.use_amp:
