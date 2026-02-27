@@ -101,13 +101,17 @@ training_config:
     epochs: 30
     monitor_metric: "auprc"
     optimizer:
-      lr: 0.000006
+      lr: 0.00001
+      weight_decay: 0.015
+    scheduler:
+      max_lr: 0.00001
+      pct_start: 0.20
     loss:
       pos_weight: 7.0
-      label_smoothing: 0.005
+      label_smoothing: 0.01
     strategy:
       type: "staged_unfreeze"
-      unfreeze_epoch: 3
+      unfreeze_epoch: 2
       initial_trainable_prefixes: ["output_head"]
     optuna:
       enabled: false

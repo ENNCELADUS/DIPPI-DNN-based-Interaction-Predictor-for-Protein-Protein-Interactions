@@ -1,10 +1,10 @@
 run_config:
-  stages: ["pretrain", "finetune", "evaluate"]
+  stages: ["finetune", "evaluate"]
   seed: 47
   train_run_id: null
-  finetune_run_id: null
-  eval_run_id: null
-  load_checkpoint_path: "models/v3/pretrain/20260202_060253/best_model.pth"
+  finetune_run_id: "20260221_065444"
+  eval_run_id: "20260221_065444"
+  load_checkpoint_path: "models/v3/pretrain/20260221_065444/best_model.pth"
   save_best_only: true
 
 device_config:
@@ -34,7 +34,7 @@ data_config:
     drop_last: true
     sampling:
       strategy: "ohem"  # none | ohem
-      warmup_epochs: 0
+      warmup_epochs: 3
       pool_multiplier: 8
       cap_protein: 4
     pretrain_sampling:
@@ -87,16 +87,20 @@ training_config:
     type: "none"
   finetune:
     batch_size: 16
-    epochs: 20
+    epochs: 25
     monitor_metric: "auprc"
     optimizer:
-      lr: 0.00005
+      lr: 0.00002
+      weight_decay: 0.05
+    scheduler:
+      max_lr: 0.00002
+      pct_start: 0.10
     loss:
       pos_weight: 7.0
-      label_smoothing: 0.01
+      label_smoothing: 0.02
     strategy:
       type: "staged_unfreeze"
-      unfreeze_epoch: 3
+      unfreeze_epoch: 2
       initial_trainable_prefixes: ["output_head"]
     optuna:
       enabled: false
