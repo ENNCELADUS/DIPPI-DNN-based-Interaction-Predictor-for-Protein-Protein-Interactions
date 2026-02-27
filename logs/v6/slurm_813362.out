@@ -1,0 +1,46 @@
+Detected 4 GPUs
+Loaded config from: configs/v6.yaml
+Loaded config from: configs/v6.yaml
+Loaded config from: configs/v6.yamlLoaded config from: configs/v6.yaml
+
+2026-02-10 16:27:08,742 | INFO | ================================================================================
+2026-02-10 16:27:08,743 | INFO | Starting finetune stage for model 'v6' with run_id '20260210_162643'
+2026-02-10 16:27:08,743 | INFO | Logs will be written to: logs/v6/finetune/20260210_162643/log.log
+2026-02-10 16:27:08,743 | INFO | ================================================================================
+2026-02-10 16:27:08,743 | INFO | ================================================================================
+2026-02-10 16:27:08,743 | INFO | Starting finetune stage for model 'v6' with run_id '20260210_162643'
+2026-02-10 16:27:08,743 | INFO | Logs will be written to: logs/v6/finetune/20260210_162643/log.log
+2026-02-10 16:27:08,743 | INFO | ================================================================================
+2026-02-10 16:27:08,743 | INFO | ================================================================================
+2026-02-10 16:27:08,744 | INFO | Starting finetune stage for model 'v6' with run_id '20260210_162643'
+2026-02-10 16:27:08,743 | INFO | Trainable parameters: 13,395,969
+2026-02-10 16:27:08,744 | INFO | Logs will be written to: logs/v6/finetune/20260210_162643/log.log
+2026-02-10 16:27:08,744 | INFO | Building dataloaders for finetune stage
+2026-02-10 16:27:08,744 | INFO | ================================================================================
+2026-02-10 16:27:08,744 | INFO | Trainable parameters: 13,395,969
+2026-02-10 16:27:08,744 | INFO | Building dataloaders for finetune stage
+2026-02-10 16:27:08,744 | INFO | Trainable parameters: 13,395,969
+2026-02-10 16:27:08,745 | INFO | Building dataloaders for finetune stage
+2026-02-10 16:27:08,831 | INFO | ================================================================================
+2026-02-10 16:27:08,831 | INFO | Starting finetune stage for model 'v6' with run_id '20260210_162643'
+2026-02-10 16:27:08,831 | INFO | Logs will be written to: logs/v6/finetune/20260210_162643/log.log
+2026-02-10 16:27:08,831 | INFO | ================================================================================
+2026-02-10 16:27:08,831 | INFO | Trainable parameters: 13,395,969
+2026-02-10 16:27:08,832 | INFO | Building dataloaders for finetune stage
+2026-02-10 16:27:09,872 | INFO | Loaded 21391 sequences from unique_proteins.csv
+2026-02-10 16:27:10,655 | INFO | Sequence dataset: 2675542 pairs (61511 pos, 2614031 neg)
+2026-02-10 16:27:11,311 | INFO | Sequence DataLoader built for finetune_train.csv: num_workers=0, pin_memory=False, prefetch_factor=None, persistent_workers=False, sampler=DistributedBatchSampler
+2026-02-10 16:27:11,361 | INFO | Sequence dataset: 140819 pairs (3238 pos, 137581 neg)
+2026-02-10 16:27:11,362 | INFO | Sequence DataLoader built for finetune_val.csv: num_workers=0, pin_memory=False, prefetch_factor=None, persistent_workers=False, sampler=DistributedSampler
+2026-02-10 16:27:11,362 | INFO | Starting finetune for 30 epochs
+2026-02-10 16:27:11,362 | INFO | Strategy: staged_unfreeze
+2026-02-10 16:27:11,362 | INFO | Monitor metric: auprc, Patience: 5
+2026-02-10 16:27:11,362 | INFO | No checkpoint provided; finetuning from scratch
+2026-02-10 16:27:11,362 | INFO | Created StagedUnfreeze strategy with 2 schedule entries
+2026-02-10 16:27:11,379 | INFO | StagedUnfreeze applied at epoch 0 via on_train_begin; trainable parameters: 11,823,105
+2026-02-10 16:27:11,381 | INFO | Trainable parameters: 11,823,105
+2026-02-10 16:27:11,412 | INFO | Using standard validation with monitor_metric=auprc
+2026-02-10 16:27:11,412 | INFO | 
+============================================================
+2026-02-10 16:27:11,412 | INFO | Finetune Epoch 0/29
+2026-02-10 16:27:11,412 | INFO | ============================================================

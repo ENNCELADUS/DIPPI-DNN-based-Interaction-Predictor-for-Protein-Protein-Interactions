@@ -1,0 +1,68 @@
+Detected 4 GPUs
+Loaded config from: configs/v6.yaml
+Loaded config from: configs/v6.yaml
+Loaded config from: configs/v6.yaml
+Loaded config from: configs/v6.yaml
+2026-01-30 11:17:56,484 | INFO | ================================================================================
+2026-01-30 11:17:56,484 | INFO | Starting finetune stage for model 'v6' with run_id '20260130_111728'
+2026-01-30 11:17:56,484 | INFO | Logs will be written to: logs/v6/finetune/20260130_111728/log.log
+2026-01-30 11:17:56,484 | INFO | ================================================================================
+2026-01-30 11:17:56,484 | INFO | ================================================================================
+2026-01-30 11:17:56,484 | INFO | ================================================================================
+2026-01-30 11:17:56,485 | INFO | Starting finetune stage for model 'v6' with run_id '20260130_111728'
+2026-01-30 11:17:56,485 | INFO | Logs will be written to: logs/v6/finetune/20260130_111728/log.log
+2026-01-30 11:17:56,485 | INFO | Starting finetune stage for model 'v6' with run_id '20260130_111728'
+2026-01-30 11:17:56,485 | INFO | ================================================================================
+2026-01-30 11:17:56,485 | INFO | Logs will be written to: logs/v6/finetune/20260130_111728/log.log
+2026-01-30 11:17:56,484 | INFO | Trainable parameters: 13,395,969
+2026-01-30 11:17:56,485 | INFO | Building dataloaders for finetune stage
+2026-01-30 11:17:56,485 | INFO | ================================================================================
+2026-01-30 11:17:56,485 | INFO | Trainable parameters: 13,395,969
+2026-01-30 11:17:56,485 | INFO | Building dataloaders for finetune stage
+2026-01-30 11:17:56,485 | INFO | ================================================================================
+2026-01-30 11:17:56,485 | INFO | Trainable parameters: 13,395,969
+2026-01-30 11:17:56,486 | INFO | Starting finetune stage for model 'v6' with run_id '20260130_111728'
+2026-01-30 11:17:56,486 | INFO | Logs will be written to: logs/v6/finetune/20260130_111728/log.log
+2026-01-30 11:17:56,486 | INFO | Building dataloaders for finetune stage
+2026-01-30 11:17:56,486 | INFO | ================================================================================
+2026-01-30 11:17:56,486 | INFO | Trainable parameters: 13,395,969
+2026-01-30 11:17:56,486 | INFO | Building dataloaders for finetune stage
+2026-01-30 11:17:57,667 | INFO | Loaded 21391 sequences from unique_proteins.csv
+2026-01-30 11:17:58,559 | INFO | Sequence dataset: 2675542 pairs (61511 pos, 2614031 neg)
+2026-01-30 11:17:59,356 | INFO | Sequence DataLoader built for finetune_train.csv: num_workers=0, pin_memory=False, prefetch_factor=None, persistent_workers=False, sampler=DistributedBatchSampler
+2026-01-30 11:17:59,446 | INFO | Sequence dataset: 140819 pairs (3238 pos, 137581 neg)
+2026-01-30 11:17:59,447 | INFO | Sequence DataLoader built for finetune_val.csv: num_workers=0, pin_memory=False, prefetch_factor=None, persistent_workers=False, sampler=DistributedSampler
+2026-01-30 11:17:59,447 | INFO | Starting finetune for 30 epochs
+2026-01-30 11:17:59,447 | INFO | Strategy: staged_unfreeze
+2026-01-30 11:17:59,447 | INFO | Monitor metric: auprc, Patience: 5
+2026-01-30 11:17:59,447 | INFO | No checkpoint provided; finetuning from scratch
+2026-01-30 11:17:59,447 | INFO | Created StagedUnfreeze strategy with 2 schedule entries
+2026-01-30 11:17:59,466 | INFO | StagedUnfreeze applied at epoch 0 via on_train_begin; trainable parameters: 11,823,105
+2026-01-30 11:17:59,468 | INFO | Trainable parameters: 11,823,105
+2026-01-30 11:17:59,504 | INFO | Using standard validation with monitor_metric=auprc
+2026-01-30 11:17:59,504 | INFO | 
+============================================================
+2026-01-30 11:17:59,504 | INFO | Finetune Epoch 0/29
+2026-01-30 11:17:59,504 | INFO | ============================================================
+2026-01-30 20:54:49,308 | INFO | Epoch 0: avg_loss=0.676379, lr=1.00e-04
+2026-01-30 20:54:49,511 | INFO | Validation: loss=0.285714, auprc=0.540895, auroc=0.973780
+2026-01-30 20:54:54,745 | INFO | Saved best finetune checkpoint: models/v6/finetune/20260130_111728/best_model.pth (auprc=0.540895)
+2026-01-30 20:54:54,745 | INFO | 
+============================================================
+2026-01-30 20:54:54,745 | INFO | Finetune Epoch 1/29
+2026-01-30 20:54:54,745 | INFO | ============================================================
+2026-01-31 06:35:25,914 | INFO | Epoch 1: avg_loss=0.510413, lr=2.00e-04
+2026-01-31 06:35:25,919 | INFO | Validation: loss=0.360775, auprc=0.621185, auroc=0.979188
+2026-01-31 06:35:31,400 | INFO | Saved best finetune checkpoint: models/v6/finetune/20260130_111728/best_model.pth (auprc=0.621185)
+2026-01-31 06:35:31,400 | INFO | 
+============================================================
+2026-01-31 06:35:31,400 | INFO | Finetune Epoch 2/29
+2026-01-31 06:35:31,400 | INFO | ============================================================
+2026-01-31 06:35:31,410 | INFO | StagedUnfreeze applied at epoch 2 via on_epoch_begin; trainable parameters: 1,415,131,717
+2026-02-02 01:47:21,148 | INFO | Epoch 2: avg_loss=0.652986, lr=3.33e-06
+2026-02-02 01:47:21,151 | INFO | Validation: loss=0.148419, auprc=0.781456, auroc=0.982693
+2026-02-02 01:47:26,423 | INFO | Saved best finetune checkpoint: models/v6/finetune/20260130_111728/best_model.pth (auprc=0.781456)
+2026-02-02 01:47:26,423 | INFO | 
+============================================================
+2026-02-02 01:47:26,423 | INFO | Finetune Epoch 3/29
+2026-02-02 01:47:26,424 | INFO | ============================================================
