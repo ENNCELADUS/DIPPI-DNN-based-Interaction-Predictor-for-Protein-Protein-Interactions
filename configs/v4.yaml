@@ -1,10 +1,10 @@
 run_config:
-  stages: ["finetune", "evaluate"]
+  stages: ["pretrain", "finetune", "evaluate"]
   seed: 47
   train_run_id: null
   finetune_run_id: null
   eval_run_id: null
-  load_checkpoint_path: "models/v4/pretrain/20260201_123832/best_model.pth"
+  load_checkpoint_path: null
   save_best_only: true
 
 device_config:

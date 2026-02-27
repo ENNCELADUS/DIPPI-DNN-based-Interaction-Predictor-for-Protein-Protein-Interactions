@@ -2,6 +2,8 @@
 models/
 cache/
 _agent/
+*.txt
+*.json
 
 # Binary & Large File Formats
 *.pkl
@@ -36,7 +38,6 @@ docs/report/
 # LaTeX Cache & Auxiliary Files
 *.aux
 *.log
-*.out
 *.toc
 *.fls
 *.fdb_latexmk
