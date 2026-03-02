@@ -60,7 +60,7 @@ model_config:
 
 training_config:
   epochs: 40
-  batch_size: 64
+  batch_size: 32
   early_stopping_patience: 5
   monitor_metric: "auprc"
   logging:
