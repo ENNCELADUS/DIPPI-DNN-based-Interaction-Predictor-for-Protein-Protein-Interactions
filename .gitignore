@@ -33,6 +33,7 @@ external/
 # Research & Report Files
 docs/research/
 docs/report/
+docs/ml_tricks/
 .reports/
 
 # LaTeX Cache & Auxiliary Files

@@ -232,6 +232,170 @@ def test_execute_pipeline_writes_stage_logs_and_strict_csv_headers(
     )
 
 
+def test_execute_pipeline_shot_writes_compare_csv(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    config = _base_config(stages=["evaluate"])
+    run_cfg = config["run_config"]
+    assert isinstance(run_cfg, dict)
+    run_cfg["load_checkpoint_path"] = "artifacts/source_model.pth"
+    config["domain_adaptation"] = {
+        "method": "shot",
+        "target_split": "test",
+        "compare_pre_post": True,
+        "shot": {"epochs": 1, "use_amp": False},
+    }
+
+    def fake_build_dataloaders(
+        config: ConfigDict,
+        distributed: bool = False,
+        rank: int = 0,
+        world_size: int = 1,
+        train_stage: str = "pretrain",
+        embedding_cache: object | None = None,
+        embedding_split_paths: object | None = None,
+    ) -> dict[str, DataLoader[dict[str, torch.Tensor]]]:
+        del (
+            config,
+            distributed,
+            rank,
+            world_size,
+            train_stage,
+            embedding_cache,
+            embedding_split_paths,
+        )
+        return _fake_dataloaders()
+
+    def fake_build_model(config: ConfigDict) -> nn.Module:
+        del config
+        return _TinyModel()
+
+    def fake_initialize_distributed(ddp_enabled: bool) -> DistributedContext:
+        del ddp_enabled
+        return DistributedContext(ddp_enabled=False, is_distributed=False)
+
+    def fake_cleanup_distributed(context: DistributedContext) -> None:
+        del context
+
+    def fake_resolve_device(device_name: str) -> torch.device:
+        del device_name
+        return torch.device("cpu")
+
+    def fake_collect_embedding_split_paths(config: ConfigDict) -> list[Path]:
+        del config
+        return [Path("train.txt"), Path("valid.txt"), Path("test.txt")]
+
+    def fake_ensure_embedding_cache(
+        config: ConfigDict,
+        split_paths: list[Path],
+        input_dim: int,
+        max_sequence_length: int,
+        distributed: bool = False,
+        rank: int = 0,
+    ) -> EmbeddingCacheManifest:
+        del config, split_paths, input_dim, max_sequence_length, distributed, rank
+        return EmbeddingCacheManifest(
+            cache_dir=Path("cache"),
+            index={},
+            required_ids=frozenset(),
+        )
+
+    def fake_source_metrics(
+        config: ConfigDict,
+        model: nn.Module,
+        device: torch.device,
+        data_loader: DataLoader[dict[str, object]],
+    ) -> dict[str, float]:
+        del config, model, device, data_loader
+        return {
+            "auroc": 0.5,
+            "auprc": 0.4,
+            "accuracy": 0.3,
+            "sensitivity": 0.2,
+            "specificity": 0.1,
+            "precision": 0.3,
+            "recall": 0.2,
+            "f1": 0.25,
+            "mcc": 0.05,
+        }
+
+    def fake_shot_adapt(
+        config: ConfigDict,
+        model: nn.Module,
+        device: torch.device,
+        target_loader: DataLoader[dict[str, object]],
+        run_id: str,
+        distributed_context: DistributedContext,
+    ) -> Path:
+        del config, model, device, target_loader, run_id, distributed_context
+        return Path("models/v3/evaluate/eval_case/shot_adapted_model.pth")
+
+    def fake_run_evaluation_stage(
+        config: ConfigDict,
+        model: nn.Module,
+        device: torch.device,
+        dataloaders: dict[str, DataLoader[dict[str, object]]],
+        run_id: str,
+        checkpoint_path: Path,
+        distributed_context: DistributedContext,
+    ) -> dict[str, float]:
+        del (
+            config,
+            model,
+            device,
+            dataloaders,
+            run_id,
+            checkpoint_path,
+            distributed_context,
+        )
+        return {
+            "auroc": 0.9,
+            "auprc": 0.8,
+            "accuracy": 0.7,
+            "sensitivity": 0.6,
+            "specificity": 0.5,
+            "precision": 0.7,
+            "recall": 0.6,
+            "f1": 0.65,
+            "mcc": 0.4,
+        }
+
+    monkeypatch.setattr(run_module, "build_dataloaders", fake_build_dataloaders)
+    monkeypatch.setattr(run_module, "build_model", fake_build_model)
+    monkeypatch.setattr(
+        run_module, "initialize_distributed", fake_initialize_distributed
+    )
+    monkeypatch.setattr(run_module, "cleanup_distributed", fake_cleanup_distributed)
+    monkeypatch.setattr(run_module, "resolve_device", fake_resolve_device)
+    monkeypatch.setattr(
+        run_module, "collect_embedding_split_paths", fake_collect_embedding_split_paths
+    )
+    monkeypatch.setattr(
+        run_module, "ensure_embedding_cache", fake_ensure_embedding_cache
+    )
+    monkeypatch.setattr(run_module, "_evaluate_split_metrics", fake_source_metrics)
+    monkeypatch.setattr(run_module, "run_shot_adaptation_stage", fake_shot_adapt)
+    monkeypatch.setattr(run_module, "run_evaluation_stage", fake_run_evaluation_stage)
+    monkeypatch.setattr(
+        run_module, "_load_checkpoint", lambda model, checkpoint_path, device: None
+    )
+
+    run_module.execute_pipeline(config)
+
+    compare_csv = (
+        tmp_path / "logs" / "v3" / "evaluate" / "eval_case" / "evaluate_compare.csv"
+    )
+    assert compare_csv.exists()
+    lines = compare_csv.read_text(encoding="utf-8").splitlines()
+    assert lines[0] == (
+        "variant,split,auroc,auprc,accuracy,sensitivity,specificity,precision,recall,f1,mcc"
+    )
+    assert any(line.startswith("source,test,") for line in lines[1:])
+    assert any(line.startswith("shot_adapted,test,") for line in lines[1:])
+
+
 def test_non_main_process_does_not_write_stage_artifacts(tmp_path: Path) -> None:
     previous_cwd = Path.cwd()
     try:

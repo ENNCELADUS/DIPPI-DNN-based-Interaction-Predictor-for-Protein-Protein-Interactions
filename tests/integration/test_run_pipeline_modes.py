@@ -513,3 +513,132 @@ def test_execute_pipeline_v6_uses_sequence_dataloaders(
     run_module.execute_pipeline(base_config)
 
     assert calls["v6_dataloader_calls"] == 2
+
+
+def test_execute_pipeline_evaluate_with_shot_uses_adapted_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+    base_config: ConfigDict,
+    patched_pipeline: PipelineCalls,
+) -> None:
+    del patched_pipeline
+    run_cfg = base_config["run_config"]
+    assert isinstance(run_cfg, dict)
+    run_cfg["stages"] = ["evaluate"]
+    run_cfg["load_checkpoint_path"] = "artifacts/eval_source_model.pth"
+
+    base_config["domain_adaptation"] = {
+        "method": "shot",
+        "target_split": "test",
+        "compare_pre_post": True,
+        "shot": {"epochs": 1, "use_amp": False},
+    }
+
+    captured_eval_checkpoints: list[Path] = []
+
+    def fake_build_dataloaders(
+        config: ConfigDict,
+        distributed: bool = False,
+        rank: int = 0,
+        world_size: int = 1,
+        train_stage: str = "pretrain",
+        embedding_cache: object | None = None,
+        embedding_split_paths: object | None = None,
+    ) -> dict[str, DataLoader[dict[str, torch.Tensor]]]:
+        del (
+            config,
+            distributed,
+            rank,
+            world_size,
+            train_stage,
+            embedding_cache,
+            embedding_split_paths,
+        )
+        loader = DataLoader(_EmptyDataset(), batch_size=1)
+        return {"train": loader, "valid": loader, "test": loader}
+
+    def fake_build_model(config: ConfigDict) -> nn.Module:
+        del config
+        return _DummyModel()
+
+    def fake_run_shot_adaptation_stage(
+        config: ConfigDict,
+        model: nn.Module,
+        device: torch.device,
+        target_loader: DataLoader[dict[str, object]],
+        run_id: str,
+        distributed_context: DistributedContext,
+    ) -> Path:
+        del config, model, device, target_loader, run_id, distributed_context
+        return Path("artifacts/shot_adapted_model.pth")
+
+    def fake_run_evaluation_stage(
+        config: ConfigDict,
+        model: nn.Module,
+        device: torch.device,
+        dataloaders: dict[str, DataLoader[dict[str, torch.Tensor]]],
+        run_id: str,
+        checkpoint_path: Path,
+        distributed_context: DistributedContext,
+    ) -> dict[str, float]:
+        del config, model, device, dataloaders, run_id, distributed_context
+        captured_eval_checkpoints.append(checkpoint_path)
+        return {"accuracy": 1.0}
+
+    def fake_eval_split_metrics(
+        config: ConfigDict,
+        model: nn.Module,
+        device: torch.device,
+        data_loader: DataLoader[dict[str, object]],
+    ) -> dict[str, float]:
+        del config, model, device, data_loader
+        return {"accuracy": 0.4}
+
+    def fake_initialize_distributed(ddp_enabled: bool) -> DistributedContext:
+        del ddp_enabled
+        return DistributedContext(ddp_enabled=False, is_distributed=False)
+
+    def fake_cleanup_distributed(context: DistributedContext) -> None:
+        del context
+
+    def fake_resolve_device(device_name: str) -> torch.device:
+        del device_name
+        return torch.device("cpu")
+
+    monkeypatch.setattr(run_module, "build_dataloaders", fake_build_dataloaders)
+    monkeypatch.setattr(run_module, "build_model", fake_build_model)
+    monkeypatch.setattr(
+        run_module, "initialize_distributed", fake_initialize_distributed
+    )
+    monkeypatch.setattr(run_module, "cleanup_distributed", fake_cleanup_distributed)
+    monkeypatch.setattr(run_module, "resolve_device", fake_resolve_device)
+    monkeypatch.setattr(
+        run_module, "run_shot_adaptation_stage", fake_run_shot_adaptation_stage
+    )
+    monkeypatch.setattr(run_module, "run_evaluation_stage", fake_run_evaluation_stage)
+    monkeypatch.setattr(run_module, "_evaluate_split_metrics", fake_eval_split_metrics)
+    monkeypatch.setattr(
+        run_module,
+        "collect_embedding_split_paths",
+        lambda config: [Path("train.txt"), Path("valid.txt"), Path("test.txt")],
+    )
+    monkeypatch.setattr(
+        run_module,
+        "ensure_embedding_cache",
+        lambda config,
+        split_paths,
+        input_dim,
+        max_sequence_length,
+        distributed=False,
+        rank=0: EmbeddingCacheManifest(
+            cache_dir=Path("cache"),
+            index={},
+            required_ids=frozenset(),
+        ),
+    )
+    monkeypatch.setattr(
+        run_module, "_load_checkpoint", lambda model, checkpoint_path, device: None
+    )
+
+    run_module.execute_pipeline(base_config)
+
+    assert captured_eval_checkpoints == [Path("artifacts/shot_adapted_model.pth")]

@@ -8,6 +8,7 @@ import os
 import random
 import time
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, cast
 
@@ -22,6 +23,7 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 from src.evaluate import Evaluator
 from src.model import V3, V4, V5, V6
 from src.train import NoOpStrategy, StagedUnfreezeStrategy, Trainer
+from src.train.shot import SHOTAdapter, SHOTConfig
 from src.train.base import OptimizerConfig, SchedulerConfig
 from src.utils.config import (
     ConfigDict,
@@ -86,7 +88,18 @@ EVAL_CSV_COLUMNS = [
     "f1",
     "mcc",
 ]
+EVAL_COMPARE_CSV_COLUMNS = ["variant", *EVAL_CSV_COLUMNS]
 SEQUENCE_NATIVE_MODELS: frozenset[str] = frozenset({"v6"})
+
+
+@dataclass(frozen=True)
+class DomainAdaptationConfig:
+    """Domain-adaptation execution controls."""
+
+    method: Literal["none", "shot"]
+    target_split: str
+    compare_pre_post: bool
+    shot: SHOTConfig
 
 
 def _stage_logger_name(model_name: str, stage: str, run_id: str, rank: int) -> str:
@@ -146,6 +159,163 @@ def _metrics_from_config(eval_cfg: ConfigDict) -> list[str]:
     if not isinstance(metrics, Sequence) or isinstance(metrics, (str, bytes)):
         raise ValueError("evaluate.metrics must be a sequence")
     return as_str_list(metrics, "evaluate.metrics")
+
+
+def _domain_adaptation_config(config: ConfigDict) -> DomainAdaptationConfig:
+    """Parse domain-adaptation config with strict defaults."""
+    da_raw = config.get("domain_adaptation", {})
+    if da_raw is None:
+        da_raw = {}
+    if not isinstance(da_raw, dict):
+        raise ValueError("domain_adaptation must be a mapping")
+    da_cfg = cast(ConfigDict, da_raw)
+
+    method = as_str(da_cfg.get("method", "none"), "domain_adaptation.method").lower()
+    if method not in {"none", "shot"}:
+        raise ValueError("domain_adaptation.method must be 'none' or 'shot'")
+
+    target_split = as_str(
+        da_cfg.get("target_split", "test"),
+        "domain_adaptation.target_split",
+    ).lower()
+    if target_split != "test":
+        raise ValueError(
+            "domain_adaptation.target_split currently supports only 'test'"
+        )
+
+    compare_pre_post = as_bool(
+        da_cfg.get("compare_pre_post", True),
+        "domain_adaptation.compare_pre_post",
+    )
+
+    shot_raw = da_cfg.get("shot", {})
+    if shot_raw is None:
+        shot_raw = {}
+    if not isinstance(shot_raw, dict):
+        raise ValueError("domain_adaptation.shot must be a mapping")
+    shot_cfg = cast(ConfigDict, shot_raw)
+
+    device_cfg = get_section(config, "device_config")
+    shot_use_amp = as_bool(
+        shot_cfg.get(
+            "use_amp",
+            as_bool(
+                device_cfg.get("use_mixed_precision", False),
+                "device_config.use_mixed_precision",
+            ),
+        ),
+        "domain_adaptation.shot.use_amp",
+    )
+
+    epochs = as_int(shot_cfg.get("epochs", 15), "domain_adaptation.shot.epochs")
+    if epochs <= 0:
+        raise ValueError("domain_adaptation.shot.epochs must be positive")
+    beta = as_float(shot_cfg.get("beta", 0.3), "domain_adaptation.shot.beta")
+    if beta < 0.0:
+        raise ValueError("domain_adaptation.shot.beta must be >= 0")
+    entropy_weight = as_float(
+        shot_cfg.get("entropy_weight", 1.0),
+        "domain_adaptation.shot.entropy_weight",
+    )
+    align_weight_raw = shot_cfg.get(
+        "align_weight", shot_cfg.get("diversity_weight", 1.0)
+    )
+    align_weight = as_float(
+        align_weight_raw,
+        "domain_adaptation.shot.align_weight",
+    )
+    lr = as_float(shot_cfg.get("lr", 5e-4), "domain_adaptation.shot.lr")
+    if lr <= 0.0:
+        raise ValueError("domain_adaptation.shot.lr must be positive")
+    momentum = as_float(
+        shot_cfg.get("momentum", 0.9),
+        "domain_adaptation.shot.momentum",
+    )
+    weight_decay = as_float(
+        shot_cfg.get("weight_decay", 3e-4),
+        "domain_adaptation.shot.weight_decay",
+    )
+    lr_gamma = as_float(
+        shot_cfg.get("lr_gamma", 10.0),
+        "domain_adaptation.shot.lr_gamma",
+    )
+    lr_power = as_float(
+        shot_cfg.get("lr_power", 0.75),
+        "domain_adaptation.shot.lr_power",
+    )
+    refine_rounds = as_int(
+        shot_cfg.get("refine_rounds", 1),
+        "domain_adaptation.shot.refine_rounds",
+    )
+    if refine_rounds < 0:
+        raise ValueError("domain_adaptation.shot.refine_rounds must be >= 0")
+    class_count_threshold = as_int(
+        shot_cfg.get("class_count_threshold", 2),
+        "domain_adaptation.shot.class_count_threshold",
+    )
+    if class_count_threshold < 0:
+        raise ValueError("domain_adaptation.shot.class_count_threshold must be >= 0")
+    tau_pos = as_float(shot_cfg.get("tau_pos", 0.88), "domain_adaptation.shot.tau_pos")
+    tau_neg = as_float(shot_cfg.get("tau_neg", 0.98), "domain_adaptation.shot.tau_neg")
+    if not (0.0 < tau_pos < 1.0):
+        raise ValueError("domain_adaptation.shot.tau_pos must be in (0, 1)")
+    if not (0.0 < tau_neg < 1.0):
+        raise ValueError("domain_adaptation.shot.tau_neg must be in (0, 1)")
+    if tau_neg <= tau_pos:
+        raise ValueError("domain_adaptation.shot.tau_neg must be > tau_pos")
+    pos_weight = as_float(
+        shot_cfg.get("pos_weight", 5.0),
+        "domain_adaptation.shot.pos_weight",
+    )
+    neg_weight = as_float(
+        shot_cfg.get("neg_weight", 1.0),
+        "domain_adaptation.shot.neg_weight",
+    )
+    if pos_weight <= 0.0 or neg_weight <= 0.0:
+        raise ValueError("domain_adaptation.shot.{pos_weight,neg_weight} must be > 0")
+    normalize_class_weights = as_bool(
+        shot_cfg.get("normalize_class_weights", True),
+        "domain_adaptation.shot.normalize_class_weights",
+    )
+    prior_pos = as_float(
+        shot_cfg.get("prior_pos", 0.01),
+        "domain_adaptation.shot.prior_pos",
+    )
+    if not (0.0 < prior_pos < 1.0):
+        raise ValueError("domain_adaptation.shot.prior_pos must be in (0, 1)")
+    prior_ema_momentum = as_float(
+        shot_cfg.get("prior_ema_momentum", 0.02),
+        "domain_adaptation.shot.prior_ema_momentum",
+    )
+    if not (0.0 < prior_ema_momentum <= 1.0):
+        raise ValueError("domain_adaptation.shot.prior_ema_momentum must be in (0, 1]")
+
+    return DomainAdaptationConfig(
+        method=cast(Literal["none", "shot"], method),
+        target_split=target_split,
+        compare_pre_post=compare_pre_post,
+        shot=SHOTConfig(
+            epochs=epochs,
+            beta=beta,
+            entropy_weight=entropy_weight,
+            align_weight=align_weight,
+            lr=lr,
+            momentum=momentum,
+            weight_decay=weight_decay,
+            lr_gamma=lr_gamma,
+            lr_power=lr_power,
+            refine_rounds=refine_rounds,
+            class_count_threshold=class_count_threshold,
+            tau_pos=tau_pos,
+            tau_neg=tau_neg,
+            pos_weight=pos_weight,
+            neg_weight=neg_weight,
+            normalize_class_weights=normalize_class_weights,
+            prior_pos=prior_pos,
+            prior_ema_momentum=prior_ema_momentum,
+            use_amp=shot_use_amp,
+        ),
+    )
 
 
 def _build_loss_config(training_cfg: ConfigDict) -> LossConfig:
@@ -911,6 +1081,102 @@ def run_evaluation_stage(
     return metrics
 
 
+def _evaluate_split_metrics(
+    config: ConfigDict,
+    model: nn.Module,
+    device: torch.device,
+    data_loader: torch.utils.data.DataLoader[dict[str, object]],
+) -> dict[str, float]:
+    """Compute one evaluation pass without writing artifacts."""
+    eval_cfg = get_section(config, "evaluate")
+    training_cfg = get_section(config, "training_config")
+    configured_metrics = _metrics_from_config(eval_cfg)
+    metrics_to_compute = sorted(set(configured_metrics + EVAL_CSV_COLUMNS[1:]))
+    evaluator = Evaluator(
+        metrics=metrics_to_compute, loss_config=_build_loss_config(training_cfg)
+    )
+    model.eval()
+    with torch.no_grad():
+        return evaluator.evaluate(
+            model=model,
+            data_loader=data_loader,
+            device=device,
+            prefix=None,
+        )
+
+
+def run_shot_adaptation_stage(
+    config: ConfigDict,
+    model: nn.Module,
+    device: torch.device,
+    target_loader: torch.utils.data.DataLoader[dict[str, object]],
+    run_id: str,
+    distributed_context: DistributedContext,
+) -> Path:
+    """Run SHOT adaptation on target split and persist adapted checkpoint."""
+    model_name, _ = extract_model_kwargs(config)
+    log_dir, model_dir, logger = _build_stage_runtime(
+        model_name=model_name,
+        stage="evaluate",
+        run_id=run_id,
+        distributed_context=distributed_context,
+    )
+    da_cfg = _domain_adaptation_config(config)
+    if da_cfg.method != "shot":
+        raise ValueError(
+            "run_shot_adaptation_stage requires domain_adaptation.method=shot"
+        )
+    if distributed_context.is_main_process:
+        log_stage_event(
+            logger,
+            "shot_start",
+            epochs=da_cfg.shot.epochs,
+            beta=da_cfg.shot.beta,
+            lr=da_cfg.shot.lr,
+        )
+
+    adapter = SHOTAdapter(
+        model=model,
+        device=device,
+        config=da_cfg.shot,
+        logger=logger if distributed_context.is_main_process else None,
+    )
+    adapter.adapt(
+        target_loader=target_loader,
+        csv_path=log_dir / "shot_adapt.csv"
+        if distributed_context.is_main_process
+        else None,
+    )
+
+    adapted_checkpoint_path = model_dir / "shot_adapted_model.pth"
+    if distributed_context.is_main_process:
+        _save_checkpoint(model=model, checkpoint_path=adapted_checkpoint_path)
+        log_stage_event(logger, "shot_checkpoint_saved", path=adapted_checkpoint_path)
+    distributed_barrier(distributed_context)
+    return adapted_checkpoint_path
+
+
+def _write_compare_evaluation_metrics(
+    log_dir: Path,
+    source_metrics: dict[str, float],
+    adapted_metrics: dict[str, float],
+) -> None:
+    """Write side-by-side source vs adapted metrics CSV."""
+    compare_path = log_dir / "evaluate_compare.csv"
+    for variant_name, metrics in (
+        ("source", source_metrics),
+        ("shot_adapted", adapted_metrics),
+    ):
+        row: dict[str, float | int | str] = {"variant": variant_name, "split": "test"}
+        for metric_name in EVAL_CSV_COLUMNS[1:]:
+            row[metric_name] = float(metrics.get(metric_name, 0.0))
+        append_csv_row(
+            csv_path=compare_path,
+            row=row,
+            fieldnames=EVAL_COMPARE_CSV_COLUMNS,
+        )
+
+
 def execute_pipeline(
     config: ConfigDict,
     training_epoch_callback: TrainingEpochCallback | None = None,
@@ -927,6 +1193,8 @@ def execute_pipeline(
         ValueError: If stage config is invalid or required checkpoint is missing.
     """
     run_cfg = get_section(config, "run_config")
+    if "mode" in run_cfg:
+        raise ValueError("run_config.mode is deprecated; use run_config.stages")
     device_cfg = get_section(config, "device_config")
     seed = as_int(run_cfg.get("seed", 0), "run_config.seed")
     set_global_seed(seed=seed)
@@ -938,6 +1206,7 @@ def execute_pipeline(
     ddp_find_unused_parameters = _ddp_find_unused_parameters(config)
     try:
         selected_stages = _resolve_stage_sequence(run_cfg=run_cfg)
+        domain_adaptation_cfg = _domain_adaptation_config(config)
         stage_run_map = _stage_run_ids(run_cfg=run_cfg)
         load_checkpoint_value = run_cfg.get("load_checkpoint_path")
         load_checkpoint_path = (
@@ -1145,15 +1414,75 @@ def execute_pipeline(
                     test=_len_or_unknown(eval_dataloaders["test"].dataset),
                 )
                 log_stage_event(stage_loggers["evaluate"], "begin_evaluation")
-            run_evaluation_stage(
-                config=eval_config,
-                model=model,
-                device=device,
-                dataloaders=eval_dataloaders,
-                run_id=stage_run_map["evaluate"],
-                checkpoint_path=active_checkpoint,
-                distributed_context=distributed_context,
-            )
+            if domain_adaptation_cfg.method == "shot":
+                target_loader = eval_dataloaders[domain_adaptation_cfg.target_split]
+                _load_checkpoint(
+                    model=model,
+                    checkpoint_path=active_checkpoint,
+                    device=device,
+                )
+                source_metrics = _evaluate_split_metrics(
+                    config=eval_config,
+                    model=model,
+                    device=device,
+                    data_loader=target_loader,
+                )
+                if distributed_context.is_main_process:
+                    source_row = {
+                        metric_name: float(source_metrics.get(metric_name, 0.0))
+                        for metric_name in EVAL_CSV_COLUMNS[1:]
+                    }
+                    log_stage_event(
+                        stage_loggers["evaluate"],
+                        "source_evaluation_metrics",
+                        **source_row,
+                    )
+                adapted_checkpoint = run_shot_adaptation_stage(
+                    config=eval_config,
+                    model=model,
+                    device=device,
+                    target_loader=target_loader,
+                    run_id=stage_run_map["evaluate"],
+                    distributed_context=distributed_context,
+                )
+                adapted_metrics = run_evaluation_stage(
+                    config=eval_config,
+                    model=model,
+                    device=device,
+                    dataloaders=eval_dataloaders,
+                    run_id=stage_run_map["evaluate"],
+                    checkpoint_path=adapted_checkpoint,
+                    distributed_context=distributed_context,
+                )
+                if (
+                    distributed_context.is_main_process
+                    and domain_adaptation_cfg.compare_pre_post
+                ):
+                    log_dir, _ = prepare_stage_directories(
+                        model_name=model_name,
+                        stage="evaluate",
+                        run_id=stage_run_map["evaluate"],
+                    )
+                    _write_compare_evaluation_metrics(
+                        log_dir=log_dir,
+                        source_metrics=source_metrics,
+                        adapted_metrics=adapted_metrics,
+                    )
+                    log_stage_event(
+                        stage_loggers["evaluate"],
+                        "compare_csv_written",
+                        path=log_dir / "evaluate_compare.csv",
+                    )
+            else:
+                run_evaluation_stage(
+                    config=eval_config,
+                    model=model,
+                    device=device,
+                    dataloaders=eval_dataloaders,
+                    run_id=stage_run_map["evaluate"],
+                    checkpoint_path=active_checkpoint,
+                    distributed_context=distributed_context,
+                )
             if distributed_context.is_main_process:
                 log_stage_event(stage_loggers["evaluate"], "end_evaluation")
         return

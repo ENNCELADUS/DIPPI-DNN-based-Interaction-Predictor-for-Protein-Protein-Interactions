@@ -1,10 +1,10 @@
 run_config:
-  stages: ["finetune", "evaluate"]
+  stages: ["evaluate"]
   seed: 47
   train_run_id: null
   finetune_run_id: "20260216_170130"
   eval_run_id: "20260216_170130"
-  load_checkpoint_path: "models/v5/pretrain/20260216_170130/best_model.pth"
+  load_checkpoint_path: "models/v5/finetune/20260216_170130/best_model.pth"
   save_best_only: true
 
 device_config:
@@ -148,6 +148,31 @@ training_config:
             low: 1
             high: 5
           apply_to: ["strategy.unfreeze_epoch"]
+
+domain_adaptation:
+  method: "shot"  # none | shot
+  target_split: "test"
+  compare_pre_post: true
+  shot:
+    epochs: 15
+    beta: 0.3
+    entropy_weight: 1.0
+    align_weight: 1.0
+    tau_pos: 0.88
+    tau_neg: 0.98
+    pos_weight: 5.0
+    neg_weight: 1.0
+    normalize_class_weights: true
+    prior_pos: 0.01
+    prior_ema_momentum: 0.02
+    lr: 5.0e-4
+    momentum: 0.9
+    weight_decay: 3.0e-4
+    lr_gamma: 10.0
+    lr_power: 0.75
+    refine_rounds: 1
+    class_count_threshold: 2
+    use_amp: true
 
 evaluate:
   metrics:
