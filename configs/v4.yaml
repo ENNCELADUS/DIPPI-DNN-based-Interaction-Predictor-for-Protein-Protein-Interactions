@@ -34,9 +34,9 @@ data_config:
     drop_last: true
     sampling:
       strategy: "ohem"  # none | ohem
-      warmup_epochs: 2
+      warmup_epochs: 3
       pool_multiplier: 8
-      cap_protein: 2
+      cap_protein: 4
     pretrain_sampling:
       strategy: "none"  # none | ohem
 
