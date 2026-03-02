@@ -86,7 +86,7 @@ training_config:
   strategy:
     type: "none"
   finetune:
-    batch_size: 16
+    batch_size: 32
     epochs: 25
     monitor_metric: "auprc"
     optimizer:
