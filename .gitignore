@@ -6,6 +6,7 @@ _agent/
 *.json
 *.out
 *.err
+*.db
 
 # Binary & Large File Formats
 *.pkl

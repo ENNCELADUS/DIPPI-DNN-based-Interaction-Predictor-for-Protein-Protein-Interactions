@@ -13,7 +13,9 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.optim import SGD
 from torch.utils.data import DataLoader
 
+from src.evaluate import Evaluator
 from src.utils.logging import append_csv_row
+from src.utils.losses import LossConfig
 
 
 @dataclass(frozen=True)
@@ -42,6 +44,18 @@ class SHOTConfig:
 
 
 NUMERICAL_EPSILON = 1e-5
+SHOT_EVAL_METRICS: tuple[str, ...] = (
+    "loss",
+    "auroc",
+    "auprc",
+    "accuracy",
+    "sensitivity",
+    "specificity",
+    "precision",
+    "recall",
+    "f1",
+    "mcc",
+)
 
 
 def _unwrap_model(model: nn.Module) -> nn.Module:
@@ -144,6 +158,14 @@ class SHOTAdapter:
         self.logger = logger
         self.use_amp = bool(config.use_amp and device.type == "cuda")
         self._ema_prior: torch.Tensor | None = None
+        self._epoch_evaluator = Evaluator(
+            metrics=list(SHOT_EVAL_METRICS),
+            loss_config=LossConfig(
+                loss_type="bce_with_logits",
+                pos_weight=1.0,
+                label_smoothing=0.0,
+            ),
+        )
 
     def _log(self, message: str, **fields: float | int) -> None:
         if self.logger is None:
@@ -366,6 +388,23 @@ class SHOTAdapter:
             group["lr"] = lr
         return lr
 
+    def _evaluate_target_metrics(
+        self,
+        target_loader: DataLoader[dict[str, object]],
+    ) -> dict[str, float]:
+        model_was_training = self.model.training
+        self.model.eval()
+        with torch.no_grad():
+            metrics = self._epoch_evaluator.evaluate(
+                model=self.model,
+                data_loader=target_loader,
+                device=self.device,
+                prefix=None,
+            )
+        if model_was_training:
+            self.model.train()
+        return metrics
+
     def adapt(
         self,
         target_loader: DataLoader[dict[str, object]],
@@ -399,6 +438,19 @@ class SHOTAdapter:
             "selected_ratio",
             "selected_pos_ratio",
             "ema_pos_prior",
+            "target_pos_prob_mean",
+            "target_pred_pos_rate",
+            "selected_pred_pos_rate",
+            "test_loss",
+            "test_auroc",
+            "test_auprc",
+            "test_accuracy",
+            "test_sensitivity",
+            "test_specificity",
+            "test_precision",
+            "test_recall",
+            "test_f1",
+            "test_mcc",
         ]
 
         total_steps = max(1, self.config.epochs * len(target_loader))
@@ -419,6 +471,9 @@ class SHOTAdapter:
                 else probs.mean(dim=0)
             )
             ema_prior = self._update_ema_prior(target_wide_probs=target_wide_mean)
+            predicted_classes = torch.argmax(probs, dim=1)
+            target_pred_pos_rate = float(predicted_classes.float().mean().item())
+            target_pos_prob_mean = float(probs[:, 1].mean().item())
 
             self.model.train()
             output_head.eval()
@@ -508,6 +563,11 @@ class SHOTAdapter:
                 if selected_mask.any()
                 else 0.0
             )
+            selected_pred_pos_rate = (
+                float(predicted_classes[selected_mask].float().mean().item())
+                if selected_mask.any()
+                else 0.0
+            )
             row = {
                 "epoch": epoch + 1,
                 "loss": epoch_loss / denom,
@@ -518,7 +578,19 @@ class SHOTAdapter:
                 "selected_ratio": selected_ratio,
                 "selected_pos_ratio": selected_positive_ratio,
                 "ema_pos_prior": float(ema_prior[1].detach().item()),
+                "target_pos_prob_mean": target_pos_prob_mean,
+                "target_pred_pos_rate": target_pred_pos_rate,
+                "selected_pred_pos_rate": selected_pred_pos_rate,
             }
+            epoch_eval_metrics = self._evaluate_target_metrics(target_loader=target_loader)
+            row.update(
+                {
+                    f"test_{metric_name}": float(
+                        epoch_eval_metrics.get(metric_name, 0.0)
+                    )
+                    for metric_name in SHOT_EVAL_METRICS
+                }
+            )
             self._log(
                 "SHOT Epoch",
                 epoch=row["epoch"],
@@ -529,7 +601,24 @@ class SHOTAdapter:
                 lr=row["lr"],
                 selected=row["selected_ratio"],
                 ema_pos=row["ema_pos_prior"],
+                target_pos_prob_mean=row["target_pos_prob_mean"],
+                target_pred_pos_rate=row["target_pred_pos_rate"],
+                selected_pred_pos_rate=row["selected_pred_pos_rate"],
+                test_auroc=row["test_auroc"],
+                test_auprc=row["test_auprc"],
+                test_sensitivity=row["test_sensitivity"],
+                test_specificity=row["test_specificity"],
             )
+            if (
+                row["target_pos_prob_mean"] < 0.005
+                or row["target_pred_pos_rate"] < 0.005
+            ):
+                self._log(
+                    "SHOT Collapse Alert",
+                    epoch=row["epoch"],
+                    target_pos_prob_mean=row["target_pos_prob_mean"],
+                    target_pred_pos_rate=row["target_pred_pos_rate"],
+                )
             if csv_path is not None:
                 append_csv_row(
                     csv_path=csv_path,

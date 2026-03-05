@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 
 import torch
@@ -84,6 +85,16 @@ def test_shot_adapter_freezes_classifier_and_updates_encoder(tmp_path: Path) -> 
     adapter.adapt(target_loader=loader, csv_path=csv_path)
 
     assert csv_path.exists()
+    with csv_path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        assert reader.fieldnames is not None
+        assert "target_pos_prob_mean" in reader.fieldnames
+        assert "target_pred_pos_rate" in reader.fieldnames
+        assert "selected_pred_pos_rate" in reader.fieldnames
+        assert "test_auroc" in reader.fieldnames
+        assert "test_auprc" in reader.fieldnames
+        assert "test_sensitivity" in reader.fieldnames
+        assert "test_specificity" in reader.fieldnames
     assert not torch.allclose(model.encoder.weight.detach(), initial_encoder_weight)
     assert torch.allclose(model.output_head.weight.detach(), initial_head_weight)
 

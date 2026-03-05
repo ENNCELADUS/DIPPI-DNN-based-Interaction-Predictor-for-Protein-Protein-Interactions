@@ -1,0 +1,187 @@
+run_config:
+  stages: ["evaluate"]
+  seed: 47
+  train_run_id: null
+  finetune_run_id: "20260216_170130"
+  eval_run_id: null
+  load_checkpoint_path: "models/v5/finetune/20260216_170130/best_model.pth"
+  save_best_only: true
+
+device_config:
+  device: "cuda"
+  ddp_enabled: true
+  use_mixed_precision: true
+
+data_config:
+  benchmark:
+    name: "TMP"
+    root_dir: "data/TMP"
+    processed_dir: "data/TMP/processed"
+  embeddings:
+    source: "esm3"
+    cache_dir: "data/embeddings/esm3"
+  max_sequence_length: 1024
+  dataloader:
+    train_dataset: "data/TMP/processed/pretrain_train_balanced.csv"
+    valid_dataset: "data/TMP/processed/pretrain_val_balanced.csv"
+    finetune_train_dataset: "data/TMP/processed/finetune_train.csv"
+    finetune_val_dataset: "data/TMP/processed/finetune_val.csv"
+    test_dataset: "data/TMP/processed/test.csv"
+    num_workers: 2
+    pin_memory: false
+    persistent_workers: false
+    prefetch_factor: 1
+    drop_last: true
+    sampling:
+      strategy: "ohem"  # none | ohem
+      warmup_epochs: 3
+      pool_multiplier: 8
+      cap_protein: 4
+    pretrain_sampling:
+      strategy: "none"  # none | ohem
+
+model_config:
+  model: "v5"
+  input_dim: 1536
+  d_model: 192
+  encoder_layers: 2
+  cross_attn_layers: 2
+  n_heads: 8
+  pair_dim: 96
+  cnn_dim: 64
+  cnn_blocks: 2
+  interaction_map:
+    include_pair_features: false
+    similarity: "none"
+    eps: 1.0e-8
+    max_tokens_per_protein: 512
+  pooling:
+    mode: "max_mean"
+  mlp_head:
+    hidden_dims: [128, 64]
+    dropout: 0.20
+    activation: "gelu"
+    norm: "layernorm"
+  regularization:
+    dropout: 0.15
+    token_dropout: 0.10
+    cross_attention_dropout: 0.15
+    stochastic_depth: 0.10
+    cnn_dropout: 0.10
+
+training_config:
+  epochs: 20
+  batch_size: 32
+  early_stopping_patience: 5
+  monitor_metric: "auprc"
+  logging:
+    validation_metrics: ["auprc", "auroc", "f1", "accuracy"]
+  optimizer:
+    type: "adamw"
+    lr: 0.00006
+    beta1: 0.9
+    beta2: 0.999
+    eps: 1.0e-8
+    weight_decay: 0.015
+  scheduler:
+    type: "onecycle"
+    max_lr: 0.00006
+    pct_start: 0.20
+    div_factor: 25
+    final_div_factor: 10000
+    anneal_strategy: "cos"
+  loss:
+    type: "bce_with_logits"
+    pos_weight: 1.0
+    label_smoothing: 0.02
+  strategy:
+    type: "none"
+  finetune:
+    batch_size: 16
+    epochs: 30
+    monitor_metric: "auprc"
+    optimizer:
+      lr: 0.00001
+      weight_decay: 0.015
+    scheduler:
+      max_lr: 0.00001
+      pct_start: 0.20
+    loss:
+      pos_weight: 7.0
+      label_smoothing: 0.01
+    strategy:
+      type: "staged_unfreeze"
+      unfreeze_epoch: 2
+      initial_trainable_prefixes: ["output_head"]
+    optuna:
+      enabled: false
+      study_name: "v5_finetune"
+      storage: "sqlite:///logs/optuna/v5_finetune.db"
+      direction: "maximize"
+      metric: "auprc"
+      n_trials: 6
+      timeout_sec: null
+      sampler:
+        type: "tpe"
+        seed: 47
+      pruner:
+        type: "median"
+        n_startup_trials: 3
+        n_warmup_steps: 1
+        interval_steps: 1
+      parameters:
+        lr:
+          distribution:
+            type: "float"
+            low: 1.0e-6
+            high: 5.0e-5
+            log: true
+          apply_to: ["optimizer.lr", "scheduler.max_lr"]
+        batch_size:
+          distribution:
+            type: "categorical"
+            choices: [8, 16, 32]
+          apply_to: ["batch_size"]
+        strategy_unfreeze_epoch:
+          distribution:
+            type: "int"
+            low: 1
+            high: 5
+          apply_to: ["strategy.unfreeze_epoch"]
+
+domain_adaptation:
+  method: "shot"  # none | shot
+  target_split: "test"
+  compare_pre_post: true
+  shot:
+    epochs: 5
+    beta: 0.3
+    entropy_weight: 0.1
+    align_weight: 3.0
+    tau_pos: 0.88
+    tau_neg: 0.98
+    pos_weight: 5.0
+    neg_weight: 1.0
+    normalize_class_weights: true
+    prior_pos: 0.023
+    prior_ema_momentum: 0.02
+    lr: 5.0e-5
+    momentum: 0.9
+    weight_decay: 3.0e-4
+    lr_gamma: 10.0
+    lr_power: 0.75
+    refine_rounds: 1
+    class_count_threshold: 2
+    use_amp: true
+
+evaluate:
+  metrics:
+    - "auroc"
+    - "auprc"
+    - "accuracy"
+    - "sensitivity"
+    - "specificity"
+    - "precision"
+    - "recall"
+    - "f1"
+    - "mcc"
