@@ -4,6 +4,8 @@ cache/
 _agent/
 *.txt
 *.json
+*.out
+*.err
 
 # Binary & Large File Formats
 *.pkl
@@ -18,7 +20,7 @@ _agent/
 *.joblib
 *.jsonl
 *.fasta
-*.csv
+data/**/*.csv
 
 # Archives
 archives/
@@ -38,7 +40,6 @@ docs/ml_tricks/
 
 # LaTeX Cache & Auxiliary Files
 *.aux
-*.log
 *.toc
 *.fls
 *.fdb_latexmk

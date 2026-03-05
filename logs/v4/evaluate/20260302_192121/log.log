@@ -1,0 +1,3 @@
+2026-03-02 19:21:21 INFO Startup | Rank: 0 | Run Id: 20260302_192121 | Seed: 47 | Stages: pretrain,finetune,evaluate | World Size: 4
+2026-03-02 19:21:21 INFO Device | Resolved Device: cuda:0
+2026-03-02 19:23:10 INFO DDP Ready | Wrapped: True
