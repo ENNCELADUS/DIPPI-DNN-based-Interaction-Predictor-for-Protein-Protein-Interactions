@@ -1,0 +1,17 @@
+2026-01-28 02:45:51,649 | INFO | ================================================================================
+2026-01-28 02:45:51,649 | INFO | Starting evaluate stage for model 'v4' with run_id '20260128_024550'
+2026-01-28 02:45:51,649 | INFO | Logs will be written to: logs/v4/evaluate/20260128_024550/log.log
+2026-01-28 02:45:51,649 | INFO | ================================================================================
+2026-01-28 02:45:51,649 | INFO | Trainable parameters: 2,387,457
+2026-01-28 02:45:51,650 | INFO | Starting evaluation with metrics: ['auroc', 'auprc', 'accuracy', 'sensitivity', 'specificity', 'precision', 'recall', 'f1', 'mcc']
+2026-01-28 02:45:51,650 | INFO | Using 512 thresholds for AUROC/AUPRC accumulation to bound host memory
+2026-01-28 02:45:51,800 | INFO | Loaded checkpoint from: models/v4/finetune/20260126_155951/best_model.pth (epoch 29)
+2026-01-28 02:45:51,892 | INFO | Loaded sharded embeddings from data/TMP/processed/TMP_embeddings.npz (21391 proteins, max_len=768)
+2026-01-28 02:45:51,995 | INFO | Dataset: 188697 pairs (4788 pos, 183909 neg)
+2026-01-28 02:45:51,996 | INFO | DataLoader built for test.csv: num_workers=0, pin_memory=False, prefetch_factor=None, persistent_workers=False, sampler=None
+2026-01-28 02:45:51,996 | INFO | No test_realistic split configured; skipping
+2026-01-28 02:45:52,042 | INFO | Evaluating on test_balanced...
+2026-01-28 03:07:26,789 | INFO | test_balanced results: {'auroc': 0.7500669956207275, 'auprc': 0.0900372713804245, 'accuracy': 0.8005797863006592, 'sensitivity': 0.5944026708602905, 'specificity': 0.805947482585907, 'precision': 0.07385685294866562, 'recall': 0.5944026708602905, 'f1': 0.13138820230960846, 'mcc': 0.1561761200428009}
+2026-01-28 03:07:26,799 | INFO | Evaluation completed
+2026-01-28 03:07:26,913 | INFO | DDP cleaned up successfully
+2026-01-28 03:07:26,913 | INFO | Pipeline execution completed successfully

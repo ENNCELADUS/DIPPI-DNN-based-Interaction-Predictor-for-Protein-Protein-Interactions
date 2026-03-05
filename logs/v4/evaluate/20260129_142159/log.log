@@ -1,0 +1,54 @@
+2026-02-01 02:21:24,517 | INFO | ================================================================================
+2026-02-01 02:21:24,517 | INFO | ================================================================================
+2026-02-01 02:21:24,517 | INFO | ================================================================================
+2026-02-01 02:21:24,517 | INFO | Starting evaluate stage for model 'v4' with run_id '20260129_142159'
+2026-02-01 02:21:24,517 | INFO | Starting evaluate stage for model 'v4' with run_id '20260129_142159'
+2026-02-01 02:21:24,517 | INFO | Starting evaluate stage for model 'v4' with run_id '20260129_142159'
+2026-02-01 02:21:24,517 | INFO | Logs will be written to: logs/v4/evaluate/20260129_142159/log.log
+2026-02-01 02:21:24,517 | INFO | Logs will be written to: logs/v4/evaluate/20260129_142159/log.log
+2026-02-01 02:21:24,517 | INFO | Logs will be written to: logs/v4/evaluate/20260129_142159/log.log
+2026-02-01 02:21:24,517 | INFO | ================================================================================
+2026-02-01 02:21:24,517 | INFO | ================================================================================
+2026-02-01 02:21:24,517 | INFO | ================================================================================
+2026-02-01 02:21:24,517 | INFO | Starting evaluation with metrics: ['auroc', 'auprc', 'accuracy', 'sensitivity', 'specificity', 'precision', 'recall', 'f1', 'mcc']
+2026-02-01 02:21:24,517 | INFO | Starting evaluation with metrics: ['auroc', 'auprc', 'accuracy', 'sensitivity', 'specificity', 'precision', 'recall', 'f1', 'mcc']
+2026-02-01 02:21:24,517 | INFO | Starting evaluation with metrics: ['auroc', 'auprc', 'accuracy', 'sensitivity', 'specificity', 'precision', 'recall', 'f1', 'mcc']
+2026-02-01 02:21:24,517 | INFO | Using 512 thresholds for AUROC/AUPRC accumulation to bound host memory
+2026-02-01 02:21:24,517 | INFO | Using 512 thresholds for AUROC/AUPRC accumulation to bound host memory
+2026-02-01 02:21:24,517 | INFO | Using 512 thresholds for AUROC/AUPRC accumulation to bound host memory
+2026-02-01 02:21:24,620 | INFO | Loaded checkpoint from: models/v4/finetune/20260129_142159/best_model.pth (epoch 28)
+2026-02-01 02:21:24,620 | INFO | Loaded checkpoint from: models/v4/finetune/20260129_142159/best_model.pth (epoch 28)
+2026-02-01 02:21:24,620 | INFO | Loaded checkpoint from: models/v4/finetune/20260129_142159/best_model.pth (epoch 28)
+2026-02-01 02:21:24,648 | INFO | ================================================================================
+2026-02-01 02:21:24,648 | INFO | Starting evaluate stage for model 'v4' with run_id '20260129_142159'
+2026-02-01 02:21:24,648 | INFO | Logs will be written to: logs/v4/evaluate/20260129_142159/log.log
+2026-02-01 02:21:24,648 | INFO | ================================================================================
+2026-02-01 02:21:24,648 | INFO | Starting evaluation with metrics: ['auroc', 'auprc', 'accuracy', 'sensitivity', 'specificity', 'precision', 'recall', 'f1', 'mcc']
+2026-02-01 02:21:24,648 | INFO | Using 512 thresholds for AUROC/AUPRC accumulation to bound host memory
+2026-02-01 02:21:24,692 | INFO | No test_realistic split configured; skipping
+2026-02-01 02:21:24,692 | INFO | No test_realistic split configured; skipping
+2026-02-01 02:21:24,696 | INFO | Evaluating on test_balanced...
+2026-02-01 02:21:24,696 | INFO | No test_realistic split configured; skipping
+2026-02-01 02:21:24,696 | INFO | Evaluating on test_balanced...
+2026-02-01 02:21:24,699 | INFO | Evaluating on test_balanced...
+2026-02-01 02:21:24,734 | INFO | Loaded checkpoint from: models/v4/finetune/20260129_142159/best_model.pth (epoch 29)
+2026-02-01 02:21:24,794 | INFO | Dataset: 188697 pairs (4788 pos, 183909 neg)
+2026-02-01 02:21:24,794 | INFO | DataLoader built for test.csv: num_workers=0, pin_memory=False, prefetch_factor=None, persistent_workers=False, sampler=None
+2026-02-01 02:21:24,795 | INFO | No test_realistic split configured; skipping
+2026-02-01 02:21:24,798 | INFO | Evaluating on test_balanced...
+2026-02-01 02:47:54,826 | INFO | test_balanced results: {'auroc': 0.7036359906196594, 'auprc': 0.0844120979309082, 'accuracy': 0.9024428129196167, 'sensitivity': 0.3099937438964844, 'specificity': 0.9178670048713684, 'precision': 0.08947058767080307, 'recall': 0.3099937438964844, 'f1': 0.13886258006095886, 'mcc': 0.12654224038124084}
+2026-02-01 02:47:54,826 | INFO | test_balanced results: {'auroc': 0.7036359906196594, 'auprc': 0.0844120979309082, 'accuracy': 0.9024428129196167, 'sensitivity': 0.3099937438964844, 'specificity': 0.9178670048713684, 'precision': 0.08947058767080307, 'recall': 0.3099937438964844, 'f1': 0.13886258006095886, 'mcc': 0.12654224038124084}
+2026-02-01 02:47:54,826 | INFO | test_balanced results: {'auroc': 0.7036359906196594, 'auprc': 0.0844120979309082, 'accuracy': 0.9024428129196167, 'sensitivity': 0.3099937438964844, 'specificity': 0.9178670048713684, 'precision': 0.08947058767080307, 'recall': 0.3099937438964844, 'f1': 0.13886258006095886, 'mcc': 0.12654224038124084}
+2026-02-01 02:47:54,827 | INFO | test_balanced results: {'auroc': 0.7036359906196594, 'auprc': 0.0844120979309082, 'accuracy': 0.9024428129196167, 'sensitivity': 0.3099937438964844, 'specificity': 0.9178670048713684, 'precision': 0.08947058767080307, 'recall': 0.3099937438964844, 'f1': 0.13886258006095886, 'mcc': 0.12654224038124084}
+2026-02-01 02:47:54,832 | INFO | Evaluation completed
+2026-02-01 02:47:54,834 | INFO | Evaluation completed
+2026-02-01 02:47:54,836 | INFO | Evaluation completed
+2026-02-01 02:47:54,836 | INFO | Evaluation completed
+2026-02-01 02:47:55,001 | INFO | DDP cleaned up successfully
+2026-02-01 02:47:55,002 | INFO | Pipeline execution completed successfully
+2026-02-01 02:47:55,227 | INFO | DDP cleaned up successfully
+2026-02-01 02:47:55,227 | INFO | Pipeline execution completed successfully
+2026-02-01 02:47:55,240 | INFO | DDP cleaned up successfully
+2026-02-01 02:47:55,240 | INFO | Pipeline execution completed successfully
+2026-02-01 02:47:55,269 | INFO | DDP cleaned up successfully
+2026-02-01 02:47:55,269 | INFO | Pipeline execution completed successfully

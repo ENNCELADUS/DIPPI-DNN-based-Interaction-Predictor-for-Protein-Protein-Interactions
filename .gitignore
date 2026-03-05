@@ -41,6 +41,7 @@ docs/ml_tricks/
 # LaTeX Cache & Auxiliary Files
 *.aux
 *.toc
+visualize/*.log
 *.fls
 *.fdb_latexmk
 *.synctex.gz

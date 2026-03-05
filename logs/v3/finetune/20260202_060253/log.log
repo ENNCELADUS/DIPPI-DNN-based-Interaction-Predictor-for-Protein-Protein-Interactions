@@ -1,0 +1,142 @@
+2026-02-03 18:02:33,388 | INFO | ================================================================================
+2026-02-03 18:02:33,388 | INFO | ================================================================================
+2026-02-03 18:02:33,388 | INFO | Starting finetune stage for model 'v3' with run_id '20260202_060253'
+2026-02-03 18:02:33,388 | INFO | Starting finetune stage for model 'v3' with run_id '20260202_060253'
+2026-02-03 18:02:33,388 | INFO | ================================================================================
+2026-02-03 18:02:33,388 | INFO | Logs will be written to: logs/v3/finetune/20260202_060253/log.log
+2026-02-03 18:02:33,388 | INFO | Logs will be written to: logs/v3/finetune/20260202_060253/log.log
+2026-02-03 18:02:33,388 | INFO | Starting finetune stage for model 'v3' with run_id '20260202_060253'
+2026-02-03 18:02:33,388 | INFO | ================================================================================
+2026-02-03 18:02:33,388 | INFO | ================================================================================
+2026-02-03 18:02:33,388 | INFO | Logs will be written to: logs/v3/finetune/20260202_060253/log.log
+2026-02-03 18:02:33,388 | INFO | Building dataloaders for finetune stage
+2026-02-03 18:02:33,388 | INFO | Building dataloaders for finetune stage
+2026-02-03 18:02:33,388 | INFO | ================================================================================
+2026-02-03 18:02:33,388 | INFO | Building dataloaders for finetune stage
+2026-02-03 18:02:33,395 | INFO | ================================================================================
+2026-02-03 18:02:33,396 | INFO | Starting finetune stage for model 'v3' with run_id '20260202_060253'
+2026-02-03 18:02:33,396 | INFO | Logs will be written to: logs/v3/finetune/20260202_060253/log.log
+2026-02-03 18:02:33,396 | INFO | ================================================================================
+2026-02-03 18:02:33,396 | INFO | Building dataloaders for finetune stage
+2026-02-03 18:02:34,237 | INFO | Dataset: 2675542 pairs (61511 pos, 2614031 neg)
+2026-02-03 18:02:34,915 | INFO | DataLoader built for finetune_train.csv: num_workers=0, pin_memory=False, prefetch_factor=None, persistent_workers=False, sampler=DistributedBatchSampler
+2026-02-03 18:02:34,967 | INFO | Dataset: 140819 pairs (3238 pos, 137581 neg)
+2026-02-03 18:02:34,967 | INFO | DataLoader built for finetune_val.csv: num_workers=0, pin_memory=False, prefetch_factor=None, persistent_workers=False, sampler=DistributedSampler
+2026-02-03 18:02:34,968 | INFO | Starting finetune for 30 epochs
+2026-02-03 18:02:34,968 | INFO | Strategy: staged_unfreeze
+2026-02-03 18:02:34,968 | INFO | Monitor metric: auprc, Patience: 5
+2026-02-03 18:02:35,099 | INFO | Loaded checkpoint from: models/v3/pretrain/20260202_060253/best_model.pth (pretrain epoch 17)
+2026-02-03 18:02:35,099 | INFO | Created StagedUnfreeze strategy with 2 schedule entries
+2026-02-03 18:02:35,103 | INFO | StagedUnfreeze applied at epoch 0 via on_train_begin; trainable parameters: 6,057,729
+2026-02-03 18:02:35,103 | INFO | Trainable parameters: 6,057,729
+2026-02-03 18:02:35,104 | INFO | Using standard validation with monitor_metric=auprc
+2026-02-03 18:02:35,104 | INFO | 
+============================================================
+2026-02-03 18:02:35,104 | INFO | Finetune Epoch 0/29
+2026-02-03 18:02:35,104 | INFO | ============================================================
+2026-02-03 18:38:41,152 | INFO | Epoch 0: avg_loss=0.862465, lr=1.17e-05
+2026-02-03 18:38:41,153 | INFO | Validation: loss=0.380783, auprc=0.215660, auroc=0.940277
+2026-02-03 18:38:41,371 | INFO | Saved best finetune checkpoint: models/v3/finetune/20260202_060253/best_model.pth (auprc=0.215660)
+2026-02-03 18:38:41,371 | INFO | 
+============================================================
+2026-02-03 18:38:41,371 | INFO | Finetune Epoch 1/29
+2026-02-03 18:38:41,371 | INFO | ============================================================
+2026-02-03 19:14:43,571 | INFO | Epoch 1: avg_loss=0.506468, lr=2.33e-05
+2026-02-03 19:14:43,572 | INFO | Validation: loss=0.255341, auprc=0.496656, auroc=0.972180
+2026-02-03 19:14:43,845 | INFO | Saved best finetune checkpoint: models/v3/finetune/20260202_060253/best_model.pth (auprc=0.496656)
+2026-02-03 19:14:43,845 | INFO | 
+============================================================
+2026-02-03 19:14:43,845 | INFO | Finetune Epoch 2/29
+2026-02-03 19:14:43,845 | INFO | ============================================================
+2026-02-03 21:22:37,869 | INFO | Epoch 2: avg_loss=0.613896, lr=2.72e-05
+2026-02-03 21:22:37,871 | INFO | Validation: loss=0.154701, auprc=0.684351, auroc=0.979337
+2026-02-03 21:22:38,136 | INFO | Saved best finetune checkpoint: models/v3/finetune/20260202_060253/best_model.pth (auprc=0.684351)
+2026-02-03 21:22:38,136 | INFO | 
+============================================================
+2026-02-03 21:22:38,136 | INFO | Finetune Epoch 3/29
+2026-02-03 21:22:38,136 | INFO | ============================================================
+2026-02-03 21:22:38,138 | INFO | StagedUnfreeze applied at epoch 3 via on_epoch_begin; trainable parameters: 10,197,633
+2026-02-03 23:33:40,636 | INFO | Epoch 3: avg_loss=0.549593, lr=3.89e-06
+2026-02-03 23:33:40,637 | INFO | Validation: loss=0.154618, auprc=0.708485, auroc=0.980566
+2026-02-03 23:33:40,953 | INFO | Saved best finetune checkpoint: models/v3/finetune/20260202_060253/best_model.pth (auprc=0.708485)
+2026-02-03 23:33:40,953 | INFO | 
+============================================================
+2026-02-03 23:33:40,953 | INFO | Finetune Epoch 4/29
+2026-02-03 23:33:40,953 | INFO | ============================================================
+2026-02-04 01:44:04,538 | INFO | Epoch 4: avg_loss=0.529408, lr=7.78e-06
+2026-02-04 01:44:04,540 | INFO | Validation: loss=0.156834, auprc=0.741851, auroc=0.981917
+2026-02-04 01:44:04,861 | INFO | Saved best finetune checkpoint: models/v3/finetune/20260202_060253/best_model.pth (auprc=0.741851)
+2026-02-04 01:44:04,861 | INFO | 
+============================================================
+2026-02-04 01:44:04,861 | INFO | Finetune Epoch 5/29
+2026-02-04 01:44:04,861 | INFO | ============================================================
+2026-02-04 03:54:14,651 | INFO | Epoch 5: avg_loss=0.500313, lr=1.17e-05
+2026-02-04 03:54:14,652 | INFO | Validation: loss=0.157841, auprc=0.766546, auroc=0.982166
+2026-02-04 03:54:14,974 | INFO | Saved best finetune checkpoint: models/v3/finetune/20260202_060253/best_model.pth (auprc=0.766546)
+2026-02-04 03:54:14,974 | INFO | 
+============================================================
+2026-02-04 03:54:14,974 | INFO | Finetune Epoch 6/29
+2026-02-04 03:54:14,974 | INFO | ============================================================
+2026-02-04 06:03:10,067 | INFO | Epoch 6: avg_loss=0.469615, lr=1.56e-05
+2026-02-04 06:03:10,069 | INFO | Validation: loss=0.143626, auprc=0.793518, auroc=0.983402
+2026-02-04 06:03:10,362 | INFO | Saved best finetune checkpoint: models/v3/finetune/20260202_060253/best_model.pth (auprc=0.793518)
+2026-02-04 06:03:10,362 | INFO | 
+============================================================
+2026-02-04 06:03:10,363 | INFO | Finetune Epoch 7/29
+2026-02-04 06:03:10,363 | INFO | ============================================================
+2026-02-04 08:13:54,163 | INFO | Epoch 7: avg_loss=0.445055, lr=1.94e-05
+2026-02-04 08:13:54,164 | INFO | Validation: loss=0.130738, auprc=0.812647, auroc=0.982631
+2026-02-04 08:13:54,473 | INFO | Saved best finetune checkpoint: models/v3/finetune/20260202_060253/best_model.pth (auprc=0.812647)
+2026-02-04 08:13:54,473 | INFO | 
+============================================================
+2026-02-04 08:13:54,473 | INFO | Finetune Epoch 8/29
+2026-02-04 08:13:54,473 | INFO | ============================================================
+2026-02-04 10:24:42,168 | INFO | Epoch 8: avg_loss=0.408104, lr=2.33e-05
+2026-02-04 10:24:42,170 | INFO | Validation: loss=0.116089, auprc=0.822223, auroc=0.983025
+2026-02-04 10:24:42,510 | INFO | Saved best finetune checkpoint: models/v3/finetune/20260202_060253/best_model.pth (auprc=0.822223)
+2026-02-04 10:24:42,510 | INFO | 
+============================================================
+2026-02-04 10:24:42,510 | INFO | Finetune Epoch 9/29
+2026-02-04 10:24:42,510 | INFO | ============================================================
+2026-02-04 12:35:06,050 | INFO | Epoch 9: avg_loss=0.392343, lr=2.72e-05
+2026-02-04 12:35:06,051 | INFO | Validation: loss=0.107821, auprc=0.826804, auroc=0.983265
+2026-02-04 12:35:06,359 | INFO | Saved best finetune checkpoint: models/v3/finetune/20260202_060253/best_model.pth (auprc=0.826804)
+2026-02-04 12:35:06,359 | INFO | 
+============================================================
+2026-02-04 12:35:06,359 | INFO | Finetune Epoch 10/29
+2026-02-04 12:35:06,359 | INFO | ============================================================
+2026-02-04 14:45:32,823 | INFO | Epoch 10: avg_loss=0.366634, lr=3.11e-05
+2026-02-04 14:45:32,823 | INFO | Validation: loss=0.097020, auprc=0.845254, auroc=0.982853
+2026-02-04 14:45:33,128 | INFO | Saved best finetune checkpoint: models/v3/finetune/20260202_060253/best_model.pth (auprc=0.845254)
+2026-02-04 14:45:33,128 | INFO | 
+============================================================
+2026-02-04 14:45:33,128 | INFO | Finetune Epoch 11/29
+2026-02-04 14:45:33,128 | INFO | ============================================================
+2026-02-04 16:54:31,278 | INFO | Epoch 11: avg_loss=0.349760, lr=3.50e-05
+2026-02-04 16:54:31,279 | INFO | Validation: loss=0.092360, auprc=0.848501, auroc=0.983886
+2026-02-04 16:54:31,598 | INFO | Saved best finetune checkpoint: models/v3/finetune/20260202_060253/best_model.pth (auprc=0.848501)
+2026-02-04 16:54:31,598 | INFO | 
+============================================================
+2026-02-04 16:54:31,598 | INFO | Finetune Epoch 12/29
+2026-02-04 16:54:31,598 | INFO | ============================================================
+2026-02-04 19:20:35,987 | INFO | Epoch 12: avg_loss=0.335460, lr=3.50e-05
+2026-02-04 19:20:35,987 | INFO | Validation: loss=0.084783, auprc=0.856242, auroc=0.984539
+2026-02-04 19:20:36,293 | INFO | Saved best finetune checkpoint: models/v3/finetune/20260202_060253/best_model.pth (auprc=0.856242)
+2026-02-04 19:20:36,293 | INFO | 
+============================================================
+2026-02-04 19:20:36,293 | INFO | Finetune Epoch 13/29
+2026-02-04 19:20:36,293 | INFO | ============================================================
+2026-02-04 21:32:32,114 | INFO | Epoch 13: avg_loss=0.321772, lr=3.49e-05
+2026-02-04 21:32:32,115 | INFO | Validation: loss=0.082572, auprc=0.865732, auroc=0.986315
+2026-02-04 21:32:32,428 | INFO | Saved best finetune checkpoint: models/v3/finetune/20260202_060253/best_model.pth (auprc=0.865732)
+2026-02-04 21:32:32,428 | INFO | 
+============================================================
+2026-02-04 21:32:32,428 | INFO | Finetune Epoch 14/29
+2026-02-04 21:32:32,428 | INFO | ============================================================
+2026-02-04 23:42:19,347 | INFO | Epoch 14: avg_loss=0.308445, lr=3.49e-05
+2026-02-04 23:42:19,349 | INFO | Validation: loss=0.074613, auprc=0.871980, auroc=0.986073
+2026-02-04 23:42:19,648 | INFO | Saved best finetune checkpoint: models/v3/finetune/20260202_060253/best_model.pth (auprc=0.871980)
+2026-02-04 23:42:19,648 | INFO | 
+============================================================
+2026-02-04 23:42:19,648 | INFO | Finetune Epoch 15/29
+2026-02-04 23:42:19,648 | INFO | ============================================================

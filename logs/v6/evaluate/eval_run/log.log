@@ -1,0 +1,84 @@
+2026-02-13 02:07:27 INFO Startup | Mode: full_pipeline | Rank: 0 | Run Id: eval_run | Seed: 7 | Stages: finetune,evaluate | World Size: 1
+2026-02-13 02:07:27 INFO Device | Resolved Device: cpu
+2026-02-13 02:07:27 INFO DDP Ready | Wrapped: False
+2026-02-13 02:07:27 INFO Data Ready | Test: 0 | Train: 0 | Valid: 0
+2026-02-13 02:07:27 INFO Begin Evaluation
+2026-02-13 02:07:27 INFO End Evaluation
+2026-02-13 02:08:33 INFO Startup | Mode: full_pipeline | Rank: 0 | Run Id: eval_run | Seed: 7 | Stages: finetune,evaluate | World Size: 1
+2026-02-13 02:08:33 INFO Device | Resolved Device: cpu
+2026-02-13 02:08:33 INFO DDP Ready | Wrapped: False
+2026-02-13 02:08:33 INFO Data Ready | Test: 0 | Train: 0 | Valid: 0
+2026-02-13 02:08:33 INFO Begin Evaluation
+2026-02-13 02:08:33 INFO End Evaluation
+2026-02-16 13:15:26 INFO Startup | Mode: full_pipeline | Rank: 0 | Run Id: eval_run | Seed: 7 | Stages: finetune,evaluate | World Size: 1
+2026-02-16 13:15:26 INFO Device | Resolved Device: cpu
+2026-02-16 13:15:26 INFO DDP Ready | Wrapped: False
+2026-02-16 13:15:26 INFO Data Ready | Test: 0 | Train: 0 | Valid: 0
+2026-02-16 13:15:26 INFO Begin Evaluation
+2026-02-16 13:15:26 INFO End Evaluation
+2026-02-16 13:45:21 INFO Startup | Mode: full_pipeline | Rank: 0 | Run Id: eval_run | Seed: 7 | Stages: finetune,evaluate | World Size: 1
+2026-02-16 13:45:21 INFO Device | Resolved Device: cpu
+2026-02-16 13:45:21 INFO DDP Ready | Wrapped: False
+2026-02-16 13:45:21 INFO Data Ready | Test: 0 | Train: 0 | Valid: 0
+2026-02-16 13:45:21 INFO Begin Evaluation
+2026-02-16 13:45:21 INFO End Evaluation
+2026-02-16 13:45:34 INFO Startup | Mode: full_pipeline | Rank: 0 | Run Id: eval_run | Seed: 7 | Stages: finetune,evaluate | World Size: 1
+2026-02-16 13:45:34 INFO Device | Resolved Device: cpu
+2026-02-16 13:45:34 INFO DDP Ready | Wrapped: False
+2026-02-16 13:45:34 INFO Data Ready | Test: 0 | Train: 0 | Valid: 0
+2026-02-16 13:45:34 INFO Begin Evaluation
+2026-02-16 13:45:34 INFO End Evaluation
+2026-02-16 13:46:38 INFO Startup | Mode: full_pipeline | Rank: 0 | Run Id: eval_run | Seed: 7 | Stages: finetune,evaluate | World Size: 1
+2026-02-16 13:46:38 INFO Device | Resolved Device: cpu
+2026-02-16 13:46:38 INFO DDP Ready | Wrapped: False
+2026-02-16 13:46:38 INFO Data Ready | Test: 0 | Train: 0 | Valid: 0
+2026-02-16 13:46:38 INFO Begin Evaluation
+2026-02-16 13:46:38 INFO End Evaluation
+2026-02-16 13:47:39 INFO Startup | Mode: full_pipeline | Rank: 0 | Run Id: eval_run | Seed: 7 | Stages: finetune,evaluate | World Size: 1
+2026-02-16 13:47:39 INFO Device | Resolved Device: cpu
+2026-02-16 13:47:39 INFO DDP Ready | Wrapped: False
+2026-02-16 13:47:39 INFO Data Ready | Test: 0 | Train: 0 | Valid: 0
+2026-02-16 13:47:39 INFO Begin Evaluation
+2026-02-16 13:47:39 INFO End Evaluation
+2026-02-20 18:52:39 INFO Startup | Rank: 0 | Run Id: eval_run | Seed: 7 | Stages: finetune,evaluate | World Size: 1
+2026-02-20 18:52:39 INFO Device | Resolved Device: cpu
+2026-02-20 18:52:39 INFO DDP Ready | Wrapped: False
+2026-02-20 18:52:39 INFO Data Ready | Test: 0 | Train: 0 | Valid: 0
+2026-02-20 18:52:39 INFO Begin Evaluation
+2026-02-20 18:52:39 INFO End Evaluation
+2026-03-02 21:43:16 INFO Startup | Rank: 0 | Run Id: eval_run | Seed: 7 | Stages: finetune,evaluate | World Size: 1
+2026-03-02 21:43:16 INFO Device | Resolved Device: cpu
+2026-03-02 21:43:16 INFO DDP Ready | Wrapped: False
+2026-03-02 21:43:16 INFO Data Ready | Test: 0 | Train: 0 | Valid: 0
+2026-03-02 21:43:16 INFO Begin Evaluation
+2026-03-02 21:43:16 INFO End Evaluation
+2026-03-02 21:43:40 INFO Startup | Rank: 0 | Run Id: eval_run | Seed: 7 | Stages: finetune,evaluate | World Size: 1
+2026-03-02 21:43:40 INFO Device | Resolved Device: cpu
+2026-03-02 21:43:40 INFO DDP Ready | Wrapped: False
+2026-03-02 21:43:40 INFO Data Ready | Test: 0 | Train: 0 | Valid: 0
+2026-03-02 21:43:40 INFO Begin Evaluation
+2026-03-02 21:43:40 INFO End Evaluation
+2026-03-02 21:44:40 INFO Startup | Rank: 0 | Run Id: eval_run | Seed: 7 | Stages: finetune,evaluate | World Size: 1
+2026-03-02 21:44:40 INFO Device | Resolved Device: cpu
+2026-03-02 21:44:40 INFO DDP Ready | Wrapped: False
+2026-03-02 21:44:40 INFO Data Ready | Test: 0 | Train: 0 | Valid: 0
+2026-03-02 21:44:40 INFO Begin Evaluation
+2026-03-02 21:44:40 INFO End Evaluation
+2026-03-02 23:35:13 INFO Startup | Rank: 0 | Run Id: eval_run | Seed: 7 | Stages: finetune,evaluate | World Size: 1
+2026-03-02 23:35:13 INFO Device | Resolved Device: cpu
+2026-03-02 23:35:13 INFO DDP Ready | Wrapped: False
+2026-03-02 23:35:13 INFO Data Ready | Test: 0 | Train: 0 | Valid: 0
+2026-03-02 23:35:13 INFO Begin Evaluation
+2026-03-02 23:35:13 INFO End Evaluation
+2026-03-02 23:35:47 INFO Startup | Rank: 0 | Run Id: eval_run | Seed: 7 | Stages: finetune,evaluate | World Size: 1
+2026-03-02 23:35:47 INFO Device | Resolved Device: cpu
+2026-03-02 23:35:47 INFO DDP Ready | Wrapped: False
+2026-03-02 23:35:47 INFO Data Ready | Test: 0 | Train: 0 | Valid: 0
+2026-03-02 23:35:47 INFO Begin Evaluation
+2026-03-02 23:35:47 INFO End Evaluation
+2026-03-03 00:35:12 INFO Startup | Rank: 0 | Run Id: eval_run | Seed: 7 | Stages: finetune,evaluate | World Size: 1
+2026-03-03 00:35:12 INFO Device | Resolved Device: cpu
+2026-03-03 00:35:12 INFO DDP Ready | Wrapped: False
+2026-03-03 00:35:12 INFO Data Ready | Test: 0 | Train: 0 | Valid: 0
+2026-03-03 00:35:12 INFO Begin Evaluation
+2026-03-03 00:35:12 INFO End Evaluation

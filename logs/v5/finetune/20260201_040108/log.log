@@ -1,0 +1,55 @@
+2026-02-01 04:01:09,223 | INFO | ================================================================================
+2026-02-01 04:01:09,223 | INFO | Starting finetune stage for model 'v5' with run_id '20260201_040108'
+2026-02-01 04:01:09,223 | INFO | ================================================================================
+2026-02-01 04:01:09,225 | INFO | Logs will be written to: logs/v5/finetune/20260201_040108/log.log
+2026-02-01 04:01:09,225 | INFO | Starting finetune stage for model 'v5' with run_id '20260201_040108'
+2026-02-01 04:01:09,225 | INFO | ================================================================================
+2026-02-01 04:01:09,225 | INFO | Logs will be written to: logs/v5/finetune/20260201_040108/log.log
+2026-02-01 04:01:09,225 | INFO | ================================================================================
+2026-02-01 04:01:09,225 | INFO | Trainable parameters: 4,034,209
+2026-02-01 04:01:09,226 | INFO | Building dataloaders for finetune stage
+2026-02-01 04:01:09,225 | INFO | Trainable parameters: 4,034,209
+2026-02-01 04:01:09,226 | INFO | Building dataloaders for finetune stage
+2026-02-01 04:01:09,226 | INFO | ================================================================================
+2026-02-01 04:01:09,226 | INFO | Starting finetune stage for model 'v5' with run_id '20260201_040108'
+2026-02-01 04:01:09,226 | INFO | Logs will be written to: logs/v5/finetune/20260201_040108/log.log
+2026-02-01 04:01:09,226 | INFO | ================================================================================
+2026-02-01 04:01:09,226 | INFO | ================================================================================
+2026-02-01 04:01:09,226 | INFO | Starting finetune stage for model 'v5' with run_id '20260201_040108'
+2026-02-01 04:01:09,226 | INFO | Logs will be written to: logs/v5/finetune/20260201_040108/log.log
+2026-02-01 04:01:09,226 | INFO | ================================================================================
+2026-02-01 04:01:09,226 | INFO | Trainable parameters: 4,034,209
+2026-02-01 04:01:09,226 | INFO | Building dataloaders for finetune stage
+2026-02-01 04:01:09,226 | INFO | Trainable parameters: 4,034,209
+2026-02-01 04:01:09,227 | INFO | Building dataloaders for finetune stage
+2026-02-01 04:01:09,251 | INFO | Loaded sharded embeddings from data/TMP/processed/TMP_embeddings.npz (21391 proteins, max_len=768)
+2026-02-01 04:01:10,236 | INFO | Dataset: 2675542 pairs (61511 pos, 2614031 neg)
+2026-02-01 04:01:11,102 | INFO | DataLoader built for finetune_train.csv: num_workers=0, pin_memory=False, prefetch_factor=None, persistent_workers=False, sampler=DistributedBatchSampler
+2026-02-01 04:01:11,194 | INFO | Dataset: 140819 pairs (3238 pos, 137581 neg)
+2026-02-01 04:01:11,194 | INFO | DataLoader built for finetune_val.csv: num_workers=0, pin_memory=False, prefetch_factor=None, persistent_workers=False, sampler=DistributedSampler
+2026-02-01 04:01:11,194 | INFO | Starting finetune for 30 epochs
+2026-02-01 04:01:11,194 | INFO | Strategy: staged_unfreeze
+2026-02-01 04:01:11,194 | INFO | Monitor metric: auprc, Patience: 5
+2026-02-01 04:01:11,194 | INFO | No checkpoint provided; finetuning from scratch
+2026-02-01 04:01:11,194 | INFO | Created StagedUnfreeze strategy with 3 schedule entries
+2026-02-01 04:01:11,197 | INFO | StagedUnfreeze applied at epoch 0 via on_train_begin; trainable parameters: 33,409
+2026-02-01 04:01:11,198 | INFO | Trainable parameters: 33,409
+2026-02-01 04:01:11,201 | INFO | Using standard validation with monitor_metric=auprc
+2026-02-01 04:01:11,201 | INFO | 
+============================================================
+2026-02-01 04:01:11,201 | INFO | Finetune Epoch 0/29
+2026-02-01 04:01:11,201 | INFO | ============================================================
+2026-02-01 08:20:06,226 | INFO | Epoch 0: avg_loss=1.303673, lr=6.67e-06
+2026-02-01 08:20:06,227 | INFO | Validation: loss=0.735459, auprc=0.027728, auroc=0.564708
+2026-02-01 08:20:06,329 | INFO | Saved best finetune checkpoint: models/v5/finetune/20260201_040108/best_model.pth (auprc=0.027728)
+2026-02-01 08:20:06,329 | INFO | 
+============================================================
+2026-02-01 08:20:06,329 | INFO | Finetune Epoch 1/29
+2026-02-01 08:20:06,329 | INFO | ============================================================
+2026-02-01 12:37:46,079 | INFO | Epoch 1: avg_loss=1.229131, lr=1.33e-05
+2026-02-01 12:37:46,080 | INFO | Validation: loss=0.688617, auprc=0.067321, auroc=0.733543
+2026-02-01 12:37:46,161 | INFO | Saved best finetune checkpoint: models/v5/finetune/20260201_040108/best_model.pth (auprc=0.067321)
+2026-02-01 12:37:46,161 | INFO | 
+============================================================
+2026-02-01 12:37:46,161 | INFO | Finetune Epoch 2/29
+2026-02-01 12:37:46,161 | INFO | ============================================================
