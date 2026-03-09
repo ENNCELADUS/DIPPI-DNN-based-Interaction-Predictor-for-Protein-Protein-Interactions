@@ -1,10 +1,10 @@
 run_config:
-  stages: ["evaluate"]
+  stages: ["pretrain", "finetune", "evaluate"]
   seed: 47
   train_run_id: null
-  finetune_run_id: "20260221_065444"
-  eval_run_id: "20260221_065444"
-  load_checkpoint_path: "models/v3/finetune/20260221_065444/best_model.pth"
+  finetune_run_id: null
+  eval_run_id: null
+  load_checkpoint_path: null
   save_best_only: true
 
 device_config:
@@ -45,7 +45,7 @@ model_config:
   input_dim: 1536
   d_model: 512
   encoder_layers: 3
-  cross_attn_layers: 3
+  cross_attn_layers: 4
   n_heads: 8
   mlp_head:
     hidden_dims: [512, 256, 128]
@@ -59,9 +59,9 @@ model_config:
     stochastic_depth: 0.10
 
 training_config:
-  epochs: 50
+  epochs: 10
   batch_size: 32
-  early_stopping_patience: 10
+  early_stopping_patience: 3
   monitor_metric: "auprc"
   logging:
     validation_metrics: ["auprc", "auroc", "f1", "accuracy"]
@@ -75,7 +75,7 @@ training_config:
   scheduler:
     type: "onecycle"
     max_lr: 0.0001
-    pct_start: 0.10
+    pct_start: 0.15
     div_factor: 25
     final_div_factor: 10000
     anneal_strategy: "cos"
@@ -87,74 +87,40 @@ training_config:
     type: "none"
   finetune:
     batch_size: 32
-    epochs: 25
+    epochs: 30
+    early_stopping_patience: 4
     monitor_metric: "auprc"
     optimizer:
       lr: 0.00002
       weight_decay: 0.05
     scheduler:
       max_lr: 0.00002
-      pct_start: 0.10
+      pct_start: 0.15
     loss:
       pos_weight: 7.0
-      label_smoothing: 0.02
+      label_smoothing: 0.01
     strategy:
       type: "staged_unfreeze"
       unfreeze_epoch: 2
       initial_trainable_prefixes: ["output_head"]
-    optuna:
-      enabled: false
-      study_name: "v3_finetune"
-      storage: "sqlite:///logs/optuna/v3_finetune.db"
-      direction: "maximize"
-      metric: "auprc"
-      n_trials: 6
-      timeout_sec: null
-      sampler:
-        type: "tpe"
-        seed: 47
-      pruner:
-        type: "median"
-        n_startup_trials: 3
-        n_warmup_steps: 1
-        interval_steps: 1
-      parameters:
-        lr:
-          distribution:
-            type: "float"
-            low: 1.0e-6
-            high: 5.0e-5
-            log: true
-          apply_to: ["optimizer.lr", "scheduler.max_lr"]
-        batch_size:
-          distribution:
-            type: "categorical"
-            choices: [8, 16]
-          apply_to: ["batch_size"]
-        strategy_unfreeze_epoch:
-          distribution:
-            type: "int"
-            low: 1
-            high: 5
-          apply_to: ["strategy.unfreeze_epoch"]
 
 domain_adaptation:
-  method: "shot"  # none | shot
+  method: "shot"
   target_split: "test"
   compare_pre_post: true
   shot:
-    epochs: 15
+    epochs: 5
     beta: 0.3
-    entropy_weight: 1.0
-    align_weight: 1.0
-    tau_pos: 0.78
-    tau_neg: 0.98
-    pos_weight: 8.0
+    entropy_weight: 0.1
+    align_weight: 3.0
+    tau_pos: 0.93
+    tau_neg: 0.995
+    pos_weight: 5.0
     neg_weight: 1.0
     normalize_class_weights: true
-    prior_pos: 0.01
+    prior_pos: 0.025
     prior_ema_momentum: 0.02
-    lr: 5.0e-4
+    lr: 5.0e-5
     momentum: 0.9
     weight_decay: 3.0e-4
     lr_gamma: 10.0
