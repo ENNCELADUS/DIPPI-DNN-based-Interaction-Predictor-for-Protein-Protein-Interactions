@@ -25,4 +25,6 @@ echo "Detected $NGPUS GPUs"
 export PYTHONPATH="$PWD:${PYTHONPATH:-}"
 export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 
+python -m src.data_preprocess.prepare_tppni_datasets --config configs/v4.yaml
+
 torchrun --standalone --nproc_per_node="${NGPUS}" -m src.run -- --config configs/v4.yaml

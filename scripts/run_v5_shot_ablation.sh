@@ -46,6 +46,7 @@ echo "Running ${#CONFIGS[@]} v5 SHOT ablations with NGPUS=${NGPUS}"
 for config_path in "${CONFIGS[@]}"; do
   run_name="$(basename "${config_path}" .yaml)"
   echo "[start] ${run_name}"
+  python -m src.data_preprocess.prepare_tppni_datasets --config "${config_path}"
   torchrun --standalone --nproc_per_node="${NGPUS}" -m src.run -- --config "${config_path}"
   echo "[done]  ${run_name}"
 done

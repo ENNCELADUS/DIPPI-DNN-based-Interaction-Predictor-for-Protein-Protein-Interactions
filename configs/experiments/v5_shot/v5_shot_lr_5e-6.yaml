@@ -21,9 +21,24 @@ data_config:
     source: "esm3"
     cache_dir: "data/embeddings/esm3"
   max_sequence_length: 1024
+  preprocessing:
+    tppni:
+      enabled: true
+      force_rebuild: false
+      candidate_limit: 10000000
+      pretrain:
+        source_dataset: "data/TMP/processed/pretrain.csv"
+        train_ratio: 0.95
+        train_dataset: "data/TMP/processed/pretrain_train.csv"
+        valid_dataset: "data/TMP/processed/pretrain_val.csv"
+      finetune:
+        source_dataset: "data/TMP/processed/finetune.csv"
+        train_ratio: 0.90
+        train_dataset: "data/TMP/processed/finetune_train.csv"
+        valid_dataset: "data/TMP/processed/finetune_val.csv"
   dataloader:
-    train_dataset: "data/TMP/processed/pretrain_train_balanced.csv"
-    valid_dataset: "data/TMP/processed/pretrain_val_balanced.csv"
+    train_dataset: "data/TMP/processed/pretrain_train.csv"
+    valid_dataset: "data/TMP/processed/pretrain_val.csv"
     finetune_train_dataset: "data/TMP/processed/finetune_train.csv"
     finetune_val_dataset: "data/TMP/processed/finetune_val.csv"
     test_dataset: "data/TMP/processed/test.csv"
@@ -107,7 +122,7 @@ training_config:
       max_lr: 0.00001
       pct_start: 0.20
     loss:
-      pos_weight: 7.0
+      pos_weight: 1.0
       label_smoothing: 0.01
     strategy:
       type: "staged_unfreeze"
