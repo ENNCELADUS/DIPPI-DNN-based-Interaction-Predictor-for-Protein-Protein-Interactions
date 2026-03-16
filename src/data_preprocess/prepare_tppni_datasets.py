@@ -15,9 +15,10 @@ import pandas as pd
 from src.data_preprocess.tppni import (
     CleaningConfig,
     PairCleaningStats,
-    build_split_dataset,
+    build_global_tppni_pool,
+    build_stage_datasets_from_pools,
     clean_pairs,
-    split_positive_pairs,
+    split_proteins_inductively,
 )
 from src.utils.config import (
     ConfigDict,
@@ -173,6 +174,7 @@ def _manifest_payload(
         "cleaning": asdict(ENFORCED_CLEANING_CONFIG),
         "stages_config": stage_settings,
         "source_files": sources,
+        "test_dataset_unchanged": True,
     }
 
 
@@ -211,6 +213,7 @@ def _write_manifest(
     manifest_path: Path,
     payload: dict[str, object],
     cleaning_stats: dict[str, PairCleaningStats],
+    stage_stats: dict[str, dict[str, object]],
 ) -> None:
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest = {
@@ -222,6 +225,7 @@ def _write_manifest(
             stage_name: asdict(stage_stats)
             for stage_name, stage_stats in cleaning_stats.items()
         },
+        "stage_stats": stage_stats,
     }
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
@@ -231,7 +235,7 @@ def _prepare_stage(
     stage_config: StageDatasetConfig,
     tppni_config: TPPNIConfig,
     seed: int,
-) -> PairCleaningStats:
+) -> tuple[PairCleaningStats, dict[str, object]]:
     LOGGER.info(
         "Preparing %s datasets from %s", stage_name, stage_config.source_dataset
     )
@@ -242,33 +246,42 @@ def _prepare_stage(
         cleaned_frame["isInteraction"] == 1,
         ["uniprotID_A", "uniprotID_B", "isInteraction"],
     ].reset_index(drop=True)
-    train_positive, valid_positive = split_positive_pairs(
-        positive_pairs,
+    graph, tppni_candidates = build_global_tppni_pool(
+        positive_pairs=positive_pairs,
+        candidate_limit=tppni_config.candidate_limit,
+    )
+    protein_split = split_proteins_inductively(
+        positive_pairs=positive_pairs,
         train_ratio=stage_config.train_ratio,
         seed=seed,
     )
-    train_dataset = build_split_dataset(
-        positive_pairs=train_positive,
-        candidate_limit=tppni_config.candidate_limit,
+    negative_pool = tppni_candidates.to_frame(graph)
+    negative_pool["isInteraction"] = 0
+    stage_datasets = build_stage_datasets_from_pools(
+        stage_name=stage_name,
+        positive_pairs=positive_pairs,
+        negative_pool=negative_pool,
+        protein_split=protein_split,
         seed=seed,
-    )
-    valid_dataset = build_split_dataset(
-        positive_pairs=valid_positive,
-        candidate_limit=tppni_config.candidate_limit,
-        seed=seed + 1,
     )
 
     stage_config.train_dataset.parent.mkdir(parents=True, exist_ok=True)
     stage_config.valid_dataset.parent.mkdir(parents=True, exist_ok=True)
-    train_dataset.to_csv(stage_config.train_dataset, index=False)
-    valid_dataset.to_csv(stage_config.valid_dataset, index=False)
+    stage_datasets.train_dataset.to_csv(stage_config.train_dataset, index=False)
+    stage_datasets.valid_dataset.to_csv(stage_config.valid_dataset, index=False)
     LOGGER.info(
         "Wrote %s train=%s valid=%s",
         stage_name,
         stage_config.train_dataset,
         stage_config.valid_dataset,
     )
-    return cleaning_stats
+    return cleaning_stats, {
+        "global_positive_count": len(positive_pairs),
+        "global_tppni_count": len(negative_pool),
+        "train_protein_count": len(protein_split.train_proteins),
+        "valid_protein_count": len(protein_split.valid_proteins),
+        **stage_datasets.summary,
+    }
 
 
 def run_from_config_path(config_path: Path) -> int:
@@ -308,14 +321,17 @@ def run_from_config_path(config_path: Path) -> int:
 
     seed = as_int(run_cfg.get("seed", 0), "run_config.seed")
     cleaning_stats = {}
+    stage_stats = {}
     for offset, (stage_name, stage_config) in enumerate(stage_items):
-        cleaning_stats[stage_name] = _prepare_stage(
+        stage_cleaning_stats, stage_summary = _prepare_stage(
             stage_name,
             stage_config,
             tppni_config,
             seed=seed + (offset * 1000),
         )
-    _write_manifest(manifest_path, payload, cleaning_stats)
+        cleaning_stats[stage_name] = stage_cleaning_stats
+        stage_stats[stage_name] = stage_summary
+    _write_manifest(manifest_path, payload, cleaning_stats, stage_stats)
     LOGGER.info("Wrote TPPNI preprocessing manifest to %s", manifest_path)
     return 0
 

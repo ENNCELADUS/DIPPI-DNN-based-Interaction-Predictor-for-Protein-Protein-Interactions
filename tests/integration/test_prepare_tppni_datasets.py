@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from itertools import combinations
 from pathlib import Path
 
 import pandas as pd
@@ -30,6 +31,23 @@ def _write_sequences(path: Path, proteins: list[str]) -> None:
 def _write_config(path: Path, config: ConfigDict) -> None:
     with path.open("w", encoding="utf-8") as handle:
         yaml.safe_dump(config, handle, sort_keys=False)
+
+
+def _clique_rows(prefix: str, clique_count: int, clique_size: int) -> list[tuple[str, str, int]]:
+    rows: list[tuple[str, str, int]] = []
+    for clique_index in range(clique_count):
+        proteins = [f"{prefix}{clique_index}_{member}" for member in range(clique_size)]
+        for protein_a, protein_b in combinations(proteins, 2):
+            rows.append((protein_a, protein_b, 1))
+    return rows
+
+
+def _ratio(frame: pd.DataFrame) -> float:
+    positives = int((frame["isInteraction"] == 1).sum())
+    negatives = int((frame["isInteraction"] == 0).sum())
+    if positives == 0:
+        raise AssertionError("split unexpectedly has zero positives")
+    return float(negatives) / float(positives)
 
 
 def test_prepare_tppni_datasets_disabled_is_no_op(tmp_path: Path) -> None:
@@ -97,14 +115,12 @@ def test_prepare_tppni_datasets_rejects_cleaning_config_override(
                             "train_ratio": 0.5,
                             "train_dataset": str(processed_dir / "pretrain_train.csv"),
                             "valid_dataset": str(processed_dir / "pretrain_val.csv"),
-                            "negative_ratio_mode": "balanced",
                         },
                         "finetune": {
                             "source_dataset": str(processed_dir / "finetune.csv"),
                             "train_ratio": 0.5,
                             "train_dataset": str(processed_dir / "finetune_train.csv"),
                             "valid_dataset": str(processed_dir / "finetune_val.csv"),
-                            "negative_ratio_mode": "preserve_input",
                         },
                     }
                 }
@@ -160,23 +176,7 @@ def test_prepare_tppni_datasets_rejects_negative_ratio_mode_override(
 def test_prepare_tppni_datasets_only_builds_requested_stage(tmp_path: Path) -> None:
     processed_dir = tmp_path / "processed"
     processed_dir.mkdir(parents=True, exist_ok=True)
-    _write_pairs(
-        processed_dir / "finetune.csv",
-        [
-            ("I", "J", 1),
-            ("K", "L", 1),
-            ("M", "N", 1),
-            ("O", "P", 1),
-            ("I", "K", 0),
-            ("I", "L", 0),
-            ("J", "K", 0),
-            ("J", "L", 0),
-            ("M", "O", 0),
-            ("M", "P", 0),
-            ("N", "O", 0),
-            ("N", "P", 0),
-        ],
-    )
+    _write_pairs(processed_dir / "finetune.csv", _clique_rows("F", clique_count=4, clique_size=4))
     config_path = tmp_path / "config.yaml"
     _write_config(
         config_path,
@@ -189,9 +189,7 @@ def test_prepare_tppni_datasets_only_builds_requested_stage(tmp_path: Path) -> N
                         "force_rebuild": False,
                         "candidate_limit": 100,
                         "pretrain": {
-                            "source_dataset": str(
-                                processed_dir / "missing_pretrain.csv"
-                            ),
+                            "source_dataset": str(processed_dir / "missing_pretrain.csv"),
                             "train_ratio": 0.5,
                             "train_dataset": str(processed_dir / "pretrain_train.csv"),
                             "valid_dataset": str(processed_dir / "pretrain_val.csv"),
@@ -226,40 +224,19 @@ def test_prepare_tppni_datasets_generates_outputs_manifest_and_loader_inputs(
 ) -> None:
     processed_dir = tmp_path / "processed"
     processed_dir.mkdir(parents=True, exist_ok=True)
-    pretrain_rows = [
-        ("A", "B", 1),
-        ("C", "D", 1),
-        ("E", "F", 1),
-        ("G", "H", 1),
-        ("A", "A", 1),
-        ("", "Z", 0),
-        ("H", "G", 1),
-    ]
-    finetune_rows = [
-        ("I", "J", 1),
-        ("K", "L", 1),
-        ("M", "N", 1),
-        ("O", "P", 1),
-        ("Q", "R", 1),
-        ("S", "T", 1),
-        ("I", "K", 0),
-        ("I", "L", 0),
-        ("J", "K", 0),
-        ("J", "L", 0),
-        ("M", "O", 0),
-        ("M", "P", 0),
-        ("N", "O", 0),
-        ("N", "P", 0),
-        ("Q", "S", 0),
-        ("Q", "T", 0),
-        ("R", "S", 0),
-        ("R", "T", 0),
-    ]
+    pretrain_rows = _clique_rows("P", clique_count=4, clique_size=4)
+    finetune_rows = _clique_rows("Q", clique_count=6, clique_size=4)
+    test_rows = [("TEST_A", "TEST_B", 0), ("TEST_C", "TEST_D", 1)]
     _write_pairs(processed_dir / "pretrain.csv", pretrain_rows)
     _write_pairs(processed_dir / "finetune.csv", finetune_rows)
-    _write_pairs(processed_dir / "test.csv", [("A", "C", 0)])
+    _write_pairs(processed_dir / "test.csv", test_rows)
+    test_before = (processed_dir / "test.csv").read_text(encoding="utf-8")
     proteins = sorted(
-        {item for row in pretrain_rows + finetune_rows for item in row[:2] if item}
+        {
+            protein
+            for row in pretrain_rows + finetune_rows + test_rows
+            for protein in row[:2]
+        }
     )
     _write_sequences(processed_dir / "all_proteins.csv", proteins)
 
@@ -267,7 +244,7 @@ def test_prepare_tppni_datasets_generates_outputs_manifest_and_loader_inputs(
     _write_config(
         config_path,
         {
-            "run_config": {"stages": ["pretrain", "finetune"]},
+            "run_config": {"stages": ["pretrain", "finetune"], "seed": 11},
             "data_config": {
                 "sequences": {
                     "source_file": str(processed_dir / "all_proteins.csv"),
@@ -289,7 +266,7 @@ def test_prepare_tppni_datasets_generates_outputs_manifest_and_loader_inputs(
                     "tppni": {
                         "enabled": True,
                         "force_rebuild": False,
-                        "candidate_limit": 100,
+                        "candidate_limit": 1000,
                         "pretrain": {
                             "source_dataset": str(processed_dir / "pretrain.csv"),
                             "train_ratio": 0.5,
@@ -320,10 +297,22 @@ def test_prepare_tppni_datasets_generates_outputs_manifest_and_loader_inputs(
     finetune_train = pd.read_csv(processed_dir / "finetune_train.csv")
     finetune_val = pd.read_csv(processed_dir / "finetune_val.csv")
 
-    assert pretrain_train["isInteraction"].value_counts().to_dict() == {0: 4, 1: 2}
-    assert pretrain_val["isInteraction"].value_counts().to_dict() == {0: 4, 1: 2}
-    assert finetune_train["isInteraction"].value_counts().to_dict() == {0: 12, 1: 3}
-    assert finetune_val["isInteraction"].value_counts().to_dict() == {0: 12, 1: 3}
+    assert _ratio(pretrain_train) == pytest.approx(1.0)
+    assert _ratio(pretrain_val) == pytest.approx(1.0)
+    assert _ratio(finetune_train) == pytest.approx(_ratio(finetune_val))
+    assert "score" not in pretrain_train.columns
+    assert "score" not in finetune_train.columns
+    assert (processed_dir / "test.csv").read_text(encoding="utf-8") == test_before
+
+    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["payload"]["test_dataset_unchanged"] is True
+    assert manifest["stage_stats"]["pretrain"]["global_positive_count"] > 0
+    assert manifest["stage_stats"]["pretrain"]["global_tppni_count"] > 0
+    assert manifest["stage_stats"]["pretrain"]["post_downsample"]["train"]["negatives"] == manifest["stage_stats"]["pretrain"]["post_downsample"]["train"]["positives"]
+    assert manifest["stage_stats"]["finetune"]["target_neg_pos_ratio"] == pytest.approx(
+        manifest["stage_stats"]["finetune"]["post_downsample"]["train"]["negatives"]
+        / manifest["stage_stats"]["finetune"]["post_downsample"]["train"]["positives"]
+    )
 
     dataloaders = build_dataloaders_v6(
         config=yaml.safe_load(config_path.read_text(encoding="utf-8")),
@@ -332,3 +321,4 @@ def test_prepare_tppni_datasets_generates_outputs_manifest_and_loader_inputs(
     train_batch = next(iter(dataloaders["train"]))
     assert len(train_batch["label"]) == 2
     assert set(train_batch["label"].tolist()).issubset({0.0, 1.0})
+

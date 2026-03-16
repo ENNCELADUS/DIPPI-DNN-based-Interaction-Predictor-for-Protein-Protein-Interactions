@@ -15,10 +15,24 @@ The CLI reads `data_config.preprocessing.tppni` from the config file.
 - Cleaning policy is enforced in code: drop missing IDs, drop self-loops,
   canonicalize undirected pairs, deduplicate within label, and error on
   conflicting labels.
-- Train and validation splits use the full TPPNI set produced by the paper's
-  pipeline for that split: bottom-`N` configuration-model nonedges, followed by
-  CL3 filtering to keep only zero-L3 pairs. The resulting negative count is
-  emergent, not user-specified.
+- The preprocessing order is paper-aligned under the repo's fixed-test
+  constraint:
+  - build one stage-global positive graph from cleaned positives
+  - run bottom-`N` SCM screening plus CL3 filtering once to get one global
+    TPPNI pool per stage
+  - split proteins into disjoint train/validation groups
+  - induce train/validation positives and negatives from those protein groups
+- `test.csv` is frozen and never rewritten. Because `test.csv` overlaps heavily
+  with the TMP training pools, this implementation guarantees inductiveness only
+  between `train` and `val`, not full paper-style `train/val/test` inductiveness.
+- Negative confidence is SCM probability after CL3 filtering. Lower SCM
+  probability is treated as a higher-confidence negative.
+- Output ratio policy is project-specific:
+  - `pretrain_train.csv` and `pretrain_val.csv` are score-downsampled to exact
+    `1:1`
+  - `finetune_train.csv` and `finetune_val.csv` are score-downsampled so both
+    splits share the same `neg:pos` ratio, using the smaller split-induced ratio
+    as the common target
 - When `enabled: false`, the command is a no-op.
 - When `force_rebuild: false`, the manifest skips redundant rebuilds.
 
@@ -49,7 +63,7 @@ global sampling settings.
   `pos_weight = 1.0`, so the active finetune configs now keep `pos_weight: 1.0`
   for consistency with the training logic.
 
-## Paper ratio note
+## Paper alignment note
 
 The TPPNI paper does not recommend a universal fixed negative ratio such as
 `7:1`. Its main control is the negative construction method, not a single class
@@ -60,9 +74,11 @@ ratio heuristic.
 - For the random-negative ablation, the paper explicitly keeps the number of
   random negatives the same as the number of TPPNI samples, so the comparison
   isolates negative quality rather than changing the class count.
-- Therefore, the current preprocessing does not force `1:1`, does not preserve
-  the raw finetune ratio, and does not prescribe `7:1`. It uses the full TPPNI
-  set that emerges from the configuration-model plus CL3 pipeline.
+- Therefore, the current preprocessing follows the paper's generation order, but
+  not the paper's exact published train/validation/test construction because
+  this repo keeps `test.csv` fixed. The additional pretrain `1:1` balancing and
+  finetune train/validation ratio equalization are project policies layered on
+  top of the paper-style TPPNI pool.
 
 ## Embed Usage
 

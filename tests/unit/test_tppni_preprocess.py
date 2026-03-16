@@ -9,13 +9,17 @@ import pytest
 from src.data_preprocess.tppni import (
     CandidatePairs,
     CleaningConfig,
+    ProteinSplit,
+    build_global_tppni_pool,
     build_positive_graph,
-    build_split_dataset,
+    build_stage_datasets_from_pools,
     clean_pairs,
     filter_zero_l3_candidates,
     fit_configuration_model_weights,
+    induce_pairs_for_protein_split,
     sample_candidate_pairs,
     select_bottom_configuration_model_nonedges,
+    split_proteins_inductively,
 )
 
 
@@ -159,31 +163,158 @@ def test_sample_candidate_pairs_is_deterministic_and_fails_when_pool_too_small()
         sample_candidate_pairs(candidates, target_count=5, seed=7)
 
 
-def test_build_split_dataset_uses_all_nonedge_tppni_negatives_for_two_disjoint_edges() -> (
-    None
-):
-    positives = _pair_frame([("A", "B", 1), ("C", "D", 1)])
-
-    dataset = build_split_dataset(
-        positive_pairs=positives,
-        candidate_limit=10,
-        seed=11,
-        block_size=2,
-    )
-
-    assert int(dataset["isInteraction"].sum()) == 2
-    assert len(dataset) - int(dataset["isInteraction"].sum()) == 4
-
-
-def test_build_split_dataset_uses_full_tppni_pool_for_split() -> None:
+def test_build_global_tppni_pool_preserves_sorted_scm_scores() -> None:
     positives = _pair_frame([("A", "B", 1), ("C", "D", 1), ("E", "F", 1)])
 
-    dataset = build_split_dataset(
+    graph, candidates = build_global_tppni_pool(
         positive_pairs=positives,
         candidate_limit=100,
-        seed=13,
         block_size=2,
     )
 
-    assert int(dataset["isInteraction"].sum()) == 3
-    assert len(dataset) - int(dataset["isInteraction"].sum()) == 12
+    candidate_frame = candidates.to_frame(graph)
+    assert len(candidate_frame) == 12
+    assert candidate_frame["score"].is_monotonic_increasing
+    assert {("A", "B"), ("C", "D"), ("E", "F")}.isdisjoint(
+        set(zip(candidate_frame["uniprotID_A"], candidate_frame["uniprotID_B"]))
+    )
+
+
+def test_split_proteins_inductively_is_disjoint_and_deterministic() -> None:
+    positives = _pair_frame(
+        [
+            ("A", "B", 1),
+            ("B", "C", 1),
+            ("D", "E", 1),
+            ("F", "G", 1),
+        ]
+    )
+
+    split_a = split_proteins_inductively(positives, train_ratio=0.6, seed=17)
+    split_b = split_proteins_inductively(positives, train_ratio=0.6, seed=17)
+
+    assert split_a == split_b
+    assert split_a.train_proteins.isdisjoint(split_a.valid_proteins)
+    assert split_a.train_proteins | split_a.valid_proteins == {
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+    }
+
+
+def test_induce_pairs_for_protein_split_keeps_only_pairs_whose_endpoints_stay_in_split() -> (
+    None
+):
+    frame = pd.DataFrame(
+        [
+            {"uniprotID_A": "A", "uniprotID_B": "B", "isInteraction": 1},
+            {"uniprotID_A": "A", "uniprotID_B": "C", "isInteraction": 1},
+            {"uniprotID_A": "C", "uniprotID_B": "D", "isInteraction": 1},
+        ]
+    )
+
+    induced = induce_pairs_for_protein_split(frame, {"A", "B", "D"})
+
+    assert induced.to_dict(orient="records") == [
+        {"uniprotID_A": "A", "uniprotID_B": "B", "isInteraction": 1}
+    ]
+
+
+def test_build_stage_datasets_from_pools_balances_pretrain_to_one_to_one() -> None:
+    positives = _pair_frame(
+        [
+            ("A", "B", 1),
+            ("C", "D", 1),
+            ("E", "F", 1),
+            ("G", "H", 1),
+        ]
+    )
+    negative_pool = pd.DataFrame(
+        [
+            ("A", "C", 0, 0.01),
+            ("A", "D", 0, 0.02),
+            ("B", "C", 0, 0.03),
+            ("B", "D", 0, 0.04),
+            ("E", "G", 0, 0.05),
+            ("E", "H", 0, 0.06),
+            ("F", "G", 0, 0.07),
+            ("F", "H", 0, 0.08),
+        ],
+        columns=["uniprotID_A", "uniprotID_B", "isInteraction", "score"],
+    )
+    split = ProteinSplit(
+        train_proteins=frozenset({"A", "B", "C", "D"}),
+        valid_proteins=frozenset({"E", "F", "G", "H"}),
+    )
+
+    result = build_stage_datasets_from_pools(
+        stage_name="pretrain",
+        positive_pairs=positives,
+        negative_pool=negative_pool,
+        protein_split=split,
+        seed=5,
+    )
+
+    assert result.train_dataset["isInteraction"].value_counts().to_dict() == {1: 2, 0: 2}
+    assert result.valid_dataset["isInteraction"].value_counts().to_dict() == {1: 2, 0: 2}
+    train_negatives = result.train_dataset.loc[
+        result.train_dataset["isInteraction"] == 0, ["uniprotID_A", "uniprotID_B"]
+    ]
+    assert set(map(tuple, train_negatives.to_numpy())) == {("A", "C"), ("A", "D")}
+
+
+def test_build_stage_datasets_from_pools_normalizes_finetune_to_smaller_ratio() -> None:
+    positives = _pair_frame(
+        [
+            ("A", "B", 1),
+            ("C", "D", 1),
+            ("E", "F", 1),
+            ("G", "H", 1),
+            ("I", "J", 1),
+            ("K", "L", 1),
+        ]
+    )
+    negative_rows: list[tuple[str, str, int, float]] = []
+    score = 0.01
+    for left in [("A", "B"), ("C", "D"), ("E", "F"), ("G", "H")]:
+        for right in [("A", "B"), ("C", "D"), ("E", "F"), ("G", "H")]:
+            if left >= right:
+                continue
+            for protein_a in left:
+                for protein_b in right:
+                    negative_rows.append((protein_a, protein_b, 0, score))
+                    score += 0.01
+    for left in [("I", "J")]:
+        for right in [("K", "L")]:
+            for protein_a in left:
+                for protein_b in right:
+                    negative_rows.append((protein_a, protein_b, 0, score))
+                    score += 0.01
+    negative_pool = pd.DataFrame(
+        negative_rows,
+        columns=["uniprotID_A", "uniprotID_B", "isInteraction", "score"],
+    )
+    split = ProteinSplit(
+        train_proteins=frozenset({"A", "B", "C", "D", "E", "F", "G", "H"}),
+        valid_proteins=frozenset({"I", "J", "K", "L"}),
+    )
+
+    result = build_stage_datasets_from_pools(
+        stage_name="finetune",
+        positive_pairs=positives,
+        negative_pool=negative_pool,
+        protein_split=split,
+        seed=9,
+    )
+
+    train_counts = result.train_dataset["isInteraction"].value_counts().to_dict()
+    valid_counts = result.valid_dataset["isInteraction"].value_counts().to_dict()
+    assert train_counts == {0: 8, 1: 4}
+    assert valid_counts == {0: 4, 1: 2}
+    assert result.summary["target_neg_pos_ratio"] == pytest.approx(2.0)
+    assert result.summary["train_ratio_before_normalization"] == pytest.approx(6.0)
+    assert result.summary["valid_ratio_before_normalization"] == pytest.approx(2.0)

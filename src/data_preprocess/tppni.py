@@ -103,6 +103,23 @@ class CandidatePairs:
         )
 
 
+@dataclass(frozen=True)
+class ProteinSplit:
+    """Disjoint protein split for inductive train/validation datasets."""
+
+    train_proteins: frozenset[str]
+    valid_proteins: frozenset[str]
+
+
+@dataclass(frozen=True)
+class StageDatasets:
+    """Built datasets plus stage-level summary statistics."""
+
+    train_dataset: pd.DataFrame
+    valid_dataset: pd.DataFrame
+    summary: dict[str, object]
+
+
 def _configuration_model_probabilities(
     row_weights: np.ndarray,
     all_weights: np.ndarray,
@@ -271,29 +288,6 @@ def clean_pairs(
         deduplicated_within_label=deduplicated_within_label,
         conflict_rows=conflict_rows,
     )
-
-
-def split_positive_pairs(
-    positive_pairs: pd.DataFrame,
-    train_ratio: float,
-    seed: int,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Split positive-only pairs into train and validation partitions."""
-    if not 0.0 < train_ratio < 1.0:
-        raise ValueError("train_ratio must be between 0 and 1")
-    if positive_pairs.empty:
-        raise ValueError("positive_pairs must be non-empty")
-
-    rng = np.random.default_rng(seed)
-    permutation = rng.permutation(len(positive_pairs))
-    train_cut = int(len(positive_pairs) * train_ratio)
-    if train_cut <= 0 or train_cut >= len(positive_pairs):
-        raise ValueError("train_ratio produced an empty train or validation split")
-
-    shuffled = positive_pairs.iloc[permutation].reset_index(drop=True)
-    train_frame = shuffled.iloc[:train_cut].reset_index(drop=True)
-    valid_frame = shuffled.iloc[train_cut:].reset_index(drop=True)
-    return train_frame, valid_frame
 
 
 def build_positive_graph(positive_pairs: pd.DataFrame) -> PositiveGraph:
@@ -468,13 +462,12 @@ def sample_candidate_pairs(
     return candidates.subset(chosen.astype(np.int32, copy=False))
 
 
-def build_split_dataset(
+def build_global_tppni_pool(
     positive_pairs: pd.DataFrame,
     candidate_limit: int,
-    seed: int,
     block_size: int = 256,
-) -> pd.DataFrame:
-    """Build one train or validation dataset using TPPNI negatives."""
+) -> tuple[PositiveGraph, CandidatePairs]:
+    """Build one global TPPNI pool from all stage positives."""
     if "isInteraction" not in positive_pairs.columns:
         raise ValueError("positive_pairs must include isInteraction")
 
@@ -486,14 +479,172 @@ def build_split_dataset(
     )
     sampled_negatives = filter_zero_l3_candidates(graph, screened)
     if len(sampled_negatives) == 0:
-        raise ValueError("TPPNI generation produced no CL3 negatives for this split")
+        raise ValueError("TPPNI generation produced no CL3 negatives for this stage")
+    return graph, sampled_negatives
 
-    negative_frame = sampled_negatives.to_frame(graph).loc[:, PAIR_ID_COLUMNS]
-    negative_frame["isInteraction"] = np.int8(0)
+
+def split_proteins_inductively(
+    positive_pairs: pd.DataFrame,
+    train_ratio: float,
+    seed: int,
+) -> ProteinSplit:
+    """Split proteins into disjoint train/validation groups."""
+    if not 0.0 < train_ratio < 1.0:
+        raise ValueError("train_ratio must be between 0 and 1")
+    proteins = sorted(
+        set(positive_pairs["uniprotID_A"].astype(str))
+        | set(positive_pairs["uniprotID_B"].astype(str))
+    )
+    if len(proteins) < 2:
+        raise ValueError("Need at least two proteins for an inductive split")
+    rng = np.random.default_rng(seed)
+    shuffled = [proteins[index] for index in rng.permutation(len(proteins))]
+    train_cut = int(len(shuffled) * train_ratio)
+    if train_cut <= 0 or train_cut >= len(shuffled):
+        raise ValueError("train_ratio produced an empty train or validation split")
+    return ProteinSplit(
+        train_proteins=frozenset(shuffled[:train_cut]),
+        valid_proteins=frozenset(shuffled[train_cut:]),
+    )
+
+
+def induce_pairs_for_protein_split(
+    frame: pd.DataFrame,
+    proteins: frozenset[str] | set[str],
+) -> pd.DataFrame:
+    """Keep only edges fully induced by one protein subset."""
+    protein_set = frozenset(str(protein) for protein in proteins)
+    induced_mask = frame["uniprotID_A"].isin(protein_set) & frame["uniprotID_B"].isin(
+        protein_set
+    )
+    return frame.loc[induced_mask].reset_index(drop=True)
+
+
+def _label_counts(frame: pd.DataFrame) -> dict[str, int]:
+    positives = int((frame["isInteraction"] == 1).sum())
+    negatives = int((frame["isInteraction"] == 0).sum())
+    return {
+        "positives": positives,
+        "negatives": negatives,
+        "total": positives + negatives,
+    }
+
+
+def _score_sorted_negatives(negative_pairs: pd.DataFrame) -> pd.DataFrame:
+    if "score" not in negative_pairs.columns:
+        raise ValueError("negative_pairs must include score for confidence sorting")
+    return negative_pairs.sort_values(
+        by=["score", "uniprotID_A", "uniprotID_B"],
+        ascending=[True, True, True],
+        kind="mergesort",
+    ).reset_index(drop=True)
+
+
+def _downsample_negatives_to_ratio(
+    positive_pairs: pd.DataFrame,
+    negative_pairs: pd.DataFrame,
+    target_ratio: float,
+) -> pd.DataFrame:
+    if target_ratio < 0.0:
+        raise ValueError("target_ratio must be non-negative")
+    positive_count = len(positive_pairs)
+    if positive_count <= 0:
+        raise ValueError("positive_pairs must contain at least one positive edge")
+    target_negative_count = int(np.floor(target_ratio * positive_count))
+    if target_ratio > 0.0 and target_negative_count <= 0:
+        target_negative_count = 1
+    if len(negative_pairs) < target_negative_count:
+        raise ValueError(
+            "Not enough induced TPPNI negatives to satisfy the requested ratio"
+        )
+    sorted_negatives = _score_sorted_negatives(negative_pairs)
+    return sorted_negatives.iloc[:target_negative_count].reset_index(drop=True)
+
+
+def _assemble_dataset(
+    positive_pairs: pd.DataFrame,
+    negative_pairs: pd.DataFrame,
+    seed: int,
+) -> pd.DataFrame:
     positive_frame = positive_pairs.loc[:, PAIR_COLUMNS].copy()
     positive_frame["isInteraction"] = np.int8(1)
-
+    negative_frame = negative_pairs.loc[:, PAIR_ID_COLUMNS].copy()
+    negative_frame["isInteraction"] = np.int8(0)
     output = pd.concat([positive_frame, negative_frame], ignore_index=True)
     output = output.sample(frac=1.0, random_state=seed).reset_index(drop=True)
     output["isInteraction"] = output["isInteraction"].astype(np.int8)
     return output
+
+
+def build_stage_datasets_from_pools(
+    stage_name: str,
+    positive_pairs: pd.DataFrame,
+    negative_pool: pd.DataFrame,
+    protein_split: ProteinSplit,
+    seed: int,
+) -> StageDatasets:
+    """Build train/validation datasets from global positive and TPPNI pools."""
+    if stage_name not in {"pretrain", "finetune"}:
+        raise ValueError("stage_name must be one of: pretrain, finetune")
+    train_positive = induce_pairs_for_protein_split(
+        positive_pairs, protein_split.train_proteins
+    )
+    valid_positive = induce_pairs_for_protein_split(
+        positive_pairs, protein_split.valid_proteins
+    )
+    train_negative = induce_pairs_for_protein_split(
+        negative_pool, protein_split.train_proteins
+    )
+    valid_negative = induce_pairs_for_protein_split(
+        negative_pool, protein_split.valid_proteins
+    )
+
+    if train_positive.empty or valid_positive.empty:
+        raise ValueError(
+            "Protein-level inductive split produced an empty positive train or validation set"
+        )
+
+    raw_train_negative = train_negative.copy()
+    raw_valid_negative = valid_negative.copy()
+    train_ratio_before = float(len(raw_train_negative)) / float(len(train_positive))
+    valid_ratio_before = float(len(raw_valid_negative)) / float(len(valid_positive))
+    if stage_name == "pretrain":
+        target_ratio = 1.0
+    else:
+        target_ratio = min(train_ratio_before, valid_ratio_before)
+
+    train_negative = _downsample_negatives_to_ratio(
+        positive_pairs=train_positive,
+        negative_pairs=train_negative,
+        target_ratio=target_ratio,
+    )
+    valid_negative = _downsample_negatives_to_ratio(
+        positive_pairs=valid_positive,
+        negative_pairs=valid_negative,
+        target_ratio=target_ratio,
+    )
+
+    train_dataset = _assemble_dataset(train_positive, train_negative, seed=seed)
+    valid_dataset = _assemble_dataset(valid_positive, valid_negative, seed=seed + 1)
+    summary = {
+        "train_ratio_before_normalization": train_ratio_before,
+        "valid_ratio_before_normalization": valid_ratio_before,
+        "target_neg_pos_ratio": target_ratio,
+        "pre_downsample": {
+            "train": _label_counts(
+                pd.concat([train_positive, raw_train_negative], ignore_index=True)
+            ),
+            "valid": _label_counts(
+                pd.concat([valid_positive, raw_valid_negative], ignore_index=True)
+            ),
+        },
+        "post_downsample": {
+            "train": _label_counts(train_dataset),
+            "valid": _label_counts(valid_dataset),
+        },
+    }
+    return StageDatasets(
+        train_dataset=train_dataset,
+        valid_dataset=valid_dataset,
+        summary=summary,
+    )
