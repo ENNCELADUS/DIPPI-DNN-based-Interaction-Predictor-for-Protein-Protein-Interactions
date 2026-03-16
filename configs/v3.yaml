@@ -1,10 +1,10 @@
 run_config:
-  stages: ["evaluate"]
+  stages: ["finetune", "evaluate"]
   seed: 47
   train_run_id: null
   finetune_run_id: null
-  eval_run_id: "20260310_123424"
-  load_checkpoint_path: "models/v3/finetune/20260310_123424/best_model.pth"
+  eval_run_id: null
+  load_checkpoint_path: "models/v3/pretrain/20260310_123424/best_model.pth"
   save_best_only: true
 
 device_config:
@@ -24,23 +24,23 @@ data_config:
   preprocessing:
     tppni:
       enabled: true
-      force_rebuild: false
+      force_rebuild: true
       candidate_limit: 10000000
       pretrain:
         source_dataset: "data/TMP/processed/pretrain.csv"
         train_ratio: 0.95
-        train_dataset: "data/TMP/processed/pretrain_train.csv"
-        valid_dataset: "data/TMP/processed/pretrain_val.csv"
+        train_dataset: "data/TMP/processed/pretrain_train_tppni.csv"
+        valid_dataset: "data/TMP/processed/pretrain_val_tppni.csv"
       finetune:
         source_dataset: "data/TMP/processed/finetune.csv"
         train_ratio: 0.90
-        train_dataset: "data/TMP/processed/finetune_train.csv"
-        valid_dataset: "data/TMP/processed/finetune_val.csv"
+        train_dataset: "data/TMP/processed/finetune_train_tppni.csv"
+        valid_dataset: "data/TMP/processed/finetune_val_tppni.csv"
   dataloader:
-    train_dataset: "data/TMP/processed/pretrain_train.csv"
-    valid_dataset: "data/TMP/processed/pretrain_val.csv"
-    finetune_train_dataset: "data/TMP/processed/finetune_train.csv"
-    finetune_val_dataset: "data/TMP/processed/finetune_val.csv"
+    train_dataset: "data/TMP/processed/pretrain_train_tppni.csv"
+    valid_dataset: "data/TMP/processed/pretrain_val_tppni.csv"
+    finetune_train_dataset: "data/TMP/processed/finetune_train_tppni.csv"
+    finetune_val_dataset: "data/TMP/processed/finetune_val_tppni.csv"
     test_dataset: "data/TMP/processed/test.csv"
     num_workers: 2
     pin_memory: false

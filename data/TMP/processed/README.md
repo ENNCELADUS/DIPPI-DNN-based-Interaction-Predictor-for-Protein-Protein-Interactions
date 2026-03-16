@@ -15,6 +15,7 @@
 > [!NOTE]
 > - `processed/pretrain.csv` and `processed/finetune.csv` are raw stage corpora, not balanced training files.
 > - Canonical train/validation files are produced by `python -m src.data_preprocess.prepare_tppni_datasets --config <config>`.
+> - Generated train/validation outputs are written exactly to the configured dataset paths.
 > - The preprocessing order is: clean raw positives -> build one global TPPNI pool per stage -> protein-level train/val split -> induce split datasets.
 > - `test.csv` is fixed and not rewritten by TPPNI preprocessing.
 > - `pretrain_train.csv` and `pretrain_val.csv` are score-downsampled to exact `1:1`.

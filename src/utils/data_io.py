@@ -296,14 +296,18 @@ def _sampling_config_for_stage(
     return merged
 
 
-def _split_path_from_key(
+def _configured_split_path_from_key(
     dataloader_cfg: ConfigDict,
     *,
     key: str,
     field_name: str,
 ) -> Path:
-    """Resolve one dataset split path from dataloader config."""
-    path = Path(as_str(dataloader_cfg.get(key, ""), field_name))
+    """Resolve one configured dataset path from dataloader config."""
+    return Path(as_str(dataloader_cfg.get(key, ""), field_name))
+
+
+def _validated_existing_path(path: Path) -> Path:
+    """Validate one resolved dataset path."""
     if not path.exists():
         raise FileNotFoundError(f"Dataset path not found: {path}")
     return path
@@ -345,21 +349,24 @@ def resolve_split_paths(
         train_field = "data_config.dataloader.train_dataset"
         valid_field = "data_config.dataloader.valid_dataset"
 
-    train_path = _split_path_from_key(
+    train_path = _configured_split_path_from_key(
         dataloader_cfg,
         key=train_key,
         field_name=train_field,
     )
-    valid_path = _split_path_from_key(
+    valid_path = _configured_split_path_from_key(
         dataloader_cfg,
         key=valid_key,
         field_name=valid_field,
     )
-    test_path = _split_path_from_key(
+    test_path = _configured_split_path_from_key(
         dataloader_cfg,
         key="test_dataset",
         field_name="data_config.dataloader.test_dataset",
     )
+    train_path = _validated_existing_path(train_path)
+    valid_path = _validated_existing_path(valid_path)
+    test_path = _validated_existing_path(test_path)
     return {"train": train_path, "valid": valid_path, "test": test_path}
 
 
@@ -377,22 +384,10 @@ def collect_embedding_split_paths(config: ConfigDict) -> list[Path]:
     ]
     finetune_train = dataloader_cfg.get("finetune_train_dataset")
     finetune_valid = dataloader_cfg.get("finetune_val_dataset")
-    if finetune_train is not None:
-        ordered_candidates.append(
-            _split_path_from_key(
-                dataloader_cfg,
-                key="finetune_train_dataset",
-                field_name="data_config.dataloader.finetune_train_dataset",
-            )
-        )
-    if finetune_valid is not None:
-        ordered_candidates.append(
-            _split_path_from_key(
-                dataloader_cfg,
-                key="finetune_val_dataset",
-                field_name="data_config.dataloader.finetune_val_dataset",
-            )
-        )
+    if finetune_train is not None or finetune_valid is not None:
+        finetune_split_paths = resolve_split_paths(config=config, train_stage="finetune")
+        ordered_candidates.append(finetune_split_paths["train"])
+        ordered_candidates.append(finetune_split_paths["valid"])
     ordered_candidates.append(base_split_paths["test"])
 
     deduplicated: list[Path] = []

@@ -11,6 +11,7 @@ import yaml
 
 from src.data_preprocess.prepare_tppni_datasets import main as prepare_tppni_main
 from src.utils.config import ConfigDict
+from src.utils.data_io import resolve_split_paths
 from src.utils.data_io_v6 import build_dataloaders_v6
 
 
@@ -292,10 +293,19 @@ def test_prepare_tppni_datasets_generates_outputs_manifest_and_loader_inputs(
     manifest_path = processed_dir / "tppni_preprocess_manifest.json"
     assert manifest_path.exists()
 
-    pretrain_train = pd.read_csv(processed_dir / "pretrain_train.csv")
-    pretrain_val = pd.read_csv(processed_dir / "pretrain_val.csv")
-    finetune_train = pd.read_csv(processed_dir / "finetune_train.csv")
-    finetune_val = pd.read_csv(processed_dir / "finetune_val.csv")
+    pretrain_train_path = processed_dir / "pretrain_train.csv"
+    pretrain_val_path = processed_dir / "pretrain_val.csv"
+    finetune_train_path = processed_dir / "finetune_train.csv"
+    finetune_val_path = processed_dir / "finetune_val.csv"
+    assert pretrain_train_path.exists()
+    assert pretrain_val_path.exists()
+    assert finetune_train_path.exists()
+    assert finetune_val_path.exists()
+
+    pretrain_train = pd.read_csv(pretrain_train_path)
+    pretrain_val = pd.read_csv(pretrain_val_path)
+    finetune_train = pd.read_csv(finetune_train_path)
+    finetune_val = pd.read_csv(finetune_val_path)
 
     assert _ratio(pretrain_train) == pytest.approx(1.0)
     assert _ratio(pretrain_val) == pytest.approx(1.0)
@@ -306,6 +316,14 @@ def test_prepare_tppni_datasets_generates_outputs_manifest_and_loader_inputs(
 
     manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
     assert manifest["payload"]["test_dataset_unchanged"] is True
+    assert (
+        manifest["payload"]["stages_config"]["pretrain"]["train_dataset"]
+        == str(pretrain_train_path)
+    )
+    assert (
+        manifest["payload"]["stages_config"]["finetune"]["train_dataset"]
+        == str(finetune_train_path)
+    )
     assert manifest["stage_stats"]["pretrain"]["global_positive_count"] > 0
     assert manifest["stage_stats"]["pretrain"]["global_tppni_count"] > 0
     assert manifest["stage_stats"]["pretrain"]["post_downsample"]["train"]["negatives"] == manifest["stage_stats"]["pretrain"]["post_downsample"]["train"]["positives"]
@@ -314,6 +332,19 @@ def test_prepare_tppni_datasets_generates_outputs_manifest_and_loader_inputs(
         / manifest["stage_stats"]["finetune"]["post_downsample"]["train"]["positives"]
     )
 
+    pretrain_split_paths = resolve_split_paths(
+        config=yaml.safe_load(config_path.read_text(encoding="utf-8")),
+        train_stage="pretrain",
+    )
+    finetune_split_paths = resolve_split_paths(
+        config=yaml.safe_load(config_path.read_text(encoding="utf-8")),
+        train_stage="finetune",
+    )
+    assert pretrain_split_paths["train"] == pretrain_train_path
+    assert pretrain_split_paths["valid"] == pretrain_val_path
+    assert finetune_split_paths["train"] == finetune_train_path
+    assert finetune_split_paths["valid"] == finetune_val_path
+
     dataloaders = build_dataloaders_v6(
         config=yaml.safe_load(config_path.read_text(encoding="utf-8")),
         train_stage="pretrain",
@@ -321,4 +352,3 @@ def test_prepare_tppni_datasets_generates_outputs_manifest_and_loader_inputs(
     train_batch = next(iter(dataloaders["train"]))
     assert len(train_batch["label"]) == 2
     assert set(train_batch["label"].tolist()).issubset({0.0, 1.0})
-

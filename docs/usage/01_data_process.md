@@ -11,7 +11,8 @@ python -m src.data_preprocess.prepare_tppni_datasets --config configs/v3.yaml
 The CLI reads `data_config.preprocessing.tppni` from the config file.
 
 - When `enabled: true`, it cleans the raw pretrain and finetune corpora, rebuilds
-  TPPNI negatives, and writes the canonical split files consumed by training.
+  TPPNI negatives, and writes the generated split files exactly to the
+  configured `train_dataset` and `valid_dataset` paths.
 - Cleaning policy is enforced in code: drop missing IDs, drop self-loops,
   canonicalize undirected pairs, deduplicate within label, and error on
   conflicting labels.
@@ -33,6 +34,8 @@ The CLI reads `data_config.preprocessing.tppni` from the config file.
   - `finetune_train.csv` and `finetune_val.csv` are score-downsampled so both
     splits share the same `neg:pos` ratio, using the smaller split-induced ratio
     as the common target
+- At runtime, dataloaders read exactly the dataset paths configured under
+  `data_config.dataloader`. There is no implicit filename rewriting.
 - When `enabled: false`, the command is a no-op.
 - When `force_rebuild: false`, the manifest skips redundant rebuilds.
 
