@@ -1,0 +1,16 @@
+2026-03-16 16:45:27 INFO Startup | Rank: 0 | Run Id: 20260310_123424 | Seed: 47 | Stages: evaluate | World Size: 4
+2026-03-16 16:45:27 INFO Device | Resolved Device: cpu
+2026-03-16 16:55:22 INFO Startup | Rank: 0 | Run Id: 20260310_123424 | Seed: 47 | Stages: evaluate | World Size: 1
+2026-03-16 16:55:22 INFO Device | Resolved Device: cpu
+2026-03-16 17:13:53 INFO Startup | Rank: 0 | Run Id: 20260310_123424 | Seed: 47 | Stages: evaluate | World Size: 3
+2026-03-16 17:13:53 INFO Device | Resolved Device: cuda:0
+2026-03-16 17:17:16 INFO Model Init | Model: v3 | Params: 31695105
+2026-03-16 17:17:33 INFO DDP Ready | Wrapped: True
+2026-03-16 17:18:48 INFO Data Ready | Test: 188697 | Train: 7622795 | Valid: 9957878
+2026-03-16 17:18:48 INFO Begin Evaluation
+2026-03-16 17:18:48 INFO Stage Start | Checkpoint: models/v3/finetune/20260310_123424/best_model.pth | Run Id: 20260310_123424
+2026-03-16 17:18:48 INFO Checkpoint Loaded | Path: models/v3/finetune/20260310_123424/best_model.pth
+2026-03-16 18:18:26 INFO Evaluation Metrics | Accuracy: 0.7248 | AUPRC: 0.4345 | Auroc: 0.8210 | F1: 0.1187 | Mcc: 0.1582 | Precision: 0.0646 | Recall: 0.7304 | Sensitivity: 0.7304 | Specificity: 0.7247 | Split: test
+2026-03-16 18:18:26 INFO CSV Written | Path: logs/v3/evaluate/20260310_123424/evaluate.csv
+2026-03-16 18:18:26 INFO Stage Done | Run Id: 20260310_123424
+2026-03-16 18:23:56 INFO End Evaluation

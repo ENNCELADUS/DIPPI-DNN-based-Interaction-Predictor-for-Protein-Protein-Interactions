@@ -1,10 +1,10 @@
 run_config:
-  stages: ["pretrain", "finetune", "evaluate"]
+  stages: ["evaluate"]
   seed: 47
   train_run_id: null
   finetune_run_id: null
-  eval_run_id: null
-  load_checkpoint_path: null
+  eval_run_id: "20260310_123424"
+  load_checkpoint_path: "models/v3/finetune/20260310_123424/best_model.pth"
   save_best_only: true
 
 device_config:
@@ -59,7 +59,7 @@ model_config:
   model: "v3"
   input_dim: 1536
   d_model: 512
-  encoder_layers: 4
+  encoder_layers: 3
   cross_attn_layers: 4
   n_heads: 8
   mlp_head:
