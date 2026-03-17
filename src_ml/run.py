@@ -1,30 +1,15 @@
-"""
-DIPPI ML Pipeline Orchestrator (run.py)
+"""Classical ML training and evaluation pipeline."""
 
-Minimal orchestrator for classical ML models (Random Forest, XGBoost).
-Separate from run.py to keep DL and ML pipelines decoupled.
+from __future__ import annotations
 
-This module owns:
-- Config parsing and validation
-- Seed setup
-- Run directory creation
-- Data loading (mean-pooled features)
-- Model training and evaluation
-- Checkpointing (joblib) and logging
-
-Invocation:
-    python src_ml/run.py src_ml/ml.yaml
-    python src_ml/run.py src_ml/ml.yaml --model xgboost
-"""
-
+import argparse
 import json
 import logging
-import os
 import random
 import sys
-from datetime import datetime
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any
 
 import joblib
 import numpy as np
@@ -38,18 +23,37 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+from src.utils.config import (
+    ConfigDict,
+    as_bool,
+    as_int,
+    as_str,
+    get_section,
+    load_config,
+)
+from src.utils.data_io import ensure_embedding_cache, resolve_split_paths
+from src.utils.logging import append_csv_row, generate_run_id
 
-from src.utils.config import load_config, extract_keys
-from src.utils.logging import append_row
+from src_ml.data import load_ml_features
+from src_ml.model import build_ml_model
 
-# Local imports from src_ml
-from model import build_ml_model
-from data import load_ml_features
+
+@dataclass(frozen=True)
+class MLRuntimeInputs:
+    """Resolved runtime inputs for the classical ML pipeline."""
+
+    train_path: Path
+    valid_path: Path
+    test_path: Path
+    embeddings_path: Path
+    pooling: str
+    balance: bool
+    input_dim: int
+    max_sequence_length: int
 
 
 def setup_logging(run_id: str, model_name: str, log_dir: Path) -> None:
-    """Configure Python's root logger for this run."""
+    """Configure the root logger for one ML run."""
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / "log.log"
 
@@ -57,41 +61,102 @@ def setup_logging(run_id: str, model_name: str, log_dir: Path) -> None:
         level=logging.INFO,
         format="%(asctime)s | %(levelname)s | %(message)s",
         handlers=[
-            logging.FileHandler(log_file, mode="a"),
+            logging.FileHandler(log_file, mode="a", encoding="utf-8"),
             logging.StreamHandler(sys.stdout),
         ],
         force=True,
     )
 
-    logger = logging.getLogger(__name__)
-    logger.info("=" * 80)
-    logger.info(f"Starting ML training for model '{model_name}' with run_id '{run_id}'")
-    logger.info(f"Logs will be written to: {log_file}")
-    logger.info("=" * 80)
+    logging.info("=" * 80)
+    logging.info(
+        "Starting ML training for model '%s' with run_id '%s'",
+        model_name,
+        run_id,
+    )
+    logging.info("Logs will be written to: %s", log_file)
+    logging.info("=" * 80)
 
 
 def set_seed(seed: int) -> None:
-    """Set random seeds for reproducibility."""
+    """Set process-local RNG seeds for reproducibility."""
     random.seed(seed)
     np.random.seed(seed)
-    logging.info(f"Random seed set to {seed}")
+    logging.info("Random seed set to %d", seed)
 
 
-def generate_run_id() -> str:
-    """Generate timestamp-based run ID: YYYYMMDD_HHMMSS."""
-    return datetime.now().strftime("%Y%m%d_%H%M%S")
-
-
-def create_run_directories(model_name: str, run_id: str) -> Tuple[Path, Path]:
-    """Create log and checkpoint directories for a run."""
-    log_dir = Path(f"logs/ml/{model_name}/{run_id}")
-    checkpoint_dir = Path(f"models/ml/{model_name}/{run_id}")
-
+def create_run_directories(model_name: str, run_id: str) -> tuple[Path, Path]:
+    """Create output directories for logs and model artifacts."""
+    log_dir = Path("logs") / "ml" / model_name / run_id
+    checkpoint_dir = Path("models") / "ml" / model_name / run_id
     log_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
-
-    logging.info(f"Created directories: {log_dir}, {checkpoint_dir}")
     return log_dir, checkpoint_dir
+
+
+def _deduplicate_paths(paths: list[Path]) -> list[Path]:
+    """Return paths in original order without duplicates."""
+    deduplicated: list[Path] = []
+    seen: set[str] = set()
+    for path in paths:
+        normalized = str(path.resolve())
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        deduplicated.append(path)
+    return deduplicated
+
+
+def resolve_ml_runtime_inputs(config: ConfigDict) -> MLRuntimeInputs:
+    """Resolve dataset paths and validate the shared embedding cache."""
+    data_cfg = get_section(config, "data_config")
+    embeddings_cfg = get_section(data_cfg, "embeddings")
+    model_cfg = get_section(config, "model_config")
+
+    split_paths = resolve_split_paths(config=config, train_stage="finetune")
+    required_split_paths = _deduplicate_paths(
+        [split_paths["train"], split_paths["valid"], split_paths["test"]]
+    )
+
+    input_dim = as_int(model_cfg.get("input_dim", 0), "model_config.input_dim")
+    if input_dim <= 0:
+        raise ValueError("model_config.input_dim must be positive")
+    max_sequence_length = as_int(
+        data_cfg.get("max_sequence_length", 0),
+        "data_config.max_sequence_length",
+    )
+    if max_sequence_length <= 0:
+        raise ValueError("data_config.max_sequence_length must be positive")
+
+    pooling = as_str(data_cfg.get("pooling", "mean"), "data_config.pooling")
+    balance = as_bool(data_cfg.get("balance", False), "data_config.balance")
+    configured_cache_dir = Path(
+        as_str(embeddings_cfg.get("cache_dir", ""), "data_config.embeddings.cache_dir")
+    )
+
+    embedding_cache = ensure_embedding_cache(
+        config=config,
+        split_paths=required_split_paths,
+        input_dim=input_dim,
+        max_sequence_length=max_sequence_length,
+    )
+    cache_dir = embedding_cache.cache_dir
+    if cache_dir.resolve() != configured_cache_dir.resolve():
+        logging.warning(
+            "Embedding cache helper resolved %s, config requested %s",
+            cache_dir,
+            configured_cache_dir,
+        )
+
+    return MLRuntimeInputs(
+        train_path=split_paths["train"],
+        valid_path=split_paths["valid"],
+        test_path=split_paths["test"],
+        embeddings_path=cache_dir,
+        pooling=pooling,
+        balance=balance,
+        input_dim=input_dim,
+        max_sequence_length=max_sequence_length,
+    )
 
 
 def balance_dataset(
@@ -99,40 +164,25 @@ def balance_dataset(
     y: np.ndarray,
     seed: int,
     split_name: str = "dataset",
-) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Undersample negatives to achieve 1:1 positive/negative ratio.
-
-    Args:
-        X: Feature matrix.
-        y: Labels.
-        seed: Random seed for reproducibility.
-        split_name: Name of split for logging.
-
-    Returns:
-        Balanced (X, y) arrays.
-    """
+) -> tuple[np.ndarray, np.ndarray]:
+    """Undersample negatives to a 1:1 positive/negative ratio."""
     pos_mask = y == 1
     neg_mask = y == 0
 
-    n_pos = pos_mask.sum()
-    n_neg = neg_mask.sum()
-
-    logging.info(f"{split_name} before balancing: {n_pos} pos, {n_neg} neg")
+    n_pos = int(pos_mask.sum())
+    n_neg = int(neg_mask.sum())
+    logging.info("%s before balancing: %d pos, %d neg", split_name, n_pos, n_neg)
 
     if n_neg <= n_pos:
-        logging.info(f"{split_name} already balanced or more positives, skipping")
+        logging.info("%s already balanced or more positives, skipping", split_name)
         return X, y
 
-    # Get indices
     pos_indices = np.where(pos_mask)[0]
     neg_indices = np.where(neg_mask)[0]
 
-    # Sample negatives to match positives
     rng = np.random.RandomState(seed)
     sampled_neg_indices = rng.choice(neg_indices, size=n_pos, replace=False)
 
-    # Combine and shuffle
     balanced_indices = np.concatenate([pos_indices, sampled_neg_indices])
     rng.shuffle(balanced_indices)
 
@@ -140,10 +190,11 @@ def balance_dataset(
     y_balanced = y[balanced_indices]
 
     logging.info(
-        f"{split_name} after balancing: {(y_balanced == 1).sum()} pos, "
-        f"{(y_balanced == 0).sum()} neg"
+        "%s after balancing: %d pos, %d neg",
+        split_name,
+        int((y_balanced == 1).sum()),
+        int((y_balanced == 0).sum()),
     )
-
     return X_balanced, y_balanced
 
 
@@ -151,24 +202,10 @@ def compute_metrics(
     y_true: np.ndarray,
     y_pred: np.ndarray,
     y_proba: np.ndarray,
-    metrics_list: list,
-    threshold: float = 0.5,
-) -> Dict[str, float]:
-    """
-    Compute evaluation metrics.
-
-    Args:
-        y_true: Ground truth labels.
-        y_pred: Predicted labels.
-        y_proba: Predicted probabilities for positive class.
-        metrics_list: List of metric names to compute.
-        threshold: Decision threshold (not used if y_pred already binary).
-
-    Returns:
-        Dict mapping metric name to value.
-    """
-    results: Dict[str, float] = {}
-
+    metrics_list: list[str],
+) -> dict[str, float]:
+    """Compute configured evaluation metrics for one split."""
+    results: dict[str, float] = {}
     metric_funcs = {
         "auroc": lambda: roc_auc_score(y_true, y_proba),
         "auprc": lambda: average_precision_score(y_true, y_proba),
@@ -176,20 +213,19 @@ def compute_metrics(
         "precision": lambda: precision_score(y_true, y_pred, zero_division=0),
         "recall": lambda: recall_score(y_true, y_pred, zero_division=0),
         "sensitivity": lambda: recall_score(y_true, y_pred, zero_division=0),
-        "specificity": lambda: recall_score(
-            1 - y_true, 1 - y_pred, zero_division=0
-        ),  # TN / (TN + FP)
+        "specificity": lambda: recall_score(1 - y_true, 1 - y_pred, zero_division=0),
         "f1": lambda: f1_score(y_true, y_pred, zero_division=0),
         "mcc": lambda: matthews_corrcoef(y_true, y_pred),
     }
 
     for metric_name in metrics_list:
-        if metric_name in metric_funcs:
-            try:
-                results[metric_name] = float(metric_funcs[metric_name]())
-            except Exception as e:
-                logging.warning(f"Failed to compute {metric_name}: {e}")
-                results[metric_name] = 0.0
+        if metric_name not in metric_funcs:
+            continue
+        try:
+            results[metric_name] = float(metric_funcs[metric_name]())
+        except Exception as error:  # pragma: no cover - defensive logging
+            logging.warning("Failed to compute %s: %s", metric_name, error)
+            results[metric_name] = 0.0
 
     return results
 
@@ -198,200 +234,145 @@ def evaluate_model(
     model: Any,
     X: np.ndarray,
     y: np.ndarray,
-    metrics_list: list,
-    threshold: float,
+    metrics_list: list[str],
     split_name: str,
-) -> Dict[str, float]:
-    """Evaluate model on a dataset split."""
-    logging.info(f"Evaluating on {split_name}: {len(y)} samples")
-
-    # Get predictions
+) -> dict[str, float]:
+    """Evaluate one fitted model on a dataset split."""
+    logging.info("Evaluating on %s: %d samples", split_name, len(y))
     y_pred = model.predict(X)
-    y_proba = model.predict_proba(X)[:, 1]  # Probability of positive class
+    y_proba = model.predict_proba(X)[:, 1]
+    metrics = compute_metrics(y, y_pred, y_proba, metrics_list)
 
-    # Compute metrics
-    metrics = compute_metrics(y, y_pred, y_proba, metrics_list, threshold)
-
-    # Log results
-    logging.info(f"{split_name} results:")
+    logging.info("%s results:", split_name)
     for name, value in metrics.items():
-        logging.info(f"  {name}: {value:.4f}")
-
+        logging.info("  %s: %.4f", name, value)
     return metrics
 
 
+def _model_name_from_config(
+    model_cfg: ConfigDict,
+    model_override: str | None,
+) -> str:
+    """Resolve the selected classical model name."""
+    if model_override is not None:
+        return model_override.lower()
+    return as_str(model_cfg.get("model", ""), "model_config.model").lower()
+
+
+def _model_params_from_config(model_cfg: ConfigDict, model_name: str) -> dict[str, Any]:
+    """Resolve model-specific hyperparameters for the selected model."""
+    model_params_raw = model_cfg.get(model_name, {})
+    if not isinstance(model_params_raw, dict):
+        raise ValueError(f"model_config.{model_name} must be a mapping")
+    return dict(model_params_raw)
+
+
 def main(config_path: str, model_override: str | None = None) -> None:
-    """
-    Main orchestrator: parse config, train model, evaluate.
+    """Run the classical ML training or evaluation pipeline."""
+    config = load_config(config_path)
+    run_cfg = get_section(config, "run_config")
+    model_cfg = get_section(config, "model_config")
 
-    Args:
-        config_path: Path to YAML config file.
-        model_override: Optional model name to override config (e.g., "xgboost").
-    """
-    # ============================================================
-    # 1. Load config
-    # ============================================================
-    cfg = load_config(config_path)
-    print(f"Loaded config from: {config_path}")
+    mode = as_str(run_cfg.get("mode", "train_eval"), "run_config.mode").lower()
+    if mode not in {"train_eval", "eval_only"}:
+        raise ValueError("run_config.mode must be 'train_eval' or 'eval_only'")
 
-    # ============================================================
-    # 2. Run config setup
-    # ============================================================
-    run_cfg = extract_keys(cfg, "run_config")
-    mode = run_cfg["mode"]
-    seed = run_cfg["seed"]
-
+    seed = as_int(run_cfg.get("seed", 0), "run_config.seed")
     set_seed(seed)
 
-    run_id = run_cfg.get("run_id") or generate_run_id()
+    run_id = generate_run_id(run_cfg.get("run_id"))
+    model_name = _model_name_from_config(model_cfg=model_cfg, model_override=model_override)
 
-    # Get model name (from override or config)
-    model_name = model_override or cfg.get("model_config.model")
-    logging.info(f"Model: {model_name}")
+    log_dir, checkpoint_dir = create_run_directories(model_name=model_name, run_id=run_id)
+    setup_logging(run_id=run_id, model_name=model_name, log_dir=log_dir)
+    logging.info("Loaded config from: %s", Path(config_path).resolve())
 
-    # ============================================================
-    # 3. Create directories and setup logging
-    # ============================================================
-    log_dir, checkpoint_dir = create_run_directories(model_name, run_id)
-    setup_logging(run_id, model_name, log_dir)
-
-    # ============================================================
-    # 4. Load data
-    # ============================================================
-    data_cfg = extract_keys(cfg, "data_config")
-    embeddings_path = data_cfg["embeddings_path"]
-    pooling = data_cfg.get("pooling", "mean")
+    runtime_inputs = resolve_ml_runtime_inputs(config)
 
     logging.info("Loading training data...")
     X_train, y_train = load_ml_features(
-        csv_path=data_cfg["train_csv"],
-        embeddings_path=embeddings_path,
-        pooling=pooling,
+        csv_path=str(runtime_inputs.train_path),
+        embeddings_path=str(runtime_inputs.embeddings_path),
+        pooling=runtime_inputs.pooling,
     )
-
     logging.info("Loading validation data...")
     X_val, y_val = load_ml_features(
-        csv_path=data_cfg["val_csv"],
-        embeddings_path=embeddings_path,
-        pooling=pooling,
+        csv_path=str(runtime_inputs.valid_path),
+        embeddings_path=str(runtime_inputs.embeddings_path),
+        pooling=runtime_inputs.pooling,
     )
-
     logging.info("Loading test data...")
     X_test, y_test = load_ml_features(
-        csv_path=data_cfg["test_csv"],
-        embeddings_path=embeddings_path,
-        pooling=pooling,
+        csv_path=str(runtime_inputs.test_path),
+        embeddings_path=str(runtime_inputs.embeddings_path),
+        pooling=runtime_inputs.pooling,
     )
-
     logging.info(
-        f"Data loaded: train={len(y_train)}, val={len(y_val)}, test={len(y_test)}"
+        "Data loaded: train=%d, val=%d, test=%d",
+        len(y_train),
+        len(y_val),
+        len(y_test),
     )
 
-    # ============================================================
-    # 4.5 Balance train/val sets (undersample negatives to 1:1)
-    # ============================================================
-    balance = data_cfg.get("balance", True)
-    if balance:
+    if runtime_inputs.balance:
         X_train, y_train = balance_dataset(X_train, y_train, seed, "train")
         X_val, y_val = balance_dataset(X_val, y_val, seed, "val")
 
-    # ============================================================
-    # 5. Build model
-    # ============================================================
-    model_cfg = extract_keys(cfg, "model_config")
-
-    # Get model-specific params
-    if model_name in model_cfg:
-        model_params = model_cfg[model_name]
-    else:
-        model_params = {}
-
-    # Add seed to model params
+    model_params = _model_params_from_config(model_cfg=model_cfg, model_name=model_name)
     model_params["random_state"] = seed
-
-    # Calculate scale_pos_weight for XGBoost if not set
     if model_name == "xgboost" and model_params.get("scale_pos_weight") is None:
-        n_neg = (y_train == 0).sum()
-        n_pos = (y_train == 1).sum()
+        n_neg = int((y_train == 0).sum())
+        n_pos = int((y_train == 1).sum())
         if n_pos > 0:
             model_params["scale_pos_weight"] = float(n_neg / n_pos)
             logging.info(
-                f"Auto-set scale_pos_weight: {model_params['scale_pos_weight']:.2f}"
+                "Auto-set scale_pos_weight: %.2f",
+                model_params["scale_pos_weight"],
             )
 
-    logging.info(f"Building model: {model_name}")
-    logging.info(f"Model params: {model_params}")
-
+    logging.info("Building model: %s", model_name)
+    logging.info("Model params: %s", model_params)
     model = build_ml_model(model_name, **model_params)
 
-    # ============================================================
-    # 6. Train model
-    # ============================================================
+    model_path = checkpoint_dir / f"{model_name}_model.joblib"
     if mode == "train_eval":
         logging.info("Starting training...")
-
-        if model_name == "xgboost":
-            # XGBoost with early stopping on validation set
-            # early_stopping_rounds is now passed via constructor
-            early_stopping = model_params.get("early_stopping_rounds")
-            if early_stopping:
-                model.fit(X_train, y_train, eval_set=[(X_val, y_val)])
-            else:
-                model.fit(X_train, y_train)
+        if model_name == "xgboost" and model_params.get("early_stopping_rounds"):
+            model.fit(X_train, y_train, eval_set=[(X_val, y_val)])
         else:
-            # Random Forest
             model.fit(X_train, y_train)
-
-        # Save model
-        model_path = checkpoint_dir / f"{model_name}_model.joblib"
         joblib.dump(model, model_path)
-        logging.info(f"Model saved to: {model_path}")
-
-    elif mode == "eval_only":
-        # Load existing model
-        model_path = checkpoint_dir / f"{model_name}_model.joblib"
+        logging.info("Model saved to: %s", model_path)
+    else:
         if not model_path.exists():
             raise FileNotFoundError(f"Model not found: {model_path}")
         model = joblib.load(model_path)
-        logging.info(f"Loaded model from: {model_path}")
+        logging.info("Loaded model from: %s", model_path)
 
-    # ============================================================
-    # 7. Evaluate
-    # ============================================================
-    eval_cfg = cfg.get("evaluate", {})
-    metrics_list = eval_cfg.get("metrics", ["auroc", "auprc", "accuracy", "f1"])
-    threshold = eval_cfg.get("threshold", 0.5)
+    eval_cfg_raw = config.get("evaluate", {})
+    if eval_cfg_raw is None:
+        eval_cfg_raw = {}
+    if not isinstance(eval_cfg_raw, dict):
+        raise ValueError("evaluate must be a mapping")
+    eval_cfg = eval_cfg_raw
+    metrics_list = [
+        as_str(metric, "evaluate.metrics[]")
+        for metric in eval_cfg.get("metrics", ["auroc", "auprc", "accuracy", "f1"])
+    ]
 
-    # Evaluate on all splits
-    val_metrics = evaluate_model(
-        model, X_val, y_val, metrics_list, threshold, "validation"
-    )
-    test_metrics = evaluate_model(
-        model, X_test, y_test, metrics_list, threshold, "test"
-    )
+    train_metrics = evaluate_model(model, X_train, y_train, metrics_list, "train")
+    val_metrics = evaluate_model(model, X_val, y_val, metrics_list, "validation")
+    test_metrics = evaluate_model(model, X_test, y_test, metrics_list, "test")
 
-    # Also evaluate on train for reference (overfitting check)
-    train_metrics = evaluate_model(
-        model, X_train, y_train, metrics_list, threshold, "train"
-    )
-
-    # ============================================================
-    # 8. Save results
-    # ============================================================
-    # Save metrics to CSV
     results_csv = log_dir / "evaluation_results.csv"
-
-    for split_name, metrics in [
+    for split_name, metrics in (
         ("train", train_metrics),
         ("validation", val_metrics),
         ("test", test_metrics),
-    ]:
-        row = {"split": split_name, **metrics}
-        append_row(results_csv, row)
+    ):
+        append_csv_row(results_csv, {"split": split_name, **metrics})
+    logging.info("Results saved to: %s", results_csv)
 
-    logging.info(f"Results saved to: {results_csv}")
-
-    # Save full results as JSON
     results_json = log_dir / "results.json"
     full_results = {
         "run_id": run_id,
@@ -401,32 +382,34 @@ def main(config_path: str, model_override: str | None = None) -> None:
             "train_samples": len(y_train),
             "val_samples": len(y_val),
             "test_samples": len(y_test),
-            "train_positive_ratio": float(y_train.mean()),
-            "feature_dim": X_train.shape[1],
+            "train_positive_ratio": float(y_train.mean()) if len(y_train) > 0 else 0.0,
+            "feature_dim": int(X_train.shape[1]) if X_train.ndim == 2 else 0,
         },
         "model_params": model_params,
         "train_metrics": train_metrics,
         "validation_metrics": val_metrics,
         "test_metrics": test_metrics,
     }
+    with results_json.open("w", encoding="utf-8") as handle:
+        json.dump(full_results, handle, indent=2)
 
-    with open(results_json, "w") as f:
-        json.dump(full_results, f, indent=2)
-
-    logging.info(f"Full results saved to: {results_json}")
+    logging.info("Full results saved to: %s", results_json)
     logging.info("ML pipeline completed successfully")
 
 
 if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(description="DIPPI ML Pipeline")
+    parser = argparse.ArgumentParser(description="DIPPI classical ML pipeline")
     parser.add_argument(
-        "config",
-        type=str,
+        "config_path",
         nargs="?",
-        default="src_ml/ml.yaml",
-        help="Path to config file (default: src_ml/ml.yaml)",
+        default=None,
+        help="Optional config path. Defaults to src_ml/ml.yaml.",
+    )
+    parser.add_argument(
+        "--config",
+        dest="config_flag",
+        default=None,
+        help="Path to YAML config file.",
     )
     parser.add_argument(
         "--model",
@@ -437,9 +420,7 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-
-    if not os.path.exists(args.config):
-        print(f"Error: Config file not found: {args.config}")
-        sys.exit(1)
-
-    main(args.config, model_override=args.model)
+    resolved_config_path = args.config_flag or args.config_path or "src_ml/ml.yaml"
+    if not Path(resolved_config_path).exists():
+        raise FileNotFoundError(f"Config file not found: {resolved_config_path}")
+    main(resolved_config_path, model_override=args.model)

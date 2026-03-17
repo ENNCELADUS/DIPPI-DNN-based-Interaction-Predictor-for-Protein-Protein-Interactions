@@ -1,32 +1,42 @@
+"""Feature loading utilities for the classical ML PPI pipeline."""
+
+from __future__ import annotations
+
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional, Mapping
+from typing import Optional
 
 import numpy as np
 import pandas as pd
 import torch
+import torch.distributed as dist
 
-from src.utils.distributed import is_main_process
+from src.embed import load_cached_embedding
 
-
-# =============================================================================
-# ML Feature Loading (for classical ML models like RandomForest, XGBoost)
-# =============================================================================
-
-# Module-level cache for ML embeddings (separate from DL embeddings)
-_ML_EMBEDDINGS_CACHE: Optional[Mapping[str, Any]] = None
+# Module-level cache for ML embeddings.
+_ML_EMBEDDINGS_CACHE: Optional[object] = None
 _ML_EMBEDDINGS_PATH_CACHE: Optional[str] = None
+
+INDEX_FILENAME = "index.json"
+METADATA_FILENAME = "metadata.json"
+
+
+def _is_main_process() -> bool:
+    """Return whether this process should emit shared progress logs."""
+    if not dist.is_available() or not dist.is_initialized():
+        return True
+    return dist.get_rank() == 0
 
 
 class _ShardedEmbeddingStore:
     """
-    Memory-mapped embedding store backed by sharded .npy files.
+    Memory-mapped embedding store backed by sharded ``.npy`` files.
 
     Expects directory layout:
-      - manifest.json
-      - index.npz (ids, shard_idx, row_idx, lengths)
-      - shard_*.npy (shape [shard_size, max_len, embedding_dim])
+      - ``manifest.json``
+      - ``index.npz`` (ids, shard_idx, row_idx, lengths)
+      - ``shard_*.npy`` (shape ``[shard_size, max_len, embedding_dim]``)
     """
 
     def __init__(self, root: Path) -> None:
@@ -34,12 +44,12 @@ class _ShardedEmbeddingStore:
         if not manifest_path.exists():
             raise FileNotFoundError(f"Missing manifest.json in {root}")
 
-        manifest = json.loads(manifest_path.read_text())
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         if manifest.get("format") != "dippi_sharded_embeddings_v1":
             raise ValueError(f"Unsupported embeddings format: {manifest.get('format')}")
 
         index_file = manifest.get("index_file", "index.npz")
-        index_path = root / index_file
+        index_path = root / str(index_file)
         if not index_path.exists():
             raise FileNotFoundError(f"Missing index file: {index_path}")
 
@@ -49,7 +59,7 @@ class _ShardedEmbeddingStore:
             item.decode("utf-8") if isinstance(item, bytes) else str(item)
             for item in ids
         ]
-        self._id_to_pos = {pid: i for i, pid in enumerate(self._ids)}
+        self._id_to_pos = {protein_id: idx for idx, protein_id in enumerate(self._ids)}
         self._shard_idx = index["shard_idx"].astype(np.int64, copy=False)
         self._row_idx = index["row_idx"].astype(np.int64, copy=False)
         self._lengths = index["lengths"].astype(np.int64, copy=False)
@@ -61,12 +71,12 @@ class _ShardedEmbeddingStore:
         if not shard_entries:
             raise ValueError("manifest.json has no shard entries")
 
-        shard_files = []
+        shard_files: list[str] = []
         for entry in shard_entries:
             if isinstance(entry, str):
                 shard_files.append(entry)
             elif isinstance(entry, dict) and "file" in entry:
-                shard_files.append(entry["file"])
+                shard_files.append(str(entry["file"]))
             else:
                 raise ValueError(f"Unsupported shard entry: {entry}")
 
@@ -78,6 +88,7 @@ class _ShardedEmbeddingStore:
     def __getitem__(self, protein_id: str) -> np.ndarray:
         if protein_id not in self._id_to_pos:
             raise KeyError(f"Protein ID '{protein_id}' not found in embeddings")
+
         pos = self._id_to_pos[protein_id]
         shard_id = int(self._shard_idx[pos])
         row_id = int(self._row_idx[pos])
@@ -92,20 +103,121 @@ class _ShardedEmbeddingStore:
         return np.asarray(vec, dtype=np.float32)
 
 
-def _load_ml_embeddings(embeddings_path: str) -> Mapping[str, np.ndarray]:
+class _TorchCacheEmbeddingStore:
+    """Mean-pooled view over the DL per-protein embedding cache."""
+
+    def __init__(self, root: Path) -> None:
+        index_path = root / INDEX_FILENAME
+        metadata_path = root / METADATA_FILENAME
+        if not index_path.exists():
+            raise FileNotFoundError(f"Missing {INDEX_FILENAME} in {root}")
+        if not metadata_path.exists():
+            raise FileNotFoundError(f"Missing {METADATA_FILENAME} in {root}")
+
+        raw_index = json.loads(index_path.read_text(encoding="utf-8"))
+        if not isinstance(raw_index, dict):
+            raise ValueError(f"{index_path} must contain a JSON object")
+        self._index = {
+            str(protein_id): str(relative_path)
+            for protein_id, relative_path in raw_index.items()
+        }
+
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        if not isinstance(metadata, dict):
+            raise ValueError(f"{metadata_path} must contain a JSON object")
+        self.embedding_dim = int(metadata["input_dim"])
+        self.max_sequence_length = int(metadata["max_sequence_length"])
+        self._cache_dir = root
+        self._mean_pool_cache: dict[str, np.ndarray] = {}
+
+    def __contains__(self, protein_id: str) -> bool:
+        return protein_id in self._index
+
+    def __getitem__(self, protein_id: str) -> np.ndarray:
+        cached = self._mean_pool_cache.get(protein_id)
+        if cached is not None:
+            return cached
+
+        tensor = load_cached_embedding(
+            cache_dir=self._cache_dir,
+            index=self._index,
+            protein_id=protein_id,
+            expected_input_dim=self.embedding_dim,
+            max_sequence_length=self.max_sequence_length,
+        )
+        vector = tensor.mean(dim=0).cpu().numpy().astype(np.float32)
+        self._mean_pool_cache[protein_id] = vector
+        return vector
+
+
+def _load_legacy_embeddings(embeddings_path: Path) -> dict[str, np.ndarray]:
+    """Load legacy serialized embedding artifacts into memory."""
+    suffix = embeddings_path.suffix.lower()
+
+    if suffix == ".pkl":
+        import pickle
+
+        with embeddings_path.open("rb") as handle:
+            raw_dict = pickle.load(handle)
+        embeddings_dict = {}
+        for protein_id, value in raw_dict.items():
+            if isinstance(value, dict) and "embeddings" in value:
+                embeddings_dict[str(protein_id)] = value["embeddings"]
+            else:
+                embeddings_dict[str(protein_id)] = value
+    elif suffix == ".npz":
+        npz_data = np.load(embeddings_path, allow_pickle=True)
+        if "ids" in npz_data.files and "embeddings" in npz_data.files:
+            ids_array = npz_data["ids"]
+            embeddings_array = npz_data["embeddings"]
+            embeddings_dict = {}
+            for idx, protein_id in enumerate(ids_array):
+                normalized_id = (
+                    protein_id.decode("utf-8")
+                    if isinstance(protein_id, bytes)
+                    else str(protein_id)
+                )
+                embeddings_dict[normalized_id] = embeddings_array[idx]
+        else:
+            embeddings_dict = {}
+            for key in npz_data.files:
+                value = npz_data[key]
+                if isinstance(value, dict) and "embeddings" in value:
+                    embeddings_dict[key] = value["embeddings"]
+                else:
+                    embeddings_dict[key] = value
+    elif suffix == ".pt":
+        embeddings_dict = torch.load(
+            embeddings_path,
+            map_location="cpu",
+            weights_only=False,
+        )
+    else:
+        raise ValueError(
+            f"Unsupported embeddings format: '{suffix}'. "
+            "Supported formats: .npz, .pkl, .pt, or a DL cache directory"
+        )
+
+    processed: dict[str, np.ndarray] = {}
+    for protein_id, embedding in embeddings_dict.items():
+        if isinstance(embedding, torch.Tensor):
+            embedding = embedding.numpy()
+        if embedding.ndim == 3:
+            embedding = embedding.squeeze(0).mean(axis=0)
+        elif embedding.ndim == 2:
+            embedding = embedding.mean(axis=0)
+        processed[str(protein_id)] = np.asarray(embedding, dtype=np.float32)
+    return processed
+
+
+def _load_ml_embeddings(embeddings_path: str) -> object:
     """
     Load mean-pooled embeddings from disk with caching.
 
-    Expected format:
-        - Directory with sharded embeddings (manifest.json + index.npz + shard_*.npy)
-        - .pt: Dict[protein_id, tensor of shape (1, seq_len, embed_dim) or (seq_len, embed_dim)]
-        - .pkl: Dict[protein_id, dict with 'embeddings' key containing ndarray]
-
-    Args:
-        embeddings_path: Path to embeddings file or sharded embeddings directory.
-
-    Returns:
-        Mapping from protein IDs to 1D embedding vectors.
+    Supported formats:
+      - DL cache directory with ``index.json`` + ``metadata.json`` + ``.pt`` files
+      - Sharded embeddings directory with ``manifest.json`` + ``index.npz``
+      - ``.pt`` / ``.pkl`` / ``.npz`` legacy artifacts
     """
     global _ML_EMBEDDINGS_CACHE, _ML_EMBEDDINGS_PATH_CACHE
 
@@ -115,91 +227,40 @@ def _load_ml_embeddings(embeddings_path: str) -> Mapping[str, np.ndarray]:
     ):
         return _ML_EMBEDDINGS_CACHE
 
-    embeddings_path_obj = Path(embeddings_path)
-    if not embeddings_path_obj.exists():
+    path = Path(embeddings_path)
+    if not path.exists():
         raise FileNotFoundError(f"Embeddings file not found: {embeddings_path}")
 
-    if is_main_process():
-        logging.info(f"Loading ML embeddings from {embeddings_path}...")
+    if _is_main_process():
+        logging.info("Loading ML embeddings from %s", embeddings_path)
 
-    if embeddings_path_obj.is_dir():
-        store = _ShardedEmbeddingStore(embeddings_path_obj)
+    if path.is_dir():
+        if (path / INDEX_FILENAME).exists() and (path / METADATA_FILENAME).exists():
+            store: object = _TorchCacheEmbeddingStore(path)
+        else:
+            store = _ShardedEmbeddingStore(path)
         _ML_EMBEDDINGS_CACHE = store
         _ML_EMBEDDINGS_PATH_CACHE = embeddings_path
         return store
 
-    suffix = embeddings_path_obj.suffix.lower()
-
-    # Load based on file extension
-    if suffix == ".pkl":
-        import pickle
-
-        with open(embeddings_path, "rb") as f:
-            raw_dict = pickle.load(f)
-        # Handle nested dict format: {protein_id: {'embeddings': ndarray, ...}}
-        embeddings_dict = {}
-        for protein_id, val in raw_dict.items():
-            if isinstance(val, dict) and "embeddings" in val:
-                embeddings_dict[protein_id] = val["embeddings"]
-            else:
-                embeddings_dict[protein_id] = val
-    elif suffix == ".npz":
-        # NumPy compressed archive format
-        npz_data = np.load(embeddings_path, allow_pickle=True)
-
-        if "ids" in npz_data.files and "embeddings" in npz_data.files:
-            # Structured format: ids array + embeddings array
-            ids_array = npz_data["ids"]
-            embeddings_array = npz_data["embeddings"]
-
-            embeddings_dict = {}
-            for idx, protein_id in enumerate(ids_array):
-                if isinstance(protein_id, bytes):
-                    protein_id = protein_id.decode("utf-8")
-                elif isinstance(protein_id, np.str_):
-                    protein_id = str(protein_id)
-                embeddings_dict[protein_id] = embeddings_array[idx]
-        else:
-            # Legacy format: each key is a protein ID
-            embeddings_dict = {}
-            for key in npz_data.files:
-                val = npz_data[key]
-                if isinstance(val, dict) and "embeddings" in val:
-                    embeddings_dict[key] = val["embeddings"]
-                else:
-                    embeddings_dict[key] = val
-    elif suffix == ".pt":
-        # PyTorch .pt file
-        embeddings_dict = torch.load(
-            embeddings_path, map_location="cpu", weights_only=False
-        )
-    else:
-        raise ValueError(
-            f"Unsupported embeddings format: '{suffix}'. "
-            "Supported formats: .npz, .pkl, .pt"
-        )
-
-    # Convert tensors to numpy and mean-pool if needed
-    processed: Dict[str, np.ndarray] = {}
-    for protein_id, emb in embeddings_dict.items():
-        if isinstance(emb, torch.Tensor):
-            emb = emb.numpy()
-        # Ensure 1D (mean-pooled)
-        if emb.ndim == 3:
-            # Shape (1, seq_len, embed_dim) -> squeeze batch -> mean over seq
-            emb = emb.squeeze(0).mean(axis=0)
-        elif emb.ndim == 2:
-            # Shape (seq_len, embed_dim) -> mean over seq
-            emb = emb.mean(axis=0)
-        processed[protein_id] = emb.astype(np.float32)
-
-    if is_main_process():
-        logging.info(f"Loaded {len(processed)} protein embeddings")
+    processed = _load_legacy_embeddings(path)
+    if _is_main_process():
+        logging.info("Loaded %d protein embeddings", len(processed))
 
     _ML_EMBEDDINGS_CACHE = processed
     _ML_EMBEDDINGS_PATH_CACHE = embeddings_path
-
     return processed
+
+
+def _embedding_dim_from_store(embeddings: object) -> int:
+    """Infer the embedding dimension from a loaded embedding source."""
+    if hasattr(embeddings, "embedding_dim"):
+        return int(getattr(embeddings, "embedding_dim"))
+    if isinstance(embeddings, dict) and embeddings:
+        first_value = next(iter(embeddings.values()))
+        if isinstance(first_value, np.ndarray):
+            return int(first_value.shape[0])
+    raise ValueError("Unable to infer embedding_dim from embeddings source")
 
 
 def load_ml_features(
@@ -210,69 +271,44 @@ def load_ml_features(
     """
     Load features and labels for classical ML models.
 
-    For each protein pair (A, B), creates feature vector:
-        [embedding_A, embedding_B] → (2 * embedding_dim,)
-
-    Args:
-        csv_path: Path to CSV with columns [uniprotID_A, uniprotID_B, isInteraction].
-        embeddings_path: Path to .pt file with mean-pooled embeddings.
-        pooling: Pooling strategy (currently only "mean" is supported).
-
-    Returns:
-        X: Feature matrix of shape (n_samples, 2 * embedding_dim).
-        y: Labels of shape (n_samples,).
-
-    Raises:
-        FileNotFoundError: If CSV or embeddings file not found.
-        KeyError: If a protein ID is missing from embeddings.
+    For each protein pair ``(A, B)`` this creates one feature vector:
+    ``[mean(embedding_A), mean(embedding_B)]``.
     """
     if pooling != "mean":
         raise ValueError(
             f"Unsupported pooling strategy: {pooling}. Only 'mean' is supported."
         )
 
-    # Load embeddings
     embeddings = _load_ml_embeddings(embeddings_path)
-
-    # Load CSV
-    csv_path_obj = Path(csv_path)
-    if not csv_path_obj.exists():
+    path = Path(csv_path)
+    if not path.exists():
         raise FileNotFoundError(f"CSV file not found: {csv_path}")
 
-    df = pd.read_csv(csv_path)
-
-    # Validate columns
+    frame = pd.read_csv(path)
     required_cols = ["uniprotID_A", "uniprotID_B", "isInteraction"]
-    missing = [c for c in required_cols if c not in df.columns]
+    missing = [column for column in required_cols if column not in frame.columns]
     if missing:
         raise ValueError(f"CSV missing required columns: {missing}")
 
-    n_samples = len(df)
-    if hasattr(embeddings, "embedding_dim"):
-        embedding_dim = int(getattr(embeddings, "embedding_dim"))
-    elif isinstance(embeddings, dict) and embeddings:
-        embedding_dim = int(next(iter(embeddings.values())).shape[0])
-    else:
-        raise ValueError("Unable to infer embedding_dim from embeddings source")
+    embedding_dim = _embedding_dim_from_store(embeddings)
     feature_dim = 2 * embedding_dim
 
-    if is_main_process():
+    if _is_main_process():
         logging.info(
-            f"Loading ML features: {n_samples} pairs, feature_dim={feature_dim}"
+            "Loading ML features: %d pairs, feature_dim=%d",
+            len(frame),
+            feature_dim,
         )
 
-    # Preallocate arrays
-    X = np.zeros((n_samples, feature_dim), dtype=np.float32)
-    y = np.zeros(n_samples, dtype=np.int64)
+    feature_rows: list[np.ndarray] = []
+    labels: list[int] = []
+    missing_proteins: set[str] = set()
 
-    missing_proteins: set = set()
+    for row in frame.itertuples(index=False):
+        protein_a = str(row.uniprotID_A)
+        protein_b = str(row.uniprotID_B)
+        label = int(row.isInteraction)
 
-    for i, row in df.iterrows():
-        protein_a = row["uniprotID_A"]
-        protein_b = row["uniprotID_B"]
-        label = int(row["isInteraction"])
-
-        # Get embeddings
         if protein_a not in embeddings:
             missing_proteins.add(protein_a)
             continue
@@ -282,26 +318,25 @@ def load_ml_features(
 
         emb_a = embeddings[protein_a]
         emb_b = embeddings[protein_b]
-
-        # Concatenate: [emb_a, emb_b]
-        X[i] = np.concatenate([emb_a, emb_b])
-        y[i] = label
+        feature_rows.append(np.concatenate([emb_a, emb_b]).astype(np.float32))
+        labels.append(label)
 
     if missing_proteins:
         logging.warning(
-            f"Skipped {len(missing_proteins)} proteins not found in embeddings. "
-            f"First 5: {list(missing_proteins)[:5]}"
+            "Skipped %d proteins not found in embeddings. First 5: %s",
+            len(missing_proteins),
+            list(sorted(missing_proteins))[:5],
         )
-        # Filter out rows with missing proteins
-        valid_mask = ~np.all(X == 0, axis=1)
-        X = X[valid_mask]
-        y = y[valid_mask]
-        logging.info(f"After filtering: {len(y)} valid samples")
 
-    # Log class distribution
-    n_pos = int(y.sum())
-    n_neg = len(y) - n_pos
-    if is_main_process():
-        logging.info(f"Class distribution: {n_pos} positive, {n_neg} negative")
+    if feature_rows:
+        features = np.stack(feature_rows, axis=0)
+    else:
+        features = np.zeros((0, feature_dim), dtype=np.float32)
+    label_array = np.asarray(labels, dtype=np.int64)
 
-    return X, y
+    n_pos = int(label_array.sum())
+    n_neg = int(len(label_array) - n_pos)
+    if _is_main_process():
+        logging.info("Class distribution: %d positive, %d negative", n_pos, n_neg)
+
+    return features, label_array

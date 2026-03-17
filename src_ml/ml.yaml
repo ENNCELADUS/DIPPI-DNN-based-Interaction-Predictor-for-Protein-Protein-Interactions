@@ -1,36 +1,57 @@
 # ML Models Config (Random Forest / XGBoost)
 
 run_config:
-  mode: "train_eval"  # train_eval | eval_only
+  stages: ["finetune", "evaluate"]
   seed: 47
   run_id: null  # Auto-timestamp if null
 
 data_config:
-  # Embeddings file
-  embeddings_path: "data/TMP/processed/TMP_embeddings.npz"
+  benchmark:
+    name: "TMP"
+    root_dir: "data/TMP"
+    processed_dir: "data/TMP/processed"
+  embeddings:
+    source: "esm3"
+    cache_dir: "data/embeddings/esm3"
+  max_sequence_length: 1024
+  preprocessing:
+    tppni:
+      enabled: true
+      force_rebuild: false
+      candidate_limit: 10000000
+      pretrain:
+        source_dataset: "data/TMP/processed/pretrain.csv"
+        train_ratio: 0.95
+        train_dataset: "data/TMP/processed/pretrain_train_tppni.csv"
+        valid_dataset: "data/TMP/processed/pretrain_val_tppni.csv"
+      finetune:
+        source_dataset: "data/TMP/processed/finetune.csv"
+        train_ratio: 0.90
+        train_dataset: "data/TMP/processed/finetune_train_tppni.csv"
+        valid_dataset: "data/TMP/processed/finetune_val_tppni.csv"
   dataloader:
+    train_dataset: "data/TMP/processed/pretrain_train_tppni.csv"
+    valid_dataset: "data/TMP/processed/pretrain_val_tppni.csv"
+    finetune_train_dataset: "data/TMP/processed/finetune_train_tppni.csv"
+    finetune_val_dataset: "data/TMP/processed/finetune_val_tppni.csv"
+    test_dataset: "data/TMP/processed/test.csv"
     num_workers: 2
     prefetch_factor: 2
     persistent_workers: true
     pin_memory: true
     drop_last: false
-  
-  # Dataset splits (TMP protein no-leakage)
-  train_csv: "data/TMP/processed/finetune_train.csv"
-  val_csv: "data/TMP/processed/finetune_val.csv"
-  test_csv: "data/TMP/processed/test.csv"
-  
+
   # Feature extraction
   pooling: "mean"  # mean | cls
-  embedding_dim: 1536  # ESM-3 embedding dimension
-  
+
   # Balance train/val by undersampling negatives to 1:1 ratio
   balance: false
 
 model_config:
   # Model selector: "random_forest" or "xgboost"
   model: "xgboost"
-  
+  input_dim: 1536
+
   # Random Forest parameters
   random_forest:
     n_estimators: 300
