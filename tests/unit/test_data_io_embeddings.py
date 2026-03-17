@@ -66,6 +66,7 @@ def _build_config(
     sampling: dict[str, object] | None = None,
     pretrain_sampling: dict[str, object] | None = None,
     finetune_sampling: dict[str, object] | None = None,
+    stages: list[str] | None = None,
 ) -> ConfigDict:
     dataloader_config: dict[str, object] = {
         "train_dataset": str(train_path),
@@ -87,7 +88,7 @@ def _build_config(
         dataloader_config["finetune_sampling"] = finetune_sampling
 
     return {
-        "run_config": {"seed": 11},
+        "run_config": {"seed": 11, "stages": stages or ["pretrain", "finetune", "evaluate"]},
         "data_config": {
             "benchmark": {
                 "root_dir": str(benchmark_root),
@@ -479,6 +480,43 @@ def test_collect_embedding_split_paths_includes_finetune_when_configured(
     assert split_paths == [
         train_path,
         valid_path,
+        finetune_train_path,
+        finetune_valid_path,
+        test_path,
+    ]
+
+
+def test_collect_embedding_split_paths_skips_pretrain_for_finetune_evaluate_runs(
+    tmp_path: Path,
+) -> None:
+    benchmark_root = tmp_path / "benchmark"
+    benchmark_root.mkdir(parents=True, exist_ok=True)
+
+    missing_pretrain_train = tmp_path / "missing_pretrain_train.txt"
+    missing_pretrain_valid = tmp_path / "missing_pretrain_valid.txt"
+    finetune_train_path = tmp_path / "finetune_train.txt"
+    finetune_valid_path = tmp_path / "finetune_valid.txt"
+    test_path = tmp_path / "test.txt"
+    _write_split(finetune_train_path, [("C", "D", 1)])
+    _write_split(finetune_valid_path, [("C", "D", 1)])
+    _write_split(test_path, [("A", "B", 1)])
+
+    config = _build_config(
+        benchmark_root=benchmark_root,
+        cache_dir=tmp_path / "cache",
+        train_path=missing_pretrain_train,
+        valid_path=missing_pretrain_valid,
+        test_path=test_path,
+        input_dim=4,
+        max_sequence_length=8,
+        finetune_train_path=finetune_train_path,
+        finetune_valid_path=finetune_valid_path,
+        stages=["finetune", "evaluate"],
+    )
+
+    split_paths = data_io.collect_embedding_split_paths(config=config)
+
+    assert split_paths == [
         finetune_train_path,
         finetune_valid_path,
         test_path,

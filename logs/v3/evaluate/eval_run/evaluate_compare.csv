@@ -1,0 +1,3 @@
+variant,split,auroc,auprc,accuracy,sensitivity,specificity,precision,recall,f1,mcc
+source,test,0.0,0.0,0.4,0.0,0.0,0.0,0.0,0.0,0.0
+shot_adapted,test,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0

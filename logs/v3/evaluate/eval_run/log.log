@@ -1,0 +1,22 @@
+2026-03-17 12:52:37 INFO Startup | Rank: 0 | Run Id: eval_run | Seed: 7 | Stages: evaluate | World Size: 1
+2026-03-17 12:52:37 INFO Device | Resolved Device: cpu
+2026-03-17 12:52:37 INFO Model Init | Model: v3 | Params: 0
+2026-03-17 12:52:37 INFO DDP Ready | Wrapped: False
+2026-03-17 12:52:37 INFO Data Ready | Test: 0 | Train: 0 | Valid: 0
+2026-03-17 12:52:37 INFO Begin Evaluation
+2026-03-17 12:52:37 INFO End Evaluation
+2026-03-17 12:52:37 INFO Startup | Rank: 0 | Run Id: eval_run | Seed: 7 | Stages: finetune,evaluate | World Size: 1
+2026-03-17 12:52:37 INFO Device | Resolved Device: cpu
+2026-03-17 12:52:37 INFO DDP Ready | Wrapped: False
+2026-03-17 12:52:37 INFO Data Ready | Test: 0 | Train: 0 | Valid: 0
+2026-03-17 12:52:37 INFO Begin Evaluation
+2026-03-17 12:52:37 INFO End Evaluation
+2026-03-17 12:52:37 INFO Startup | Rank: 0 | Run Id: eval_run | Seed: 7 | Stages: evaluate | World Size: 1
+2026-03-17 12:52:37 INFO Device | Resolved Device: cpu
+2026-03-17 12:52:37 INFO Model Init | Model: v3 | Params: 0
+2026-03-17 12:52:37 INFO DDP Ready | Wrapped: False
+2026-03-17 12:52:37 INFO Data Ready | Test: 0 | Train: 0 | Valid: 0
+2026-03-17 12:52:37 INFO Begin Evaluation
+2026-03-17 12:52:37 INFO Source Evaluation Metrics | Accuracy: 0.4000 | AUPRC: 0.0000 | Auroc: 0.0000 | F1: 0.0000 | Mcc: 0.0000 | Precision: 0.0000 | Recall: 0.0000 | Sensitivity: 0.0000 | Specificity: 0.0000
+2026-03-17 12:52:37 INFO Compare CSV Written | Path: logs/v3/evaluate/eval_run/evaluate_compare.csv
+2026-03-17 12:52:37 INFO End Evaluation

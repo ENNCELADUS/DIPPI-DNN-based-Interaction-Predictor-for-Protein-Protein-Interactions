@@ -17,7 +17,15 @@ from src.embed import (
     ensure_embeddings_ready,
     load_cached_embedding,
 )
-from src.utils.config import ConfigDict, as_bool, as_float, as_int, as_str, get_section
+from src.utils.config import (
+    ConfigDict,
+    as_bool,
+    as_float,
+    as_int,
+    as_str,
+    as_str_list,
+    get_section,
+)
 from src.utils.pair_io import PairRecord, read_pair_records
 from src.utils.data_samplers import StagedOHEMBatchSampler
 
@@ -370,25 +378,48 @@ def resolve_split_paths(
     return {"train": train_path, "valid": valid_path, "test": test_path}
 
 
+def _configured_pipeline_stages(config: ConfigDict) -> list[str]:
+    """Return normalized pipeline stages requested by config."""
+    run_cfg = get_section(config, "run_config")
+    raw_stages = run_cfg.get("stages")
+    if raw_stages is None:
+        raise ValueError("run_config.stages is required")
+    stages = [stage.lower() for stage in as_str_list(raw_stages, "run_config.stages")]
+    if not stages:
+        raise ValueError("run_config.stages must not be empty")
+    return stages
+
+
 def collect_embedding_split_paths(config: ConfigDict) -> list[Path]:
     """Collect split paths required for embedding-cache preparation.
 
-    This includes pretrain and finetune splits (when configured), plus test.
+    This includes only the splits required by the configured pipeline stages.
     """
+    configured_stages = _configured_pipeline_stages(config=config)
     data_cfg = get_section(config, "data_config")
     dataloader_cfg = get_section(data_cfg, "dataloader")
-    base_split_paths = resolve_split_paths(config=config, train_stage="pretrain")
-    ordered_candidates: list[Path] = [
-        base_split_paths["train"],
-        base_split_paths["valid"],
-    ]
+    ordered_candidates: list[Path] = []
+
+    if "pretrain" in configured_stages:
+        pretrain_split_paths = resolve_split_paths(config=config, train_stage="pretrain")
+        ordered_candidates.append(pretrain_split_paths["train"])
+        ordered_candidates.append(pretrain_split_paths["valid"])
+
     finetune_train = dataloader_cfg.get("finetune_train_dataset")
     finetune_valid = dataloader_cfg.get("finetune_val_dataset")
-    if finetune_train is not None or finetune_valid is not None:
+    needs_finetune_splits = "finetune" in configured_stages or "evaluate" in configured_stages
+    if needs_finetune_splits and (finetune_train is not None or finetune_valid is not None):
         finetune_split_paths = resolve_split_paths(config=config, train_stage="finetune")
         ordered_candidates.append(finetune_split_paths["train"])
         ordered_candidates.append(finetune_split_paths["valid"])
-    ordered_candidates.append(base_split_paths["test"])
+
+    if not ordered_candidates or "evaluate" in configured_stages:
+        test_path = _configured_split_path_from_key(
+            dataloader_cfg,
+            key="test_dataset",
+            field_name="data_config.dataloader.test_dataset",
+        )
+        ordered_candidates.append(_validated_existing_path(test_path))
 
     deduplicated: list[Path] = []
     seen: set[str] = set()
