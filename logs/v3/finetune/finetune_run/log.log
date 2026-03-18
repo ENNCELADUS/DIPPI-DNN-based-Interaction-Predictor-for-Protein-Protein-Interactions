@@ -1,8 +1,0 @@
-2026-03-17 12:52:37 INFO Startup | Rank: 0 | Run Id: finetune_run | Seed: 7 | Stages: finetune,evaluate | World Size: 1
-2026-03-17 12:52:37 INFO Device | Resolved Device: cpu
-2026-03-17 12:52:37 INFO Model Init | Model: v3 | Params: 0
-2026-03-17 12:52:37 INFO DDP Ready | Wrapped: False
-2026-03-17 12:52:37 INFO Checkpoint Loaded | Path: artifacts/seed_model.pth
-2026-03-17 12:52:37 INFO Data Ready | Test: 0 | Train: 0 | Valid: 0
-2026-03-17 12:52:37 INFO Begin Training
-2026-03-17 12:52:37 INFO End Training | Checkpoint: artifacts/finetune_best_model.pth
